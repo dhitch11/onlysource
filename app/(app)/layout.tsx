@@ -29,8 +29,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </p>
         <span className="pill pill--attention">{environment}</span>
         <span className="shell__spacer" />
-        <span className="mono muted" title="Build identity">
-          {commit}
+        {/*
+          * A VISIBLE LABEL, NOT A `title` TOOLTIP. R3/R4 ban the title attribute: it is
+          * unreachable by keyboard, invisible to touch, and untestable. This was the last
+          * one in app/ or components/, so the tree is now at zero and T8's R0.1 lint can
+          * ship with a fixture that actually fires.
+          *
+          * Deliberately NOT an <ExplainButton> either. That component carries a computation
+          * record and a helpId from the help registry, and a build sha is neither computed
+          * nor in need of a popover. Two visible words say it better than any affordance.
+          */}
+        <span className="mono muted">
+          <span className="vh">Build identity: </span>
+          build {commit}
         </span>
         <form action={leaveAction}>
           <button className="button button--quiet" type="submit">
