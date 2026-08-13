@@ -3,13 +3,13 @@ import { configReport } from '@/lib/env'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
 import {
-  AWARD_CUTOFF,
-  CUTOFF_PROVENANCE,
+  AWARD_CLOCK,
+  AWARD_CLOCK_PROVENANCE,
   CUTOFF_SWEEPS,
   deadlineDisclosure,
-  formatCutoffLocal,
-  nextCutoffFireFrom,
-} from '@/lib/time/cutoff'
+  formatInZone,
+  nextDailyFireFrom,
+} from '@/lib/domain/award-clock'
 
 export const metadata: Metadata = { title: 'Workspace · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
@@ -30,7 +30,7 @@ export default async function WorkspacePage() {
   await requireGateSession('/')
 
   const report = configReport()
-  const fire = nextCutoffFireFrom(systemClock)
+  const fire = nextDailyFireFrom(systemClock)
   const disclosure = deadlineDisclosure(fire.instantMs)
 
   return (
@@ -51,18 +51,26 @@ export default async function WorkspacePage() {
           <h2 className="card__title">Next award cutoff</h2>
         </div>
         <div className="card__body stack stack--tight">
-          {disclosure.unconfirmed ? (
-            <p className="banner banner--attention" role="note">
-              <span>
-                <strong>Unconfirmed reading.</strong> {disclosure.qualifier}
-              </span>
-            </p>
+          {disclosure.estimated ? (
+            <div className="banner banner--attention" role="note">
+              <div>
+                <p>
+                  <strong>Partly estimated.</strong> The 3 business day offset is cited. These
+                  parts are not:
+                </p>
+                <ul className="bullets">
+                  {disclosure.qualifiers.map((q) => (
+                    <li key={q}>{q}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           ) : null}
 
           <dl className="rows">
             <div className="row">
               <dt className="row__key">Next fire</dt>
-              <dd className="row__val mono">{formatCutoffLocal(fire.instantMs)}</dd>
+              <dd className="row__val mono">{formatInZone(fire.instantMs)}</dd>
             </div>
             <div className="row">
               <dt className="row__key">As a UTC instant</dt>
@@ -83,42 +91,62 @@ export default async function WorkspacePage() {
             <div className="row">
               <dt className="row__key">Rule</dt>
               <dd className="row__val">
-                {String(AWARD_CUTOFF.localTime.hour).padStart(2, '0')}:
-                {String(AWARD_CUTOFF.localTime.minute).padStart(2, '0')} wall clock in{' '}
-                <span className="mono">{AWARD_CUTOFF.zone}</span>, skipping weekends and observed
-                federal holidays. Stored as a local time plus a zone, never as a fixed offset.
+                {String(AWARD_CLOCK.localTime.hour).padStart(2, '0')}:
+                {String(AWARD_CLOCK.localTime.minute).padStart(2, '0')} wall clock in{' '}
+                <span className="mono">{AWARD_CLOCK.zone}</span>,{' '}
+                <strong>{AWARD_CLOCK.citedBusinessDaysAfterIssue} business days after issue</strong>,
+                skipping weekends and observed federal holidays. We act{' '}
+                {AWARD_CLOCK.operationalMarginBusinessDays} business day earlier. Stored as a local
+                time plus a zone, never as a fixed offset.
               </dd>
             </div>
           </dl>
 
           <details>
             <summary className="label" style={{ cursor: 'pointer' }}>
-              Where this number came from, and why it is labeled unconfirmed
+              Where this number came from, and which parts of it are proven
             </summary>
             <div className="stack--tight" style={{ paddingTop: 'var(--s-2)' }}>
               <p className="muted">
-                <strong>What it is.</strong> The deadline the automated award program starts
-                working from. Everything in this product that has to file something is bound by
-                it.
+                <strong>What it is.</strong> The deadline the automated award program works
+                from. Everything in this product that has to file something is bound by it.
               </p>
               <p className="muted">
-                <strong>Source.</strong> <span className="mono">{CUTOFF_PROVENANCE.source}</span>,
-                which states it as: {CUTOFF_PROVENANCE.statedAs}. Computed by{' '}
-                <span className="mono">lib/time/cutoff.ts</span>, which is the only copy of this
-                constant in the codebase. Display and scheduling both read it.
+                <strong>Where it is computed.</strong>{' '}
+                <span className="mono">lib/domain/award-clock.ts</span>, which is the only copy of
+                this constant in the codebase. Display and scheduling both read it.
               </p>
               <p className="muted">
-                <strong>Why it is labeled.</strong> Nobody has yet recorded a citation from DLA
-                primary text. Until somebody does, this is our working reading and it is marked
-                as one. Specifically:
+                <strong>Three parts, three evidence grades.</strong> They are reported separately
+                because a single hedge would understate a fact that is cited and overstate one
+                that is not.
               </p>
-              <ul className="stack--tight" style={{ display: 'flex', flexDirection: 'column' }}>
-                {CUTOFF_PROVENANCE.contested.map((item) => (
-                  <li className="muted" key={item}>
-                    {item}
-                  </li>
+              <dl className="rows">
+                {(
+                  [
+                    ['Offset', AWARD_CLOCK_PROVENANCE.offset],
+                    ['Timezone', AWARD_CLOCK_PROVENANCE.timezone],
+                    ['Counting convention', AWARD_CLOCK_PROVENANCE.countingConvention],
+                  ] as const
+                ).map(([name, part]) => (
+                  <div className="row" key={name}>
+                    <dt className="row__key">{name}</dt>
+                    <dd className="row__val">
+                      <span
+                        className={`pill ${part.grade === 'CITED' ? 'pill--ok' : 'pill--attention'}`}
+                      >
+                        {part.grade}
+                      </span>{' '}
+                      <span className="muted">{part.value}. </span>
+                      {part.citation ? (
+                        <span className="mono">{part.citation}</span>
+                      ) : (
+                        <span className="muted">{part.note}</span>
+                      )}
+                    </dd>
+                  </div>
                 ))}
-              </ul>
+              </dl>
             </div>
           </details>
         </div>

@@ -19,7 +19,7 @@
  * SCOPE, stated honestly: these are FEDERAL holidays. Whether DLA suspends automated award
  * on every one of them, and on no other day, is not confirmed from primary text. The
  * calendar is correct; its application to the award clock carries the same unconfirmed flag
- * as the cutoff itself. See `lib/time/cutoff.ts` provenance.
+ * as the cutoff itself. See `lib/domain/award-clock.ts` provenance.
  */
 
 import { addCivilDays, civilDayOfWeek } from './zoned'

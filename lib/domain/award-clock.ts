@@ -1,0 +1,274 @@
+/**
+ * THE AUTO-AWARD CLOCK. One constant set, one file. Display and scheduler both import THIS.
+ * Gate R1.1 states plainly that three copies of these dates is a FAIL.
+ *
+ * Stored as a wall-clock local time plus an IANA zone, never a UTC constant and never a fixed
+ * offset, because the deadline does not move when the offset does.
+ *
+ * ==========================================================================================
+ * THREE SEPARATE FACTS LIVE HERE AND THEY HAVE THREE DIFFERENT EVIDENCE GRADES.
+ * Conflating them is the defect this file exists to prevent, and the previous version of
+ * this module did conflate them.
+ * ==========================================================================================
+ *
+ *   1. THE OFFSET IS CITED.       3 business days after issue.
+ *                                 DLA Master Solicitation Part I para 2(h), Rev-81 = Rev-104.
+ *                                 The DIBBS FAQ 31 "1 business day" reading is a
+ *                                 NON-CONTRACTUAL PARAPHRASE. It is not the deadline. It
+ *                                 survives here only as the operational scheduling margin.
+ *
+ *   2. THE TIMEZONE IS ESTIMATED. Eastern is INFERRED, not verified. No primary text states
+ *                                 a zone. Every customer-facing rendering of a deadline
+ *                                 carries the estimated label until somebody records a
+ *                                 citation, and gate R1.2 is disqualifying otherwise.
+ *
+ *   3. THE COUNTING CONVENTION IS UNVERIFIED. "3 business days after issue" does not say
+ *                                 whether the issue day counts. This module counts
+ *                                 EXCLUSIVELY (the day after issue is business day 1), which
+ *                                 is the conservative reading because it lands the deadline
+ *                                 EARLIER. Being early costs nothing. Being late is silent
+ *                                 and unrecoverable.
+ *
+ * When any of the three is confirmed, exactly one file changes: this one.
+ */
+
+import type { Clock } from '../time/clock'
+import { isNonBusinessDay } from '../time/federal-holidays'
+import { addCivilDays, civilDateString, civilInZone, zonedTimeToInstant } from '../time/zoned'
+
+export type EvidenceGrade = 'CITED' | 'ESTIMATED' | 'UNVERIFIED'
+
+export const AWARD_CLOCK = {
+  /** Wall-clock local time of the auto-award cutoff, 24 hour. */
+  localTime: { hour: 15, minute: 0 },
+  /** IANA zone. Never an offset. See `provenance.timezone`, this is ESTIMATED. */
+  zone: 'America/New_York',
+  /** The deadline itself: business days after issue. CITED. */
+  citedBusinessDaysAfterIssue: 3,
+  /**
+   * How far ahead of the cited deadline we actually act. Not a deadline, a safety margin.
+   * Early costs nothing; late is silent and unrecoverable.
+   */
+  operationalMarginBusinessDays: 1,
+} as const
+
+export const AWARD_CLOCK_PROVENANCE = {
+  offset: {
+    grade: 'CITED' as EvidenceGrade,
+    value: '3 business days after issue',
+    citation: 'DLA Master Solicitation Part I para 2(h) (Rev-81 = Rev-104)',
+    note: 'DIBBS FAQ 31 "1 business day" is a non-contractual paraphrase and is NOT the deadline. It is retained only as the operational scheduling margin.',
+  },
+  timezone: {
+    grade: 'ESTIMATED' as EvidenceGrade,
+    value: 'America/New_York',
+    citation: null as string | null,
+    note: 'Eastern is inferred. No primary text consulted so far states a timezone for the 3:00 PM cutoff.',
+  },
+  countingConvention: {
+    grade: 'UNVERIFIED' as EvidenceGrade,
+    value: 'exclusive of the issue day (the next business day is day 1)',
+    citation: null as string | null,
+    note: 'The cited text does not say whether the issue day counts. Exclusive counting is used because it lands the deadline earlier, which is the safe direction.',
+  },
+} as const
+
+/** True while ANY component of the reading is short of CITED. Drives the labeled state. */
+export function awardClockIsFullyCited(): boolean {
+  return (
+    AWARD_CLOCK_PROVENANCE.offset.grade === 'CITED' &&
+    AWARD_CLOCK_PROVENANCE.timezone.grade === 'CITED' &&
+    AWARD_CLOCK_PROVENANCE.countingConvention.grade === 'CITED'
+  )
+}
+
+/** The five staged sweeps, as minute offsets from the cutoff instant. */
+export const CUTOFF_SWEEPS = [
+  { key: 'T-180m', offsetMinutes: -180 },
+  { key: 'T-60m', offsetMinutes: -60 },
+  { key: 'T-25m', offsetMinutes: -25 },
+  { key: 'T-10m', offsetMinutes: -10 },
+  { key: 'T+15m', offsetMinutes: 15 },
+] as const
+
+export type SweepKey = (typeof CUTOFF_SWEEPS)[number]['key']
+
+export type CivilDate = { year: number; month: number; day: number }
+
+/** The exact UTC instant of 3:00 PM in the cutoff zone on a given civil date. */
+export function cutoffInstantOn(date: CivilDate): number {
+  return zonedTimeToInstant(
+    AWARD_CLOCK.zone,
+    date.year,
+    date.month,
+    date.day,
+    AWARD_CLOCK.localTime.hour,
+    AWARD_CLOCK.localTime.minute,
+  )
+}
+
+/** Advance `count` BUSINESS days from a civil date, skipping weekends and observed holidays. */
+export function addBusinessDays(from: CivilDate, count: number): CivilDate {
+  let cursor: CivilDate = from
+  let remaining = count
+  let guard = 0
+  while (remaining > 0) {
+    cursor = addCivilDays(cursor.year, cursor.month, cursor.day, 1)
+    if (!isNonBusinessDay(cursor)) remaining -= 1
+    guard += 1
+    if (guard > 400) {
+      throw new Error('award-clock: 400 days without finding enough business days')
+    }
+  }
+  return cursor
+}
+
+export type AwardDeadline = {
+  /** UTC instant of the cited auto-award cutoff. */
+  instantMs: number
+  /** Civil date of the cutoff in the cutoff zone, YYYY-MM-DD. */
+  date: string
+  /** UTC instant we actually schedule against, one business day earlier. */
+  actByInstantMs: number
+  actByDate: string
+  /** The five staged sweeps for the cutoff fire. */
+  sweeps: Record<SweepKey, number>
+}
+
+/**
+ * The auto-award deadline for a requirement issued on a given civil date.
+ *
+ * THIS IS THE FUNCTION EVERY LANE SHOULD CALL. It returns both the cited deadline and the
+ * instant we act by, because a caller that only gets the deadline will schedule against it
+ * and be exactly on time, which for a silent automated award means too late.
+ */
+export function awardDeadlineForIssueDate(issued: CivilDate): AwardDeadline {
+  const cutoffDate = addBusinessDays(issued, AWARD_CLOCK.citedBusinessDaysAfterIssue)
+  const instantMs = cutoffInstantOn(cutoffDate)
+
+  // The margin walks BACK business days from the cutoff date, so a weekend or a holiday
+  // between the two does not silently eat the margin.
+  const actByDate = subtractBusinessDays(cutoffDate, AWARD_CLOCK.operationalMarginBusinessDays)
+  const actByInstantMs = cutoffInstantOn(actByDate)
+
+  const sweeps = {} as Record<SweepKey, number>
+  for (const s of CUTOFF_SWEEPS) sweeps[s.key] = instantMs + s.offsetMinutes * 60_000
+
+  return {
+    instantMs,
+    date: civilDateString(instantMs, AWARD_CLOCK.zone),
+    actByInstantMs,
+    actByDate: civilDateString(actByInstantMs, AWARD_CLOCK.zone),
+    sweeps,
+  }
+}
+
+function subtractBusinessDays(from: CivilDate, count: number): CivilDate {
+  let cursor: CivilDate = from
+  let remaining = count
+  let guard = 0
+  while (remaining > 0) {
+    cursor = addCivilDays(cursor.year, cursor.month, cursor.day, -1)
+    if (!isNonBusinessDay(cursor)) remaining -= 1
+    guard += 1
+    if (guard > 400) {
+      throw new Error('award-clock: 400 days without finding enough business days')
+    }
+  }
+  return cursor
+}
+
+export type DailyFire = {
+  instantMs: number
+  date: string
+  sweeps: Record<SweepKey, number>
+}
+
+/**
+ * The next daily 3:00 PM fire strictly after `fromMs`, skipping weekends and observed
+ * federal holidays. This is the SWEEP schedule, not a requirement's deadline.
+ *
+ * "Strictly after" is deliberate: a scheduler that treats the current instant as eligible
+ * double-fires when it restarts inside the cutoff second.
+ */
+export function nextDailyFire(fromMs: number): DailyFire {
+  const civil = civilInZone(fromMs, AWARD_CLOCK.zone)
+  let candidate: CivilDate = { year: civil.year, month: civil.month, day: civil.day }
+
+  for (let i = 0; i < 400; i += 1) {
+    if (!isNonBusinessDay(candidate)) {
+      const instant = cutoffInstantOn(candidate)
+      if (instant > fromMs) {
+        const sweeps = {} as Record<SweepKey, number>
+        for (const s of CUTOFF_SWEEPS) sweeps[s.key] = instant + s.offsetMinutes * 60_000
+        return { instantMs: instant, date: civilDateString(instant, AWARD_CLOCK.zone), sweeps }
+      }
+    }
+    candidate = addCivilDays(candidate.year, candidate.month, candidate.day, 1)
+  }
+  throw new Error('award-clock: no business day within 400 days, the holiday table is wrong')
+}
+
+export function nextDailyFireFrom(clock: Clock): DailyFire {
+  return nextDailyFire(clock.now())
+}
+
+export type DeadlineDisclosure = {
+  instantMs: number
+  label: string
+  /** TRUE while any component is short of CITED. Customer-facing surfaces MUST render this. */
+  estimated: boolean
+  /** One qualifier line per component that is not CITED. Never a single vague sentence. */
+  qualifiers: string[]
+}
+
+/**
+ * The ONE function customer-facing surfaces call to describe a deadline.
+ *
+ * It returns a qualifier PER UNRESOLVED COMPONENT rather than one blanket sentence, because
+ * the previous version said "not yet confirmed against primary text" about the whole
+ * reading, which simultaneously understated a fact that IS cited and overstated confidence
+ * in one that is not. A blanket hedge is its own kind of inaccuracy.
+ */
+export function deadlineDisclosure(instantMs: number): DeadlineDisclosure {
+  const qualifiers: string[] = []
+
+  if (AWARD_CLOCK_PROVENANCE.timezone.grade !== 'CITED') {
+    qualifiers.push(
+      'Timezone is estimated. Eastern is inferred from context, not from primary text.',
+    )
+  }
+  if (AWARD_CLOCK_PROVENANCE.countingConvention.grade !== 'CITED') {
+    qualifiers.push(
+      'Business-day counting excludes the issue day. That convention is not stated in the cited text, and it is the earlier of the two readings.',
+    )
+  }
+  if (AWARD_CLOCK_PROVENANCE.offset.grade !== 'CITED') {
+    qualifiers.push('The 3 business day offset is not confirmed against primary text.')
+  }
+
+  return {
+    instantMs,
+    label: formatInZone(instantMs),
+    estimated: qualifiers.length > 0,
+    qualifiers,
+  }
+}
+
+/** Render an instant in the cutoff zone. Display and scheduler share this file. */
+export function formatInZone(instantMs: number): string {
+  const c = civilInZone(instantMs, AWARD_CLOCK.zone)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const h12 = c.hour % 12 === 0 ? 12 : c.hour % 12
+  const ampm = c.hour < 12 ? 'AM' : 'PM'
+  return `${c.year}-${p2(c.month)}-${p2(c.day)} ${h12}:${p2(c.minute)} ${ampm} ${zoneAbbrev(instantMs)}`
+}
+
+/** EST or EDT, resolved from the zone database rather than guessed from the month. */
+export function zoneAbbrev(instantMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: AWARD_CLOCK.zone,
+    timeZoneName: 'short',
+  }).formatToParts(new Date(instantMs))
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? 'ET'
+}

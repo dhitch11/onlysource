@@ -14,8 +14,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await requireGateSession('/')
 
   const e = env()
-  const environment = e.VERCEL_ENV ?? e.NODE_ENV
-  const commit = e.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
+  const environment = e.APP_ENV ?? e.NODE_ENV
+  const commit = e.GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
 
   return (
     <div className="shell">

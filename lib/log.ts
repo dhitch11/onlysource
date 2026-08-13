@@ -156,8 +156,8 @@ function emit(level: LogLevel, msg: string, fields: LogFields): void {
     actor_id: ctx.actor_id ?? null,
     request_id: ctx.request_id ?? null,
     route: ctx.route ?? null,
-    env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown',
-    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ?? null,
+    env: process.env.APP_ENV ?? process.env.NODE_ENV ?? 'unknown',
+    commit: process.env.GIT_COMMIT_SHA?.slice(0, 8) ?? null,
     ...redactFields(fields),
   }
   sink(JSON.stringify(line))

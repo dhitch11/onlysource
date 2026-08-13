@@ -2,7 +2,7 @@ import { configReport, env } from '@/lib/env'
 import { LIMITER_KIND } from '@/lib/security/attempt-limiter'
 import { readGateVerdict } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
-import { CUTOFF_PROVENANCE, nextCutoffFireFrom } from '@/lib/time/cutoff'
+import { AWARD_CLOCK_PROVENANCE, awardClockIsFullyCited, nextDailyFireFrom } from '@/lib/domain/award-clock'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -27,9 +27,9 @@ export async function GET(request: Request) {
   const base = {
     status: report.degraded ? ('degraded' as const) : ('ok' as const),
     service: 'onlysource',
-    environment: e.VERCEL_ENV ?? e.NODE_ENV,
-    commit: e.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ?? null,
-    region: e.VERCEL_REGION ?? null,
+    environment: e.APP_ENV ?? e.NODE_ENV,
+    commit: e.GIT_COMMIT_SHA?.slice(0, 8) ?? null,
+    server: e.SERVER_ID ?? null,
     time: new Date(systemClock.now()).toISOString(),
   }
 
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const fire = nextCutoffFireFrom(systemClock)
+  const fire = nextDailyFireFrom(systemClock)
 
   return Response.json(
     {
@@ -56,16 +56,22 @@ export async function GET(request: Request) {
       subsystems: report.subsystems,
       rate_limiter: {
         kind: LIMITER_KIND,
-        note: 'Per process, not distributed. Resets on a cold start. Upstash Redis replaces it.',
+        note: 'Per process, not distributed. Resets on a restart. Redis on the box replaces it if a real lock need appears.',
       },
-      award_cutoff: {
-        next_fire_utc: new Date(fire.instantMs).toISOString(),
-        next_fire_date: fire.date,
+      award_clock: {
+        next_daily_fire_utc: new Date(fire.instantMs).toISOString(),
+        next_daily_fire_date: fire.date,
         sweeps_utc: Object.fromEntries(
           Object.entries(fire.sweeps).map(([k, v]) => [k, new Date(v).toISOString()]),
         ),
-        primary_text_confirmed: CUTOFF_PROVENANCE.primaryTextConfirmed,
-        source: CUTOFF_PROVENANCE.source,
+        // Three separate evidence grades, reported separately. A single boolean here would
+        // hide that the offset is cited while the timezone is not.
+        fully_cited: awardClockIsFullyCited(),
+        provenance: {
+          offset: AWARD_CLOCK_PROVENANCE.offset.grade,
+          timezone: AWARD_CLOCK_PROVENANCE.timezone.grade,
+          counting_convention: AWARD_CLOCK_PROVENANCE.countingConvention.grade,
+        },
       },
     },
     { status: report.degraded ? 503 : 200, headers: { 'cache-control': 'no-store' } },

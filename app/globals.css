@@ -469,3 +469,6 @@ a:hover {
     scroll-behavior: auto !important;
   }
 }
+
+.bullets{list-style:disc;padding-left:1.15rem;margin-top:var(--s-1)}
+.bullets li{margin-bottom:2px}

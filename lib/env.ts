@@ -32,10 +32,18 @@ const schema = z.object({
   DATABASE_URL_MIGRATOR: z.string().optional(),
   DATABASE_URL_RUNTIME: z.string().optional(),
 
-  // Deploy identity, surfaced on the health endpoint so a promote is traceable.
-  VERCEL_ENV: z.string().optional(),
-  VERCEL_GIT_COMMIT_SHA: z.string().optional(),
-  VERCEL_REGION: z.string().optional(),
+  /*
+   * Deploy identity, surfaced on the health endpoint so a promote is traceable.
+   *
+   * These were VERCEL_* until the 08-13 hosting decision moved us to a static-IP server.
+   * On a bare box no VERCEL_* variable is ever set, so the health surface would have
+   * reported `commit: null` and `environment: development` in production forever, with no
+   * error. A build-identity surface that silently lies is worse than one that is absent,
+   * so these are now written by the deploy script into the systemd unit environment.
+   */
+  APP_ENV: z.enum(['development', 'staging', 'production']).optional(),
+  GIT_COMMIT_SHA: z.string().optional(),
+  SERVER_ID: z.string().optional(),
 })
 
 export type Env = z.infer<typeof schema>
@@ -64,7 +72,7 @@ export function resetEnvCache(): void {
 
 export function isProduction(): boolean {
   const e = env()
-  return e.NODE_ENV === 'production' || e.VERCEL_ENV === 'production'
+  return e.NODE_ENV === 'production' || e.APP_ENV === 'production'
 }
 
 export type ConfigStatus = 'configured' | 'not_configured'
