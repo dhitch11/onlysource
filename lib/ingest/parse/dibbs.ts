@@ -277,6 +277,10 @@ export function parseApprovedSource(
       oddQuoteLines.length === 0
         ? `0 of ${parsed.records.length} lines unbalanced`
         : `${oddQuoteLines.length} unbalanced line(s), first at line ${oddQuoteLines[0]?.lineNo}: a whole-file RFC 4180 parse would swallow the remainder of the file here`,
+      // WARN, not reject: the publisher's file is malformed, we detected it and contained it
+      // to the one line. `full_accounting` is the reject-severity check that proves nothing
+      // was lost. This one describes the source, not our handling of it.
+      'warn',
     ),
   )
 

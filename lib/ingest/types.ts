@@ -121,6 +121,16 @@ export type QuarantineRow = {
 export type AssertionResult = {
   id: string
   description: string
+  /**
+   * `reject` means WE lost or corrupted something and the load cannot be trusted.
+   * `warn` means the SOURCE is defective in a way we detected and contained.
+   *
+   * The distinction is not cosmetic. `as260811.txt` really does carry an unbalanced quote
+   * on line 963, so the balanced-quotes assertion is CORRECT to fail forever on that file.
+   * Treating that as a failed load marks a correctly handled, fully reconciled ingest as
+   * broken every single day, and an operator who sees red on a good day stops reading red.
+   */
+  severity: 'reject' | 'warn'
   probeLanded: boolean
   gateFired: boolean
   passed: boolean

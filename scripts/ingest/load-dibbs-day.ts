@@ -28,7 +28,8 @@ import {
 import { parseApprovedSource, parseDibbsIndex, parseQuoteFile } from '../../lib/ingest/parse/dibbs'
 import { readZipMembers } from '../../lib/ingest/parse/zip'
 import { parseSolicitation } from '../../lib/intelligence/niin'
-import { failures, landedFailures } from '../../lib/ingest/assert'
+import { blockingFailures, failures, landedFailures } from '../../lib/ingest/assert'
+import { systemClock } from '../../lib/time/clock'
 import type { AssertionResult, QuarantineRow } from '../../lib/ingest/types'
 
 const LOGICAL_DATE = process.argv[2] ?? '2026-08-11'
@@ -142,6 +143,10 @@ async function main(): Promise<void> {
       )
     }
 
+    // R0.3: wall time is read ONLY through the injectable clock, and only here, because a
+    // CLI entry point is a composition root. `new Date(string)` is deterministic and allowed.
+    const clock = systemClock
+    const nowIso = (): string => new Date(clock.now()).toISOString()
     const observedAt = new Date(`${LOGICAL_DATE}T00:00:00Z`).toISOString()
     const version = codeVersion()
 
@@ -156,7 +161,7 @@ async function main(): Promise<void> {
       }>,
     ): Promise<void> => {
       const runId = randomUUID()
-      const startedAt = new Date().toISOString()
+      const startedAt = nowIso()
       await c.query(
         `INSERT INTO run_ledger (run_id, source_key, logical_date, started_at, status, code_version, storage_key, note)
          VALUES ($1,'dibbs-rfq-daily',$2,$3,'running',$4,$5,$6)`,
@@ -185,9 +190,9 @@ async function main(): Promise<void> {
         )
       }
 
-      // Only an assertion that actually ran and failed condemns a load. A probe that never
-      // landed is a coverage gap, reported below and stored in the ledger, not a verdict.
-      const green = landedFailures(result.assertions).length === 0
+      // Only a landed, failed, REJECT-severity assertion condemns a load. A probe that never
+      // landed is a coverage gap; a `warn` is a contained source defect. Both are reported.
+      const green = blockingFailures(result.assertions).length === 0
       const status = !green
         ? result.rowsLoaded > 0
           ? 'partial'
@@ -207,7 +212,7 @@ async function main(): Promise<void> {
                 rows_in=$4, rows_loaded=$5, rows_quarantined=$6, assertions=$7::jsonb
           WHERE run_id=$8`,
         [
-          new Date().toISOString(),
+          nowIso(),
           status,
           failureKind,
           result.rowsIn,
@@ -218,7 +223,8 @@ async function main(): Promise<void> {
         ],
       )
 
-      const broke = landedFailures(result.assertions)
+      const broke = blockingFailures(result.assertions)
+      const warned = landedFailures(result.assertions).filter((f) => f.severity === 'warn')
       const didNotLand = failures(result.assertions).filter((f) => !f.probeLanded)
       console.log(
         `  ${label.padEnd(22)} in=${String(result.rowsIn).padStart(5)} ` +
@@ -226,6 +232,7 @@ async function main(): Promise<void> {
           `quarantined=${String(result.quarantined.length).padStart(3)} ` +
           `status=${status}` +
           (broke.length > 0 ? `\n      FAILED: ${broke.map((b) => `${b.id} (${b.actual})`).join('; ')}` : '') +
+          (warned.length > 0 ? `\n      contained: ${warned.map((b) => b.id).join(', ')}` : '') +
           (didNotLand.length > 0 ? `\n      not yet proven: ${didNotLand.map((b) => b.id).join(', ')}` : ''),
       )
     }

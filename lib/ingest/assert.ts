@@ -22,8 +22,9 @@ export function assertion(
   passed: boolean,
   expected: string,
   actual: string,
+  severity: 'reject' | 'warn' = 'reject',
 ): AssertionResult {
-  return { id, description, probeLanded: true, gateFired: true, passed, expected, actual }
+  return { id, description, severity, probeLanded: true, gateFired: true, passed, expected, actual }
 }
 
 /**
@@ -37,6 +38,7 @@ export function notLanded(id: string, description: string, why: string): Asserti
   return {
     id,
     description,
+    severity: 'warn',
     probeLanded: false,
     gateFired: false,
     passed: false,
@@ -133,6 +135,16 @@ export function allPassed(results: AssertionResult[]): boolean {
  */
 export function landedFailures(results: AssertionResult[]): AssertionResult[] {
   return results.filter((r) => r.probeLanded && r.gateFired && !r.passed)
+}
+
+/**
+ * The failures that condemn a load: landed, failed, AND `reject` severity.
+ *
+ * A `warn` failure is a true statement about a defective source that we detected and
+ * contained. It is reported everywhere, and it does not turn a fully reconciled load red.
+ */
+export function blockingFailures(results: AssertionResult[]): AssertionResult[] {
+  return landedFailures(results).filter((r) => r.severity === 'reject')
 }
 
 /** The ones that failed or never ran, for an operator to read at 6am. */
