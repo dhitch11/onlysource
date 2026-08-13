@@ -16,6 +16,7 @@ export const DATA_ROOT = process.env.ONLYSOURCE_DATA_ROOT ?? '/Users/user/onlyso
 export const ARCHIVE_ROOT = process.env.INGEST_ARCHIVE_ROOT ?? join(DATA_ROOT, 'archive')
 export const PG_DIR = process.env.ONLYSOURCE_PG_DIR ?? join(DATA_ROOT, 'pg')
 export const PG_PORT = Number(process.env.ONLYSOURCE_PG_PORT ?? 55432)
+export const PG_HOST = process.env.ONLYSOURCE_PG_HOST ?? 'localhost'
 export const PG_USER = 'onlysource'
 export const PG_PASSWORD = process.env.ONLYSOURCE_PG_PASSWORD ?? 'onlysource-local-dev'
 export const PG_DATABASE = 'onlysource'
@@ -23,7 +24,7 @@ export const PG_DATABASE = 'onlysource'
 /** Connect to the running cluster. Callers own the lifecycle. */
 export function client(database = PG_DATABASE): pg.Client {
   return new pg.Client({
-    host: 'localhost',
+    host: PG_HOST,
     port: PG_PORT,
     user: PG_USER,
     password: PG_PASSWORD,
