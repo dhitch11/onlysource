@@ -1,0 +1,99 @@
+{
+  "fixture_id": "nsn-1650-01-059-8221",
+  "fixture_kind": "pricing_arithmetic",
+  "nsn": "1650-01-059-8221",
+  "provenance": {
+    "source_path": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+    "source_section": "2. THE PRICING METHOD, NOW FULLY SPECIFIED (this is the scoring engine's core)",
+    "source_kind": "corpus_supplement_quoting_expert_email",
+    "source_document_title": "THROUGH MY EYES ONLY - 1650-01-059-8221",
+    "read_directly": true,
+    "encoded_on": "2026-08-13",
+    "encoding_rule": "Only figures printed in the named source section are encoded here. Nothing in this file is estimated, rounded up from a smaller number, back-filled from a specialty average, or carried over from another NSN. Where the source prints an approximation, it is stored in a field whose name says so.",
+    "transcription_note": "The source prose renders the CPI line with an approximately-equal glyph. This file is ASCII only, so the glyph is not transcribed. The factor and the expert's stated approximation are stored as separate numeric fields instead, which loses nothing."
+  },
+  "oem_award": {
+    "year": 2017,
+    "manufacturer": "Moog",
+    "quantity_units": 17,
+    "unit_price_usd": 1537.85,
+    "quote": "The most recent OEM procurement was in 2017 for 17 units at $1,537.85 each.",
+    "why_this_is_the_anchor": "The anchor is the original manufacturer's award price carried forward, not the recent surplus flips. The prior awards on this NSN were all surplus and anchor to the wrong number."
+  },
+  "prior_awards": {
+    "count": 13,
+    "all_surplus": true,
+    "quote": "The prior 13 awards were all surplus."
+  },
+  "oem_excluded_by_lot_size": {
+    "quote": "The Moog 2017 award was for 17 units. If Moog submitted quotes for substantially lesser qty, its quotes would have been for much more than the inflation adjusted value.",
+    "oem_award_quantity_units": 17
+  },
+  "inflation_anchors": [
+    {
+      "anchor_id": "cpi",
+      "label": "CPI, general consumer inflation",
+      "factor": 1.3223,
+      "product_exact_usd": 2033.499055,
+      "expert_stated_approximation_usd": 2034,
+      "stated_approximation_tolerance_usd": 1,
+      "preferred_by_expert": false,
+      "rounding_note": "The exact product is 2033.499055. The expert printed about 2034. Nearest-dollar rounding of the exact product gives 2033, NOT 2034. Only rounding UP to the next whole dollar reproduces his figure. The engine stores the exact product and treats 2034 as his printed approximation, never as a computed output."
+    },
+    {
+      "anchor_id": "dod_procurement",
+      "label": "DoD procurement inflation, the expert's stated mid-range factor",
+      "factor": 1.4,
+      "product_exact_usd": 2152.99,
+      "expert_stated_approximation_usd": 2150,
+      "stated_approximation_tolerance_usd": 5,
+      "preferred_by_expert": true,
+      "preference_reason_quote": "reflects industrial, metals, and logistics cost growth, which outpaced consumer inflation.",
+      "rounding_note": "The exact product is 2152.99. The expert printed about 2150. Nearest-dollar rounding of the exact product gives 2153, NOT 2150. Only rounding to the nearest ten dollars reproduces his figure. Note that this is a DIFFERENT rounding rule from the one that reproduces his CPI figure, so no single rule reproduces both. That is a property of his printed approximations, not a defect in the arithmetic, and the harness asserts it rather than papering over it."
+    }
+  ],
+  "dual_index_rule": "The anchor carries two labelled inflation indices, never one and never a blend. A general CPI factor and a domain-specific DoD-procurement factor are computed and displayed separately, each with its label. The expert prefers the DoD figure, and that preference is recorded as a preference, not as a rule that suppresses the CPI figure.",
+  "surplus_clearing": {
+    "share_of_inflation_adjusted_oem_value": 0.5,
+    "is_approximate": true,
+    "quote": "about 50% of Moog inflation adjusted value",
+    "note": "This is the expert's own approximate characterisation of where surplus awards clear. It is stored as approximate. The gap between the surplus clearing price and the OEM-anchored value is the margin the business harvests."
+  },
+  "ils_availability": {
+    "quote": "ILS currently shows only Quality Aviation (2 units) and OLY Aero (8 units).",
+    "holders": [
+      { "name": "Quality Aviation", "units": 2 },
+      { "name": "OLY Aero", "units": 8 }
+    ],
+    "note": "Total units listed is deliberately NOT stored. It is a sum of two stated numbers, so code derives it and no derived figure is smuggled into the primary-source fixture."
+  },
+  "demand_without_forecast": {
+    "forecast_exists": false,
+    "awards": 13,
+    "units": 80,
+    "window_text": "in less than the past 5 years",
+    "quote": "There is no forecast for the subject NSN but were 13 awards for 80 units in less than the past 5 years. Continued demand is likely. Continued demand in small qty increments is likely.",
+    "rule": "Absence of a forecast is not absence of demand. Demand is inferred from award frequency, and that inference is kept strictly separate from the forecast column."
+  },
+  "observed_quote": {
+    "amount_usd": 3565,
+    "expert_description": "three times the unit price of the previous award",
+    "quote": "I quoted $3,565, three times the unit price of the previous award, and received a c/l request.",
+    "multiplier_of_previous_award_unit_price": 3,
+    "is_engine_output": false,
+    "honesty_note": "3565 is a RECORDED OBSERVATION of what the expert quoted. It is NOT an output of the dual-inflation anchor and no test in this repo may assert that the anchor computes it. 3565 divided by 3 is 1188.3333 recurring, which is the PREVIOUS AWARD unit price, a different input from the 2017 OEM unit price of 1537.85. The previous-award unit price is not printed as a figure anywhere in the source section, so it is not stored here as a fact; only the observed quote and his stated multiplier are."
+  },
+  "supplier_purchase_order": {
+    "supplier": "OLY",
+    "quantity_units": 8,
+    "unit_price_usd": 1021.5,
+    "quote": "I issued a PO to OLY for 8 units this morning. Unit price $1,021.50.",
+    "supplier_anchor_error_quote": "based on the unit price of the previous award, which does not reflect the market value of this item from the perspective of the manufacturer.",
+    "note": "The supplier underprices because the supplier anchors on the previous surplus award. Knowing the right anchor is the entire edge being backtested."
+  },
+  "public_list_price": {
+    "exists": false,
+    "quote": "no public list price exists",
+    "note": "An AI list-price search returned the honest no-public-list-price answer. It is recorded as an honest empty state and is never filled with a substitute, an estimate or a comparable."
+  }
+}
