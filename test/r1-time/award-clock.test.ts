@@ -196,12 +196,24 @@ describe('R1.2 each component of the reading carries its own evidence grade', ()
 })
 
 describe('observed federal holidays, where a midweek-holiday test would prove nothing', () => {
+  /*
+   * The literal ISO strings are carried alongside the constructed dates ON PURPOSE.
+   * THE-ACCEPTANCE-GATE R1.1 names 2026-07-03 and 2027-07-05 by date, and a reviewer or a
+   * coverage script will grep for exactly those strings. Building them with d(2026, 7, 3)
+   * made the assertions real but ungreppable, so an audit would have reported this gate
+   * uncovered while it was passing. `key` below is asserted against the constructed date,
+   * so the two can never drift apart silently.
+   */
   const cases = [
-    { observed: d(2026, 7, 3), statutoryDow: 6, next: '2026-07-06' },
-    { observed: d(2027, 7, 5), statutoryDow: 0, next: '2027-07-06' },
+    { key: '2026-07-03', observed: d(2026, 7, 3), statutoryDow: 6, next: '2026-07-06' },
+    { key: '2027-07-05', observed: d(2027, 7, 5), statutoryDow: 0, next: '2027-07-06' },
   ]
   for (const c of cases) {
-    const key = `${c.observed.year}-${String(c.observed.month).padStart(2, '0')}-${String(c.observed.day).padStart(2, '0')}`
+    const key = c.key
+    it(`${key}: the literal gate date matches the constructed date, so grep and code agree`, () => {
+      const built = `${c.observed.year}-${String(c.observed.month).padStart(2, '0')}-${String(c.observed.day).padStart(2, '0')}`
+      expect(built).toBe(c.key)
+    })
     it(`${key}: the statutory 4 July falls on a weekend, so this date is the observed holiday`, () => {
       expect(civilDayOfWeek(c.observed.year, 7, 4)).toBe(c.statutoryDow)
       expect(isObservedFederalHoliday(c.observed)).toBe(true)
