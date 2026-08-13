@@ -530,13 +530,43 @@ describe('surplusDrag, the regressive-adder metric, on both corpus worked cases'
 })
 
 describe('resolveThreshold selects the value in force on the date being analysed', () => {
-  it('resolves the micro-purchase threshold to $10,000 for a post-2020-08-31 instant', () => {
-    const r = resolveThreshold(PRICING_CONFIG.microPurchaseThreshold, AT_2026_03_02)
+  // THE SERIES IS PERIOD-CORRECT, WHICH IS THE WHOLE REASON IT IS DATED.
+  // This previously asserted one value forever. That is what let a superseded 2020 figure
+  // extrapolate silently into the present. A procurement is evaluated against the threshold in
+  // force on ITS date, so each era is asserted separately and the pair is the real instrument.
+  it('resolves $10,000 for an instant inside the 2020 era', () => {
+    const r = resolveThreshold(PRICING_CONFIG.microPurchaseThreshold, AT_2024_06_01)
     expect(r.resolved).toBe(true)
     if (!r.resolved) throw new Error('unreachable')
     expect(r.value).toBe(1_000_000)
     expect(r.entry.citation.authority).toContain('85 FR 40064')
     expect(r.entry.citation.grade).toBe('PRIMARY_TEXT')
+  })
+
+  it('resolves $15,000 for a present-day instant, because the threshold moved', () => {
+    const r = resolveThreshold(PRICING_CONFIG.microPurchaseThreshold, AT_2026_03_02)
+    expect(r.resolved).toBe(true)
+    if (!r.resolved) throw new Error('unreachable')
+    expect(r.value).toBe(1_500_000)
+    expect(r.entry.citation.authority).toContain('FAC 2026-01')
+    // The VALUE is block-quoted regulation text. The authority string carries the boundary date's
+    // weaker REPORTED grade on its face so the two cannot be read as one.
+    expect(r.entry.citation.grade).toBe('PRIMARY_TEXT')
+    expect(r.entry.citation.authority).toContain('EFFECTIVE DATE')
+    expect(r.entry.citation.authority).toContain('REPORTED')
+  })
+
+  it('THE PAIR: one series, two eras, and the boundary actually moves the value', () => {
+    // If this pair ever returned the same figure, every period-correctness claim in this module
+    // would be decorative. The boundary is 2025-10-01.
+    const before = resolveThreshold(
+      PRICING_CONFIG.microPurchaseThreshold,
+      Date.UTC(2025, 8, 30),
+    )
+    const after = resolveThreshold(PRICING_CONFIG.microPurchaseThreshold, Date.UTC(2025, 9, 1))
+    if (!before.resolved || !after.resolved) throw new Error('unreachable')
+    expect(before.value).toBe(1_000_000)
+    expect(after.value).toBe(1_500_000)
   })
 
   it('ABSTAINS for a 2019 award rather than applying a later era threshold to it', () => {
@@ -559,25 +589,35 @@ describe('resolveThreshold selects the value in force on the date being analysed
     expect(onDate.stalenessNote).toBeNull()
   })
 
-  it('carries $250,000 for the simplified acquisition threshold, same amendment', () => {
-    const r = resolveThreshold(PRICING_CONFIG.simplifiedAcquisitionThreshold, AT_2026_03_02)
-    if (!r.resolved) throw new Error('unreachable')
-    expect(r.value).toBe(25_000_000)
+  it('carries the SAT for each era too, $250,000 then $350,000', () => {
+    const old = resolveThreshold(PRICING_CONFIG.simplifiedAcquisitionThreshold, AT_2024_06_01)
+    const now = resolveThreshold(PRICING_CONFIG.simplifiedAcquisitionThreshold, AT_2026_03_02)
+    if (!old.resolved || !now.resolved) throw new Error('unreachable')
+    expect(old.value).toBe(25_000_000)
+    expect(now.value).toBe(35_000_000)
   })
 
-  it('carries NO $20,000 and NO $15,000 anywhere in the threshold series', () => {
-    // $20,000 is advocacy shorthand with no primary-text backing. $15,000 is reported by two
-    // secondary sources whose own effective date is unverified. Neither is an entry.
+  it('carries NO $20,000 anywhere, because that figure has no primary text behind it', () => {
+    // THIS TEST WAS ITSELF WRONG AND IT IS WORTH RECORDING WHY.
+    // It asserted that neither $20,000 NOR $15,000 could appear, treating them as the same class
+    // of unbacked figure. They are not the same class at all:
+    //   $20,000 is advocacy shorthand repeated in the SMI/SBAIC documents with NO primary text
+    //           anywhere behind it. It must never appear. That half was right and is kept.
+    //   $15,000 is the CURRENT value of FAR 2.101, block-quoted from the regulation in
+    //           dla-procurement-mechanics.md:172-186 and graded VERIFIED at line 1087. Asserting
+    //           it could never appear pinned a superseded 2020 figure in place as though it were
+    //           today's, and turned a stale number into an enforced invariant.
+    // A test that forbids a correct value is worse than no test: it defends the error.
     const serialised = JSON.stringify([
       PRICING_CONFIG.microPurchaseThreshold,
       PRICING_CONFIG.simplifiedAcquisitionThreshold,
     ])
     for (const entry of PRICING_CONFIG.microPurchaseThreshold.entries) {
       expect(entry.value).not.toBe(2_000_000)
-      expect(entry.value).not.toBe(1_500_000)
     }
     expect(serialised).not.toContain('"value":2000000')
-    expect(serialised).not.toContain('"value":1500000')
+    // And the positive half: $15,000 IS present, as the entry in force today.
+    expect(serialised).toContain('"value":1500000')
   })
 })
 
@@ -593,7 +633,10 @@ describe('tripwireBand: the same increase lands in opposite bands either side of
           mostRecentPriorUnitPriceUsd: 1000,
           mostRecentPriorPriceInstantMs: PRIOR_AT,
           atInstantMs: AT_2026_03_02,
-          procurementValueUsd: 12500,
+          // $20,000 is at or above the CURRENT $15,000 MPT. This fixture was $12,500, which sat
+          // above the superseded $10,000 figure and below the real one, so it silently changed
+          // sides when the threshold was corrected. That is the whole hazard in one number.
+          procurementValueUsd: 20000,
         },
         PRICING_CONFIG,
       ),
@@ -604,7 +647,7 @@ describe('tripwireBand: the same increase lands in opposite bands either side of
     expect(t.band).toBe('AT_OR_ABOVE_MPT_25_PERCENT')
     expect(t.bandThresholdRatio).toBe(0.25)
     expect(t.crossed).toBe(true)
-    expect(t.microPurchaseThresholdUsd).toBe(10000)
+    expect(t.microPurchaseThresholdUsd).toBe(15000)
   })
 
   it('THE SAME 25% increase UNDER the MPT does not cross, because that band is 51%', () => {
@@ -636,7 +679,7 @@ describe('tripwireBand: the same increase lands in opposite bands either side of
           mostRecentPriorUnitPriceUsd: 1000,
           mostRecentPriorPriceInstantMs: PRIOR_AT,
           atInstantMs: AT_2026_03_02,
-          procurementValueUsd: 10000,
+          procurementValueUsd: 15000,
         },
         PRICING_CONFIG,
       ),
@@ -686,7 +729,9 @@ describe('tripwireBand: the same increase lands in opposite bands either side of
           mostRecentPriorUnitPriceUsd: 1000,
           mostRecentPriorPriceInstantMs: PRIOR_AT,
           atInstantMs: AT_2026_03_02,
-          procurementValueUsd: 12500,
+          // At or above the CURRENT $15,000 MPT, so the 25% band applies and 25% crosses it.
+          // Was $12,500, which sat above the superseded threshold and below the real one.
+          procurementValueUsd: 20000,
         },
         PRICING_CONFIG,
       ),
@@ -810,6 +855,11 @@ describe('the threshold is READ FROM THE CONFIG, not baked into the call site', 
         {
           ...(PRICING_CONFIG.microPurchaseThreshold.entries[0] as DatedEntry<number>),
           value: 200_000,
+          // The real entries[0] is now the CLOSED 2020 era, so copying it wholesale leaves this
+          // synthetic series covering nothing at a present-day instant and the assertion below
+          // dies in the narrowing guard rather than testing anything. Left open on purpose: this
+          // fixture exists to prove the band is read from config, not to model a real era.
+          inForceUntilMs: null,
         },
       ],
     },
@@ -823,10 +873,10 @@ describe('the threshold is READ FROM THE CONFIG, not baked into the call site', 
       atInstantMs: AT_2026_03_02,
       procurementValueUsd: 5000,
     }
-    // Against the real $10,000 threshold, a $5,000 procurement is UNDER, so the band is 51%
-    // and a 25% increase does not cross.
+    // Against the real threshold in force today ($15,000), a $5,000 procurement is UNDER, so
+    // the band is 51% and a 25% increase does not cross.
     const real = mustAssess(tripwireBand(input, PRICING_CONFIG))
-    expect(real.microPurchaseThresholdUsd).toBe(10000)
+    expect(real.microPurchaseThresholdUsd).toBe(15000)
     expect(real.band).toBe('UNDER_MPT_51_PERCENT')
     expect(real.crossed).toBe(false)
 

@@ -237,6 +237,56 @@ const DLAD_17_7505: SourceCitation = {
 const MPT_10K_EFFECTIVE_MS = Date.UTC(2020, 7, 31)
 
 /**
+ * THE 2025 INFLATION ADJUSTMENT. 2025-10-01, when MPT moved $10,000 -> $15,000 and SAT moved
+ * $250,000 -> $350,000.
+ *
+ * THE TWO HALVES OF THIS FACT CARRY DIFFERENT GRADES AND MUST NOT BE COLLAPSED. The research file
+ * grades them separately and explicitly at dla-procurement-mechanics.md:1087: "VERIFIED (FAR 2.101)
+ * / REPORTED (effective date)."
+ *   THE VALUE is VERIFIED. dla-procurement-mechanics.md:172-186 block-quotes the FAR 2.101
+ *   definition from FAC 2026-01 (effective 2026-03-13) reading "$15,000", and the SAT definition
+ *   reading "$350,000". That is the regulation's own text, not a commentator's summary.
+ *   THE START DATE is REPORTED. The Federal Register document was not retrievable (the site
+ *   302-redirected to an interstitial). It is attributed to FAR Case 2024-001, published
+ *   2025-08-27, issued through FAC 2025-06, and reported by four named firms.
+ *
+ * SO: any instant on or after 2026-03-13 rests on VERIFIED regulation text alone and needs the
+ * reported date not at all. Instants between 2025-10-01 and 2026-03-13 rest on the REPORTED
+ * boundary, and a caller that cares about that window should read the entry's citation.
+ *
+ * WHY THE PREVIOUS SHAPE WAS WRONG, recorded because it is the more instructive half. This series
+ * carried ONE entry, $10,000, with inForceUntilMs null, so it extrapolated a 2020 figure forward
+ * forever and resolved $10,000 as in force today. The module header promises the series "does not
+ * guess" and abstains rather than extrapolating past the dated evidence, but it only abstained
+ * BACKWARD. Forward it guessed silently, and a soft laterAmendmentsUnverified flag on a wrong
+ * number is not an abstention. The prior note dismissed both sources for the move as non-primary,
+ * which took the weaker of the two grades and applied it to both halves. That is the same
+ * blanket-hedge error the award clock already had to correct in the other direction.
+ */
+const THRESHOLD_2025_ADJUSTMENT_MS = Date.UTC(2025, 9, 1)
+
+/**
+ * The FAR text as it reads TODAY. Graded PRIMARY_TEXT for the VALUES, which are block-quoted from
+ * the regulation. The authority string carries the effective date's weaker REPORTED grade on its
+ * face so a reader cannot take one for the other.
+ */
+const FAR_2_101_CURRENT: SourceCitation = {
+  authority:
+    'FAR 2.101 (FAC 2026-01, effective 03/13/2026), quoted definitions. VALUE VERIFIED from the ' +
+    'regulation text. EFFECTIVE DATE 2025-10-01 is REPORTED only: attributed to FAR Case 2024-001 ' +
+    '"Inflation Adjustment of Acquisition-Related Thresholds", published 2025-08-27, issued through ' +
+    'FAC 2025-06, Federal Register text NOT retrievable, reported by Pillsbury, Redstone GCI, ' +
+    'Centre Law and SmallGovCon. Instants on or after 2026-03-13 do not depend on that date.',
+  quote:
+    'Micro-purchase threshold means "$15,000, except it means (1) For acquisitions of construction ' +
+    'subject to 40 U.S.C. chapter 31, subchapter IV, $2,000..." Simplified acquisition threshold ' +
+    'means "$350,000, except for (1) Acquisitions ... to support a contingency operation..."',
+  sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+  sourceLines: '172-186 (grading at 1087)',
+  grade: 'PRIMARY_TEXT',
+}
+
+/**
  * Procurement note M05 is dated SEP 2016 on its face. The note gives month precision only,
  * so the first of that month is the earliest instant it can be dated to.
  */
@@ -257,16 +307,24 @@ export const MICRO_PURCHASE_THRESHOLD: DatedSeries<number> = {
     {
       value: 1_000_000,
       inForceFromMs: MPT_10K_EFFECTIVE_MS,
-      inForceUntilMs: null,
+      inForceUntilMs: THRESHOLD_2025_ADJUSTMENT_MS,
       citation: FAR_2_101_AS_AMENDED,
     },
+    {
+      value: 1_500_000,
+      inForceFromMs: THRESHOLD_2025_ADJUSTMENT_MS,
+      inForceUntilMs: null,
+      citation: FAR_2_101_CURRENT,
+    },
   ],
-  primaryTextReadThroughMs: MPT_10K_EFFECTIVE_MS,
+  primaryTextReadThroughMs: THRESHOLD_2025_ADJUSTMENT_MS,
   readThroughNote:
-    'Read through the text of 85 FR 40064 only. Two independent REPORTED sources (a research ' +
-    'file whose own effective date is marked unverified, and the domain expert in conversation) ' +
-    'state the threshold moved again on 2025-10-01. Neither is primary text, so neither is an ' +
-    'entry. Any instant after 2020-08-31 is therefore flagged laterAmendmentsUnverified.',
+    'Two dated entries, because the threshold moved and this series must be period-correct: ' +
+    'historical analysis has to evaluate a procurement against the threshold in force on ITS ' +
+    'award date, not against today. $10,000 from 85 FR 40064 (2020-08-31), $15,000 from the ' +
+    'reported 2025-10-01 adjustment. The $15,000 VALUE is block-quoted FAR 2.101 text from ' +
+    'FAC 2026-01 and is VERIFIED; only the 2025-10-01 boundary is REPORTED, and instants on or ' +
+    'after FAC 2026-01 (2026-03-13) do not rest on that boundary at all.',
 }
 
 export const SIMPLIFIED_ACQUISITION_THRESHOLD: DatedSeries<number> = {
@@ -276,12 +334,21 @@ export const SIMPLIFIED_ACQUISITION_THRESHOLD: DatedSeries<number> = {
     {
       value: 25_000_000,
       inForceFromMs: MPT_10K_EFFECTIVE_MS,
-      inForceUntilMs: null,
+      inForceUntilMs: THRESHOLD_2025_ADJUSTMENT_MS,
       citation: FAR_2_101_AS_AMENDED,
     },
+    {
+      value: 35_000_000,
+      inForceFromMs: THRESHOLD_2025_ADJUSTMENT_MS,
+      inForceUntilMs: null,
+      citation: FAR_2_101_CURRENT,
+    },
   ],
-  primaryTextReadThroughMs: MPT_10K_EFFECTIVE_MS,
-  readThroughNote: 'Same amendment and the same unverified later-move caveat as the MPT series.',
+  primaryTextReadThroughMs: THRESHOLD_2025_ADJUSTMENT_MS,
+  readThroughNote:
+    'Same amendment and the same split grading as the MPT series: $250,000 from 85 FR 40064, ' +
+    '$350,000 from the reported 2025-10-01 adjustment, with the VALUE block-quoted from FAR 2.101 ' +
+    'as it reads in FAC 2026-01 and only the boundary date REPORTED.',
 }
 
 export const SURPLUS_EVALUATION_ADDER: DatedSeries<number> = {
