@@ -111,9 +111,12 @@ export const AWARD_CLOCK_PROVENANCE = {
 /** True while ANY component of the reading is short of CITED. Drives the labeled state. */
 export function awardClockIsFullyCited(): boolean {
   return (
-    AWARD_CLOCK_PROVENANCE.offset.grade === 'CITED' &&
-    AWARD_CLOCK_PROVENANCE.timezone.grade === 'CITED' &&
-    AWARD_CLOCK_PROVENANCE.countingConvention.grade === 'CITED'
+    // Every component, checked by iteration rather than by a hand-written list.
+    // The hand-written list had already drifted: `weekendHolidayRollover` was added by the
+    // 08-13 merge and this function was never updated, so a future downgrade of the
+    // rollover would have left `fullyCited` reporting true. A gate that silently stops
+    // covering a component is the failure mode this whole module argues against.
+    Object.values(AWARD_CLOCK_PROVENANCE).every((part) => part.grade === 'CITED')
   )
 }
 

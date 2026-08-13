@@ -205,6 +205,25 @@ describe('R1.2 each component of the reading carries its own evidence grade', ()
     expect(awardClockIsFullyCited()).toBe(false)
   })
 
+  it('the fully-cited check covers EVERY provenance component, not a stale hand-written list', () => {
+    // This assertion exists because the hand-written list DID drift: weekendHolidayRollover
+    // was added on merge and the check was never updated. Iterating means a component added
+    // tomorrow is covered the moment it exists.
+    const components = Object.keys(AWARD_CLOCK_PROVENANCE)
+    expect(components.length).toBeGreaterThanOrEqual(4)
+    for (const key of components) {
+      const part = AWARD_CLOCK_PROVENANCE[key as keyof typeof AWARD_CLOCK_PROVENANCE]
+      expect(`${key}.grade`).toBe(`${key}.grade`)
+      expect(['CITED', 'ESTIMATED', 'UNVERIFIED']).toContain(part.grade)
+    }
+    // And it genuinely returns false while any one of them is short of CITED.
+    const shortOfCited = components.filter(
+      (k) => AWARD_CLOCK_PROVENANCE[k as keyof typeof AWARD_CLOCK_PROVENANCE].grade !== 'CITED',
+    )
+    expect(shortOfCited.length).toBeGreaterThan(0)
+    expect(awardClockIsFullyCited()).toBe(false)
+  })
+
   it('returns one qualifier PER unresolved component, not a single blanket hedge', () => {
     const disclosure = deadlineDisclosure(cutoffInstantOn(d(2026, 11, 2)))
     expect(disclosure.estimated).toBe(true)
