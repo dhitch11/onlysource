@@ -22,7 +22,9 @@
   },
   "dependencies": {
     "@sentry/nextjs": "10.70.0",
+    "better-auth": "^1.6.27",
     "next": "16.3.0",
+    "pg": "^8.16.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1",
@@ -30,8 +32,10 @@
   },
   "devDependencies": {
     "@types/node": "24.9.2",
+    "@types/pg": "^8.15.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
+    "embedded-postgres": "^17.5.0-beta.15",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
   }
