@@ -20,6 +20,7 @@ import {
   type CapturedFacts,
 } from '@/lib/compliance/deliverables/view-model'
 import { runPreflight } from '@/lib/compliance/preflight'
+import { RULES, quotationOf } from '@/lib/compliance/citations'
 
 const AS_OF = '2026-08-13T00:00:00Z'
 const dv = (display: string, column = 'c') =>
@@ -436,5 +437,113 @@ describe('preflight: the habitual killers and the fail-closed cases', () => {
     })
     expect(r.verdict).toBe('blocked')
     expect(r.findings.some((f) => f.failing_field.includes('validity'))).toBe(true)
+  })
+})
+
+// =====================================================================================================
+// Corrections verified against the Rev-81 PDF by this lane on 2026-08-13, not inherited.
+describe('Rev-81 corrections: the open factor set and the two identical sentences', () => {
+  const base = {
+    lot_id: 'l1',
+    compliance_path: 'c04_surplus_representation' as const,
+    category: 'government_surplus' as const,
+    l04_self_classification: 'exact_product' as const,
+    solicitation: {
+      solicitation_number: 'SPE4A626T0001',
+      type_character: 'T' as const,
+      solicitation_type_indicator: 'F' as const,
+      is_automated: true,
+      requires_qpl_or_qml: false as const,
+      requires_qsld_or_qsl: false as const,
+      cites_export_control: false as const,
+      requires_higher_level_quality: false as const,
+    },
+    quote: {
+      taking_exception_to_item_description: false as const,
+      exception_to_packaging: false as const,
+      exception_to_fob_terms: false as const,
+      exception_to_inspection: false as const,
+      exception_to_required_quantity: false as const,
+      quantity_variance_greater_than_specified: false as const,
+      higher_level_quality_answered_none: false as const,
+      quotes_child_labor: false as const,
+      remarks_present: false as const,
+      validity_period_days: 120,
+    },
+    listing: {
+      quoter_on_qsld_or_qsl: true as const,
+      quoted_manufacturer_on_qpl_or_qml: true as const,
+      quoter_export_certification_current: true as const,
+      manufacturer_export_certification_current: true as const,
+    },
+  }
+
+  it('an applicable Buy American factor with no resolved amount is a DATA GAP, not a zero', () => {
+    const r = runPreflight({
+      ...base,
+      solicitation: { ...base.solicitation, subject_to_buy_american_or_bop: true },
+    })
+    expect(r.verdict).toBe('cannot_assess')
+    const f = r.findings.find((x) => x.check === 'evaluation_factor_unresolved')
+    expect(f?.statement).toContain('FLOOR')
+    // No invented amount anywhere in the finding.
+    expect(f?.statement).not.toMatch(/\$\d/)
+  })
+
+  it('does not fire once the factor amount has been established', () => {
+    const r = runPreflight({
+      ...base,
+      solicitation: {
+        ...base.solicitation,
+        subject_to_buy_american_or_bop: true,
+        buy_american_factor_amount_usd: 0,
+      },
+    })
+    expect(r.findings.some((x) => x.check === 'evaluation_factor_unresolved')).toBe(false)
+  })
+
+  it('the SAME surplus sentence is registered twice, with opposite effect, keyed on instrument', () => {
+    const partI = quotationOf(RULES.ms_surplus_not_an_exception_on_standard_buy)
+    const partII = quotationOf(RULES.ms_surplus_ineligible_on_aidc)
+    expect(partI.ok && partII.ok).toBe(true)
+    if (partI.ok && partII.ok) {
+      const sentence = 'Quoting a used, reconditioned, remanufactured item, or unused former Government surplus property.'
+      expect(partI.quote).toContain(sentence)
+      expect(partII.quote).toContain(sentence)
+      expect(partI.identifier).toContain('Part I')
+      expect(partII.identifier).toContain('Part II')
+    }
+    // The gate keys on the instrument, so identical text produces opposite verdicts.
+    expect(runPreflight(base).verdict).toBe('clear')
+    expect(
+      runPreflight({ ...base, solicitation: { ...base.solicitation, type_character: 'U' } }).verdict,
+    ).toBe('blocked')
+  })
+
+  it('the 90-day AIDC exception cites Part II 1(b), not the adjacent surplus paragraph 1(a)', () => {
+    const r = runPreflight({
+      ...base,
+      compliance_path: 'l04_part_numbered_traceability',
+      category: 'commercial_surplus',
+      solicitation: { ...base.solicitation, type_character: 'U' },
+      quote: { ...base.quote, validity_period_days: 60 },
+    })
+    const f = r.findings.find((x) => x.failing_field.includes('validity'))
+    expect(f?.rule.citation.identifier).toContain('para 1(b)')
+    expect(f?.rule.citation.identifier).not.toContain('1(a)')
+  })
+
+  it('3(g) carries its full text including the location clause', () => {
+    const q = quotationOf(RULES.ms_alternate_no_automated_award)
+    expect(q.ok).toBe(true)
+    if (q.ok) expect(q.quote).toContain('to the location identified in the solicitation')
+  })
+
+  it('the factor quotation is reproduced with the source unclosed parenthesis, and says so', () => {
+    const q = quotationOf(RULES.ms_automated_evaluation_factors)
+    expect(q.ok).toBe(true)
+    // The source's unclosed parenthesis is the one opening "(see DFARS"; the cite itself ends "(c).".
+    if (q.ok) expect(q.quote).toContain('(see DFARS 225.502(c).')
+    expect(RULES.ms_automated_evaluation_factors.quote_normalization).toContain('Not corrected')
   })
 })

@@ -76,12 +76,28 @@ export type RuleCitation = {
   readonly bare_revision_customer_renderable?: boolean
   /** Why the revision pin is still safe to build against, when one is pinned. */
   readonly revision_note?: string
+  /**
+   * Stated when the rendered quotation differs typographically from the source (curly quotation marks
+   * rendered as ASCII, for instance). Declared rather than done silently, because "verbatim" that
+   * quietly differs from the source is the defect this registry exists to prevent.
+   */
+  readonly quote_normalization?: string
 }
 
 const RESEARCH = '/Users/user/project-x/03-findings'
 const SPINE = `${RESEARCH}/research/surplus-material-traceability-compliance.md`
 const MECHANICS = `${RESEARCH}/research/dla-procurement-mechanics.md`
-const CHARTER_4_7Z = '/Users/user/onlysource-build/HANDOFFS/T5-DOCUMENTS.md section 4.7Z'
+/**
+ * The Master Solicitation primary source, read by this lane rather than inherited.
+ *
+ * Every Master Solicitation quote below was extracted from this PDF by this terminal on 2026-08-13 and
+ * checked line by line. An earlier version of this file sourced two of them to another lane's digest and
+ * to the handoff, and both were subtly wrong: one quote was truncated before its operationally useful
+ * clause, and one was a concatenated paraphrase of three subparagraphs.
+ */
+const MS_PDF =
+  '/Users/user/Downloads/MasterSolicitation4ASAcqRev-81_August-23-2021(1).pdf, ' +
+  'REVISION 81 (AUG 23 2021), extracted and verified by T5 on 2026-08-13'
 
 /**
  * THE REGISTRY.
@@ -394,10 +410,11 @@ export const RULES = {
     title: 'Alternate offers and automated award',
     effective: null,
     text:
-      'Alternate offers will not be considered for automated award. Alternate offers may be submitted ' +
-      'for evaluation for future procurements.',
+      'ALTERNATE OFFERS: Alternate offers will not be considered for automated award. Alternate offers ' +
+      'may be submitted for evaluation for future procurements to the location identified in the ' +
+      'solicitation.',
     quote_status: 'verified_primary',
-    source: `${MECHANICS} section 5 (para 3(g))`,
+    source: MS_PDF,
     bare_revision_customer_renderable: false,
     revision_note:
       'Cited as Rev-81, the corpus PDF, per the conductor ruling of 2026-08-13. The governing ' +
@@ -416,7 +433,7 @@ export const RULES = {
     text:
       'Quoting a used, reconditioned, remanufactured item, or unused former Government surplus property.',
     quote_status: 'verified_primary',
-    source: `${MECHANICS} section 5.6`,
+    source: MS_PDF,
     bare_revision_customer_renderable: false,
     revision_note:
       'Cited as Rev-81 per the conductor ruling of 2026-08-13; governing text unchanged through ' +
@@ -435,11 +452,13 @@ export const RULES = {
       "(i) Quoting an alternate product or otherwise taking exception to the solicitation's item " +
       'description. (ii) Exceptions to packaging requirements. (iii) Exceptions to FOB terms. (iv) ' +
       'Exceptions to inspection requirements. (v) Exceptions to required quantity. (vi) Quoting a ' +
-      "quantity variance greater than specified... (vii) Quoting 'None' when a Higher Level " +
+      "quantity variance greater than specified on the solicitation. (vii) Quoting 'None' when a Higher " +
+      'Level ' +
       'Contract Quality Requirement is required. (viii) Quoting the use of Child Labor. (ix) Quoting ' +
       'Remarks.',
     quote_status: 'verified_primary',
-    source: CHARTER_4_7Z,
+    source: MS_PDF,
+    quote_normalization: 'Typographic quotation marks in the source are rendered as ASCII. No word changed.',
     bare_revision_customer_renderable: false,
     revision_note: 'Cited as Rev-81 per the conductor ruling of 2026-08-13.',
     argument:
@@ -453,18 +472,106 @@ export const RULES = {
     title: 'Qualification list and export control listing requirements',
     effective: null,
     text:
-      'The quoted manufacturer must be on the specific Qualified Product List or Qualified ' +
-      'Manufacturers List... The quoter must be on the specific Qualified Suppliers List of ' +
-      'Distributors or on the Qualified Suppliers List... Export Control (as cited in the item ' +
-      'description) requires the applicable certifications to be current for both the quoter and ' +
-      'manufacturer.',
+      'The following are qualifications (when cited in the solicitation) that are required to be ' +
+      'eligible for an automated award: (i) Export Control (as cited in the item description) requires ' +
+      'the applicable certifications to be current for both the quoter and manufacturer. The offeror ' +
+      'and any source(s) of supply it will use for contract performance must have an active United ' +
+      'States/Canada Joint Certification Program (JCP) certification and DLA controlling authority ' +
+      'approval to access export-controlled data. (ii) The quoted manufacturer must be on the specific ' +
+      'Qualified Product List or Qualified Manufacturers List. (iii) The quoter must be on the specific ' +
+      'Qualified Suppliers List of Distributors or on the Qualified Suppliers List.',
     quote_status: 'verified_primary',
-    source: CHARTER_4_7Z,
+    source: MS_PDF,
     bare_revision_customer_renderable: false,
     revision_note: 'Cited as Rev-81 per the conductor ruling of 2026-08-13.',
     argument:
       'A listing gap on us OR on our source auto-disqualifies, and both are knowable before the bid. ' +
       'A lapsed export-control certification is the same class of avoidable loss.',
+  },
+
+  /**
+   * THE OTHER HALF OF THE SURPLUS FORK, and the reason a gate must key on instrument type.
+   *
+   * The sentence below is WORD-FOR-WORD IDENTICAL to Part II para 1(a), and it has the opposite effect.
+   * Here, under Part I 3(a)(1), it is in a list headed "The following are not considered exceptions to
+   * the solicitation requirements and will not make a quotation ineligible for an award." In Part II,
+   * which "Applies when a 'U' solicitation", the same sentence heads a list of exceptions that DO make a
+   * quotation ineligible. Part II's list is expressly "in addition to those listed in PART I."
+   *
+   * So a gate that pattern-matches the surplus language gets the answer exactly backwards half the time.
+   * Match on the instrument: T-type buys read Part I, U-type AIDC buys read Part I plus Part II.
+   */
+  ms_surplus_not_an_exception_on_standard_buy: {
+    id: 'ms_surplus_not_an_exception_on_standard_buy',
+    authority: 'DLA Master Solicitation for Automated Simplified Acquisitions',
+    identifier: 'Rev-81, Part I, para 3(a)(1)(iii)',
+    title: 'Matters that are not exceptions and will not make a quotation ineligible',
+    effective: 'AUG 23 2021',
+    text:
+      'The following are not considered exceptions to the solicitation requirements and will not make a ' +
+      'quotation ineligible for an award: ... (iii) Quoting a used, reconditioned, remanufactured item, ' +
+      'or unused former Government surplus property.',
+    quote_status: 'verified_primary',
+    source: MS_PDF,
+    bare_revision_customer_renderable: false,
+    revision_note: 'Read directly from the Rev-81 PDF by this lane on 2026-08-13.',
+    argument:
+      'On a standard buy, surplus is expressly not an exception, which is the legal hook for quoting ' +
+      'stale part numbers nobody else can supply. The ellipsis marks the intervening subparagraphs (i), ' +
+      '(ii), (iv), (v) and (vi), which are present in the source and are not reproduced here.',
+  },
+  ms_aidc_validity_90_days: {
+    id: 'ms_aidc_validity_90_days',
+    authority: 'DLA Master Solicitation for Automated Simplified Acquisitions',
+    identifier: 'Rev-81, Part II, para 1(b)',
+    title: 'Second AIDC exception, minimum quotation validity',
+    effective: 'AUG 23 2021',
+    text: 'Quoting less than the minimum of 90 days validity period.',
+    quote_status: 'verified_primary',
+    source: MS_PDF,
+    bare_revision_customer_renderable: false,
+    revision_note: 'Read directly from the Rev-81 PDF by this lane on 2026-08-13.',
+    argument:
+      'A second, quieter AIDC disqualifier an operator trips by accident. It sits beside the surplus ' +
+      'exception in the same list, so a pre-flight that catches only the surplus case misses it.',
+  },
+  /**
+   * THE EVALUATION FACTOR SET IS OPEN, NOT CLOSED, and that changes how a total may be rendered.
+   *
+   * Every document in this estate, including this lane's own first posting, listed two factors and
+   * stopped. The primary text has three, and the third names no dollar amount at all. An applicable
+   * factor with an unresolved amount cannot be silently dropped: omitting it understates the evaluated
+   * price and overstates how competitive a quote is, which loses the award on exactly the deals where
+   * the margin is thin. So an applicable-but-unresolved factor makes the evaluated price a FLOOR that
+   * names its missing input, never a confident total, and no amount is ever invented for factor (3).
+   */
+  ms_automated_evaluation_factors: {
+    id: 'ms_automated_evaluation_factors',
+    authority: 'DLA Master Solicitation for Automated Simplified Acquisitions',
+    identifier: 'Rev-81, Part I, para 3(b)',
+    title: 'Automated evaluation factors',
+    effective: 'AUG 23 2021',
+    text:
+      'AUTOMATED EVALUATION FACTORS: The automated evaluation program evaluates all qualified quotations ' +
+      'on the basis of price alone and does not consider quantity price breaks. Price evaluation factors ' +
+      'are added to the total quotation price in the following instances: (1) $200 for offers of surplus ' +
+      'for unused former Government surplus material. (2) $600 for CSI evaluations of surplus by each ' +
+      'ESA. The evaluation factor may be applied if the contracting office cannot determine ' +
+      'acceptability of quotations for other than CSI items and requires ESA coordination. (3) When the ' +
+      'solicitation is subject to the Buy American statute or the Balance of Payments Program (see ' +
+      'DFARS 225.502(c).',
+    quote_status: 'verified_primary',
+    source: MS_PDF,
+    bare_revision_customer_renderable: false,
+    revision_note: 'Read directly from the Rev-81 PDF by this lane on 2026-08-13.',
+    quote_normalization:
+      'Reproduced exactly. The parenthesis opened before "see DFARS" is never closed in the source, and ' +
+      'the sentence ends "225.502(c)." Not corrected, because silently repairing a quotation is editing ' +
+      'it.',
+    argument:
+      'Three instances, not two. Factor (3) states no amount, so none is assumed and none is invented. ' +
+      'T3 owns the arithmetic; this lane surfaces the factors and flags an applicable factor whose ' +
+      'amount is unresolved as a data gap.',
   },
 
   // ---------------------------------------------------------------- other clocks and gates

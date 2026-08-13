@@ -48,6 +48,17 @@ export type SolicitationFacts = {
   readonly requires_qsld_or_qsl: boolean | 'unknown'
   readonly cites_export_control: boolean | 'unknown'
   readonly requires_higher_level_quality: boolean | 'unknown'
+  /**
+   * Whether Part I 3(b)(3) applies: the solicitation is subject to the Buy American statute or the
+   * Balance of Payments Program. The rule states NO dollar amount for this factor, so an applicable
+   * factor with an unresolved amount is a data gap rather than a zero.
+   */
+  readonly subject_to_buy_american_or_bop?: boolean | 'unknown'
+  /**
+   * The resolved amount for factor (3), when somebody has established one from DFARS 225.502(c). Absent
+   * means unresolved, and unresolved never resolves to zero.
+   */
+  readonly buy_american_factor_amount_usd?: number
 }
 
 /** The quote as it currently stands on the form. Answers we control. */
@@ -87,7 +98,12 @@ export type PreflightCandidate = {
 export type PreflightVerdict = 'clear' | 'blocked' | 'cannot_assess'
 
 export type PreflightFinding = {
-  readonly check: 'auto_dq_exceptions' | 'listing_gates' | 'surplus_solicitation_type' | 'alternate_on_automated'
+  readonly check:
+    | 'auto_dq_exceptions'
+    | 'listing_gates'
+    | 'surplus_solicitation_type'
+    | 'alternate_on_automated'
+    | 'evaluation_factor_unresolved'
   readonly severity: 'blocking' | 'unassessable'
   /** The specific field on THIS candidate that failed. Never a general complaint. */
   readonly failing_field: string
@@ -168,8 +184,11 @@ export function runPreflight(c: PreflightCandidate): PreflightResult {
         failing_field: 'quote.validity_period_days',
         statement:
           `The quote is valid for ${c.quote.validity_period_days} days. On an AIDC solicitation a ` +
-          'validity period under the 90-day minimum makes the quotation ineligible for automated award.',
-        rule: ruleWithQuote(RULES.ms_surplus_ineligible_on_aidc),
+          'validity period under the 90-day minimum makes the quotation ineligible for automated award. ' +
+          'This is a separate exception from the surplus one and it is tripped by accident.',
+        // Part II para 1(b), its own paragraph. An earlier version of this file cited 1(a), the surplus
+        // exception, which is the adjacent paragraph and a different rule.
+        rule: ruleWithQuote(RULES.ms_aidc_validity_90_days),
         reroute: 'Extend the validity period to at least 90 days before submitting.',
       })
     }
@@ -296,6 +315,30 @@ export function runPreflight(c: PreflightCandidate): PreflightResult {
         'Submit it to the L04(j) future-evaluation channel instead. Also check whether this part number ' +
         'was ever delivered under this stock number: if it was, the correct L04 box is ' +
         'previously-approved product rather than alternate, and the offer becomes evaluable.',
+    })
+  }
+
+  // ------------------------------------------------------------------ CHECK 4: the open factor set
+  // T3 owns the arithmetic. This lane's job is to refuse to let an applicable factor go unstated, because
+  // dropping one understates the evaluated price and overstates how competitive the quote is.
+  if (
+    c.solicitation.subject_to_buy_american_or_bop === true &&
+    c.solicitation.buy_american_factor_amount_usd === undefined
+  ) {
+    findings.push({
+      check: 'evaluation_factor_unresolved',
+      severity: 'unassessable',
+      failing_field: 'solicitation.buy_american_factor_amount_usd',
+      statement:
+        'This solicitation is subject to the Buy American statute or the Balance of Payments Program, ' +
+        'which adds a third evaluation factor to the total quotation price. The rule states no dollar ' +
+        'amount for it, and none is assumed here. Any evaluated total for this candidate is a FLOOR that ' +
+        'is missing this factor, not a complete figure.',
+      rule: ruleWithQuote(RULES.ms_automated_evaluation_factors),
+      reroute:
+        'Establish the factor from DFARS 225.502(c) for this item and record it, then the evaluated ' +
+        'price becomes a total rather than a floor. Do not compete on the floor as though it were the ' +
+        'total.',
     })
   }
 
