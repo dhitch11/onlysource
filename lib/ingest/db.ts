@@ -134,12 +134,24 @@ LEFT JOIN (
   AND q.nsn_raw             = r.nsn_raw
   AND q.pr_number           = r.pr_number
 LEFT JOIN (
-  SELECT niin,
+  -- JOIN ON THE NIIN WHERE THERE IS ONE, ELSE ON THE RAW STOCK NUMBER.
+  --
+  -- A plain niin-to-niin join produces a FALSE ABSENCE, which is the most dangerous shape of
+  -- missing data because it reads as a finding rather than as a gap. Measured on the real day:
+  -- 9 requirements and 14 approved-source rows carry LOCALLY ASSIGNED stock numbers with no
+  -- NIIN, so on a NIIN join they can never match anything. 8 requirements therefore rendered
+  -- "no approved source on file" while actually having up to FIVE approved suppliers
+  -- (1560LN0032666 has 5). Anything reasoning about a sole-source corner would have read those
+  -- as monopoly candidates on the strength of an absence we manufactured.
+  --
+  -- NIIN stays the key wherever it exists, because the supply class can change while the item
+  -- does not. The raw stock number is the fallback only where the government issued no NIIN.
+  SELECT COALESCE(niin, nsn_raw)                   AS join_key,
          COUNT(DISTINCT cage)                      AS approved_source_count,
          array_agg(DISTINCT cage ORDER BY cage)    AS approved_cages
   FROM approved_source
-  GROUP BY niin
-) s ON s.niin = r.niin
+  GROUP BY COALESCE(niin, nsn_raw)
+) s ON s.join_key = COALESCE(r.niin, r.nsn_raw)
 WHERE r.observed_at = (SELECT MAX(observed_at) FROM requirement)
 ORDER BY r.return_by NULLS LAST, r.solicitation_number, r.nsn_raw, r.pr_number
 `
