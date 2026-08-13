@@ -24,7 +24,6 @@ import {
   type ScorecardBand,
   type BandDirection,
   bandFor,
-  featureByKey,
   maxPointsFor,
 } from './card'
 
@@ -262,6 +261,3 @@ export function contributionFor(result: ScoreResult, featureKey: string): Contri
   if (!found) throw new Error(`scorecard: no contribution recorded for ${featureKey}`)
   return found
 }
-
-/** Re-exported for callers that hold a card and need a feature definition beside a contribution. */
-export { featureByKey }

@@ -545,12 +545,32 @@ export function collectGrounding(payload: unknown): PayloadGrounding {
           if (isPercent) numbers.push(parsed / 100)
         }
       }
-      const isoYear = /^(\d{4})-\d{2}-\d{2}/.exec(trimmed)
-      const yearText = isoYear === null ? undefined : isoYear[1]
-      // A date field is the only place a bare year legitimately comes from. Year only: adding
-      // the month and the day would quietly widen the numeric pool by two small integers per
-      // date, which is exactly the kind of generosity a fabricated count hides inside.
-      if (yearText !== undefined) numbers.push(Number(yearText))
+      // THE WHOLE STRING MUST BE A DATE, and the calendar fields must be in range.
+      //
+      // This pattern was anchored only at the start, so it matched the PREFIX of anything shaped
+      // like four digits, a dash, two digits, a dash, two digits. A stock number satisfies that:
+      // '1650-01-059-8221' matched as though it read '1650-01-05', and the FSC 1650 entered the
+      // numeric pool as a year. The consequence runs in the dangerous direction. The pool is the
+      // set of numerals the firewall treats as GROUNDED, so a fabricated "$1,650" in generated
+      // prose would have resolved against a stock number and passed, which is the exact failure
+      // this module exists to make impossible. It also contradicted the refusal stated in this
+      // function's own header comment: digit runs are never mined out of the middle of a string.
+      //
+      // Anchoring both ends and range-checking the month and day is what makes an identifier fail
+      // to parse as a date. A trailing-time form is allowed because that is still wholly a date.
+      const isoDate = /^(\d{4})-(\d{2})-(\d{2})(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/.exec(
+        trimmed,
+      )
+      if (isoDate !== null) {
+        const month = Number(isoDate[2])
+        const day = Number(isoDate[3])
+        // A date field is the only place a bare year legitimately comes from. Year only: adding
+        // the month and the day would quietly widen the numeric pool by two small integers per
+        // date, which is exactly the kind of generosity a fabricated count hides inside.
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          numbers.push(Number(isoDate[1]))
+        }
+      }
       return
     }
     if (typeof node !== 'object') return

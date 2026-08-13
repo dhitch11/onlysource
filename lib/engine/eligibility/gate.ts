@@ -296,6 +296,7 @@ export type EligibilityReasonCode =
   | 'set_aside_cascade_not_established_in_primary_text'
   | 'set_aside_indicator_absent'
   | 'critical_safety_item'
+  | 'critical_safety_item_esa_may_restrict_surplus'
   | 'long_term_contract_coverage'
   | 'amsc_restricted_competition_signal'
   | 'amsc_open_competition_signal'
@@ -800,7 +801,12 @@ function evaluateSuppressionSignals(
       citation: GATE_CITATIONS.csi_esa,
     })
     reasons.push({
-      code: 'critical_safety_item',
+      // A DISTINCT CODE, not a second 'critical_safety_item'. These are two different facts with
+      // two different citations: the first states the cost that always applies (the $600 per ESA
+      // factor), this one states a risk that may not materialise (the ESA restricting surplus).
+      // Sharing one code let a consumer that de-duplicates reasons by code silently drop whichever
+      // arrived second, and the one that would have been dropped is the restriction warning.
+      code: 'critical_safety_item_esa_may_restrict_surplus',
       disposition: 'signal',
       operator_text:
         'Unused former Government surplus is acceptable material unless the engineering support ' +

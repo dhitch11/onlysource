@@ -65,7 +65,6 @@ type Candidate = {
   readonly feature: string
   readonly label: string
   readonly currentValue: FeatureValue
-  readonly currentPoints: number
   /** Every reachable band change in the needed direction, by magnitude ascending. */
   readonly options: readonly { readonly flipValue: FeatureValue; readonly delta: number }[]
   readonly maxMagnitude: number
@@ -93,7 +92,6 @@ function buildCandidates(card: Scorecard, result: ScoreResult, needGain: boolean
       feature: contribution.feature,
       label: contribution.label,
       currentValue: contribution.value,
-      currentPoints: contribution.points,
       options,
       maxMagnitude,
       actionability: actionabilityRank(card, contribution.feature),
