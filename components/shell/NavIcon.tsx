@@ -1,0 +1,94 @@
+/*
+ * Nav icons. Owner: T8 DESIGN.
+ *
+ * Geometry taken from the approved console mockup's inline SVGs. One icon family, drawn on
+ * the same 24 unit grid at the same 1.6 stroke weight, because a nav that mixes two icon
+ * families is the fastest way for a product to look assembled rather than designed. That is
+ * a first-customer gate item (C-A.6, "the one icon family").
+ *
+ * ALL OF THEM ARE aria-hidden. The nav item's own text is the accessible name. An icon that
+ * duplicates its adjacent label into the accessibility tree makes a screen reader say
+ * everything twice, which is worse than having no icon at all.
+ *
+ * They inherit currentColor, so the active brass state and both themes are handled by the
+ * nav item's colour and this file never needs to know about either.
+ */
+
+export type NavIconName =
+  | "dashboard"
+  | "board"
+  | "sales"
+  | "hunter"
+  | "map"
+  | "documents"
+  | "suppliers"
+  | "admin"
+  | "design";
+
+const PATHS: Record<NavIconName, React.ReactNode> = {
+  dashboard: <path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3zM13 5h8V3h-8z" />,
+  board: (
+    <>
+      <rect x="3" y="3" width="7" height="9" />
+      <rect x="14" y="3" width="7" height="5" />
+      <rect x="14" y="12" width="7" height="9" />
+      <rect x="3" y="16" width="7" height="5" />
+    </>
+  ),
+  sales: (
+    <>
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-5 3 3 5-7" />
+    </>
+  ),
+  // The Hunter Mode star, which the approved console renders in amber.
+  hunter: <path d="M12 2l2 5 5 .5-3.8 3.4 1.2 5.1L12 18l-4.6 2 1.2-5.1L4.8 11.5 10 11z" />,
+  map: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3v18M3 12h18" />
+    </>
+  ),
+  documents: (
+    <>
+      <path d="M6 2h9l3 3v17H6z" />
+      <path d="M9 12h6M9 16h6" />
+    </>
+  ),
+  suppliers: (
+    <>
+      <path d="M3 21V8l9-5 9 5v13" />
+      <path d="M9 21v-6h6v6" />
+    </>
+  ),
+  admin: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  design: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3.5" />
+    </>
+  ),
+};
+
+export function NavIcon({ name }: { name: NavIconName }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+      focusable="false"
+      style={{ flex: "none" }}
+    >
+      {PATHS[name]}
+    </svg>
+  );
+}

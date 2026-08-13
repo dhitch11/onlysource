@@ -1,0 +1,379 @@
+/*
+ * The product shell. Owner: T8 DESIGN.
+ *
+ * The approved console is a fixed 1240px grid with `overflow-x: auto` on the body, which
+ * means it does not reflow at all. That is correct for a design comp and wrong for a
+ * product: Quality Bar R6 sets a 320px reflow floor on non-grid surfaces, and the shell is
+ * a non-grid surface. So the sidebar collapses to a top bar below the breakpoint rather
+ * than the page growing a horizontal scrollbar.
+ */
+
+.app {
+  display: grid;
+  /* minmax(0, 1fr) on the content track, never 1fr. A grid item's default min-width is
+   * auto, so one wide table would otherwise stretch the whole shell and push the page
+   * sideways. That defect cost an hour on /design; it is not repeated here. */
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-block-size: 100dvh;
+}
+
+/* ---------------------------------------------------------------------------- sidebar */
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-3);
+  background: linear-gradient(180deg, var(--panel), var(--bg));
+  border-inline-end: 1px solid var(--line);
+  min-inline-size: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2) var(--sp-5);
+}
+
+/* The drop shadow lives here, once, rather than as a filter inside the SVG component. */
+.brandMark {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 25%, transparent));
+  flex: none;
+}
+
+.wordmark {
+  display: block;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  font-size: var(--fs-300);
+  line-height: 1;
+}
+
+.wordmark b {
+  color: var(--accent);
+  font-weight: var(--fw-bold);
+}
+
+.brandSub {
+  display: block;
+  font-size: var(--fs-100);
+  letter-spacing: 0.18em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin-block-start: var(--sp-1);
+}
+
+/* -------------------------------------------------------------------------------- nav */
+
+.nav ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  color: var(--dim);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-300);
+  border: 1px solid transparent;
+  text-decoration: none;
+  /* Comfortably above the 24px pointer minimum. A destination hit dozens of times a day
+   * should not sit at the legal floor. */
+  min-block-size: 2.25rem;
+}
+
+.navItem:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+/*
+ * The active item carries the brass inset rail from the approved console.
+ * aria-current="page" is set in the component, so the active state is announced and not
+ * only drawn. Under forced colors the rail disappears and aria-current still carries it.
+ */
+.navItemActive {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft),
+    color-mix(in srgb, var(--accent) 3%, transparent)
+  );
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.navItemEmphasised {
+  margin-block-start: var(--sp-2);
+  border-color: var(--line-2);
+  background: var(--panel);
+}
+
+.navLabel {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.navCount,
+.navTag {
+  margin-inline-start: auto;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  flex: none;
+}
+
+.navItemActive .navCount {
+  color: var(--accent);
+}
+
+.navTag {
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+}
+
+.sepBefore {
+  margin-block-start: var(--sp-3);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------- org switcher + account */
+
+.sideFoot {
+  margin-block-start: auto;
+  display: grid;
+  gap: var(--sp-3);
+  padding-block-start: var(--sp-4);
+}
+
+.org {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  inline-size: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--panel);
+  text-align: start;
+  min-block-size: 2.75rem;
+}
+
+.org:hover {
+  border-color: var(--olive-dim);
+}
+
+.orgFlag {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+  background: var(--raised);
+  color: var(--accent);
+  flex: none;
+}
+
+.orgText {
+  min-inline-size: 0;
+}
+
+.orgName {
+  display: block;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-200);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orgRole {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.chevron {
+  margin-inline-start: auto;
+  color: var(--faint);
+  flex: none;
+}
+
+.acct {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  color: var(--olive);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-bold);
+  flex: none;
+}
+
+.acctText {
+  min-inline-size: 0;
+}
+
+.acctName {
+  display: block;
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acctRole {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------------------------- main */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  background:
+    radial-gradient(
+      1200px 420px at 82% -12%,
+      color-mix(in srgb, var(--accent) 5%, transparent),
+      transparent 60%
+    ),
+    var(--bg);
+}
+
+.topMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-5);
+  border-block-end: 1px solid var(--line);
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.content {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding: var(--sp-5);
+}
+
+/* ------------------------------------------------------------------------- the reflow
+ * R6, WCAG 1.4.10: 320px floor on non-grid surfaces, which the shell is. Below 60rem the
+ * sidebar stops being a column and becomes a top bar with a horizontally scrollable nav.
+ *
+ * The nav strip scrolls INSIDE ITSELF. The page never scrolls sideways. That is the same
+ * rule the data grid follows and it is the only honest way to keep eight destinations
+ * reachable at 320px without hiding any of them behind a menu the operator has to learn.
+ */
+@media (max-width: 60rem) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+    border-inline-end: none;
+    border-block-end: 1px solid var(--line);
+    padding: var(--sp-3);
+  }
+
+  .brand {
+    padding: 0;
+  }
+
+  .nav {
+    order: 3;
+    inline-size: 100%;
+    min-inline-size: 0;
+    overflow-x: auto;
+    /* Momentum scrolling without a visible bar eating a row of pixels. */
+    scrollbar-width: thin;
+  }
+
+  .nav ul {
+    flex-direction: row;
+    gap: var(--sp-1);
+    inline-size: max-content;
+  }
+
+  .navItemEmphasised {
+    margin-block-start: 0;
+  }
+
+  .sepBefore {
+    margin-block-start: 0;
+    padding-block-start: 0;
+    border-block-start: none;
+    margin-inline-start: var(--sp-2);
+    padding-inline-start: var(--sp-2);
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .sideFoot {
+    margin-block-start: 0;
+    margin-inline-start: auto;
+    grid-auto-flow: column;
+    align-items: center;
+    padding-block-start: 0;
+  }
+
+  .acct {
+    padding-block-start: 0;
+    border-block-start: none;
+  }
+
+  .content {
+    padding: var(--sp-4) var(--sp-3);
+  }
+}
+
+/* At the true floor the org label and the account name would fight for the same 320px, so
+ * the account collapses to its avatar. The name stays available to assistive technology. */
+@media (max-width: 30rem) {
+  .acctText {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The Hunter Mode star is amber in the approved console. Amber is otherwise reserved for
+ * the auto-award clock, and this is the one sanctioned exception because the BUILD-DIRECTIVE
+ * and the approved console both render it that way. It is a MODULE MARK, not a status: the
+ * ON state is real data and is absent until @T6's engine reports it. */
+.navItemEmphasised svg {
+  color: var(--amber);
+}
