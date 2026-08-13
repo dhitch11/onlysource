@@ -109,6 +109,36 @@ function decodeHtml(s: string): string {
     .replace(/&#39;/g, "'")
 }
 
+
+/** Wrap an egress response as a consented one, adding the small-object convenience. */
+function toConsented(res: EgressResponse): ConsentedResponse {
+  let taken = false
+  return {
+    status: res.status,
+    headers: res.headers,
+    finalUrl: res.finalUrl,
+    contentType: res.contentType,
+    body: res.body,
+    async bytes() {
+      if (taken) {
+        // A stream is consumable once. Saying so is better than returning an empty buffer
+        // that reads as "the government sent us nothing".
+        throw new Error('the response body has already been consumed')
+      }
+      taken = true
+      if (!res.body) return Buffer.alloc(0)
+      const chunks: Uint8Array[] = []
+      const reader = res.body.getReader()
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(value)
+      }
+      return Buffer.concat(chunks)
+    },
+  }
+}
+
 /** Cookies held per host. NEVER logged: a session cookie is a credential. */
 type Session = { cookies: Map<string, string>; mintedAt: number }
 
@@ -134,7 +164,20 @@ export type ConsentedResponse = {
   /** AFTER redirects. How an expired session is told from a real page. */
   finalUrl: string
   contentType: string | null
+  /**
+   * THE DEFAULT, and deliberately the one that requires no decision. The monthly PublogDVD
+   * archive is 1,733,717,329 bytes; buffering it is an out-of-memory crash, not a slow path.
+   */
   body: ReadableStream<Uint8Array> | null
+  /**
+   * The convenience for small objects, per @T2's amendment. Correct for the 439 KB daily
+   * index, wrong for the catalog.
+   *
+   * It is a METHOD rather than a property on purpose: a property would be materialised for
+   * every response including the 1.73 GB one, which is exactly the accident streaming exists
+   * to prevent. Calling it consumes `body`, so it is one or the other, never both.
+   */
+  bytes(): Promise<Buffer>
 }
 
 export interface ConsentedClient {
@@ -242,7 +285,7 @@ export async function getConsentedClient(
       SESSIONS.set(host, await mint(host, path))
       return request(path, init, true)
     }
-    return res
+    return toConsented(res)
   }
 
   return {
