@@ -1,0 +1,210 @@
+/*
+ * Controls: Button, StatusChip, Field. Owner: T8 DESIGN.
+ * Every value from tokens.css.
+ */
+
+/* ---------------------------------------------------------------------------- button */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  /* 24px is the WCAG 2.5.8 minimum. This sits comfortably above it, because a toolbar
+   * control an operator hits hundreds of times a day should not be at the legal floor. */
+  min-block-size: 2.25rem;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+.primary:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--olive-dim);
+}
+
+.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--dim);
+}
+
+.quiet:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--panel-2);
+}
+
+/*
+ * Destructive does NOT lean on red, because red means the auto-award clock in this palette
+ * and a colour must not carry two meanings. It leans on a heavier border, a distinct ground
+ * and the word in the label.
+ */
+.destructive {
+  border-color: var(--red);
+  border-width: 2px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+.destructive:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+}
+
+.btnLabelHidden {
+  opacity: 0;
+}
+
+.btnSpinner {
+  position: absolute;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 2px solid currentColor;
+  border-block-start-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reduced motion removes the spin rather than shortening it. The busy state is still
+ * conveyed, by the aria-busy attribute and the live region, which is the part that
+ * actually carries the information. */
+@media (prefers-reduced-motion: reduce) {
+  .btnSpinner {
+    animation: none;
+    border-block-start-color: currentColor;
+    opacity: 0.5;
+  }
+}
+
+/* ------------------------------------------------------------------------ status chip */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.chipDot {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  flex: none;
+}
+
+.verified {
+  color: var(--olive);
+  background: color-mix(in srgb, var(--olive) 14%, transparent);
+}
+
+.active {
+  color: var(--steel);
+  background: color-mix(in srgb, var(--steel) 14%, transparent);
+}
+
+.idle {
+  color: var(--faint);
+  background: color-mix(in srgb, var(--faint) 12%, transparent);
+  /* An idle chip is deliberately outlined rather than filled, so "nothing here yet" reads
+   * as an absence at a glance rather than as another populated state. */
+  border-color: var(--line-2);
+}
+
+/* Reserved for the auto-award clock. If you are using these for anything else, stop. */
+.urgent {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.critical {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+
+/* ----------------------------------------------------------------------------- field */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/*
+ * A persistent label, never a placeholder pretending to be one. A placeholder label
+ * disappears the moment someone types, which means the one person who most needs to check
+ * what a field is (an interrupted operator returning to a half-filled form) is the one
+ * person who cannot.
+ */
+.label {
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.hint {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.input {
+  inline-size: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  /* 16px exactly. Below this Safari zooms the whole page on focus, which on a phone throws
+   * the operator out of their place in the form. */
+  font-size: var(--fs-400);
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  min-block-size: 2.5rem;
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+}
+
+.inputInvalid {
+  border-color: var(--red);
+  border-width: 2px;
+}
+
+/* The error is announced through a live region in the component, not only coloured. */
+.error {
+  font-size: var(--fs-100);
+  color: var(--red);
+  font-weight: var(--fw-semibold);
+}

@@ -1,0 +1,218 @@
+/* /design reference surface. Owner: T8 DESIGN. */
+
+/*
+ * minmax(0, 1fr), not 1fr.
+ *
+ * A grid item's default min-width is `auto`, which means "as wide as my min-content". One
+ * wide descendant therefore stretches the TRACK, and every sibling stretches with it, and
+ * the page grows a horizontal scrollbar that no single element looks responsible for. That
+ * is exactly what happened here: at a 320px viewport every section measured 533px wide.
+ *
+ * It is invisible to every check except measuring the rendered geometry, which is why the
+ * screenshot pass caught it and the build did not.
+ */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-7);
+  padding-block-end: var(--sp-7);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-block-end: var(--sp-4);
+  border-block-end: 1px solid var(--line-2);
+}
+
+.h1 {
+  font-size: var(--fs-700);
+  line-height: var(--lh-700);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-tight);
+}
+
+.lede {
+  margin-block-start: var(--sp-2);
+  color: var(--dim);
+  max-inline-size: 62ch;
+}
+
+.themeSwitch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  min-inline-size: 0;
+}
+
+.h2 {
+  font-size: var(--fs-600);
+  line-height: var(--lh-600);
+  font-weight: var(--fw-bold);
+}
+
+.note {
+  color: var(--dim);
+  max-inline-size: 78ch;
+}
+
+.sectionBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+/* Every demo row wraps rather than forcing a horizontal scrollbar, so this page itself
+ * meets the 320px reflow floor it exists to document. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--sp-5);
+}
+
+.caption {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------------------ type table */
+
+.typeList {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.typeRow {
+  display: grid;
+  grid-template-columns: 8rem 4rem minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding-block: var(--sp-1);
+  border-block-end: 1px solid var(--line);
+}
+
+@media (max-width: 34rem) {
+  .typeRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-1);
+  }
+}
+
+.typeToken {
+  color: var(--accent);
+  font-size: var(--fs-100);
+}
+
+.typePx {
+  color: var(--faint);
+  font-size: var(--fs-100);
+}
+
+/* -------------------------------------------------------------------------- swatches */
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--sp-3);
+}
+
+.swatch {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: var(--sp-3);
+  align-items: center;
+}
+
+.swatchChip {
+  grid-row: span 2;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+}
+
+.swatchToken {
+  font-size: var(--fs-100);
+  color: var(--ink);
+}
+
+.swatchRole {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+/* -------------------------------------------------------------------------- coverage */
+
+/*
+ * A table cannot shrink below its own content, and that is correct behaviour, not a bug to
+ * fight. So it scrolls INSIDE ITS OWN CONTAINER rather than pushing the page sideways. The
+ * page never scrolls horizontally; wide content does, in its own box, which is the rule for
+ * the data grid too.
+ */
+.coverageWrap {
+  inline-size: 100%;
+  min-inline-size: 0;
+  overflow-x: auto;
+}
+
+.coverage {
+  inline-size: 100%;
+  min-inline-size: 22rem;
+  border-collapse: collapse;
+}
+
+.coverage th {
+  text-align: left;
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  padding: var(--sp-2);
+  border-block-end: 1px solid var(--line-2);
+}
+
+.coverage td {
+  padding: var(--sp-2);
+  border-block-end: 1px solid var(--line);
+  font-size: var(--fs-300);
+}
+
+.foot {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--sp-4);
+  max-inline-size: 78ch;
+}

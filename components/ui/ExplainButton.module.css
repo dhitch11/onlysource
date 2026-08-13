@@ -1,0 +1,193 @@
+/*
+ * ExplainButton styles. Owner: T8 DESIGN.
+ *
+ * The `i` dot is taken from the approved comp. Its IMPLEMENTATION is not: the comp uses a
+ * title attribute and cursor:help, which are the two patterns R3 and R4 ban.
+ */
+
+.trigger {
+  /* WCAG 2.5.8 Level AA: at least 24x24 CSS pixels. The visible dot is smaller than the
+   * hit area on purpose. Shrinking the target to match the ink is the mistake. */
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  border-radius: var(--radius-pill);
+  color: var(--faint);
+  /* NOT cursor:help. That signals a hover affordance, and there is no hover affordance. */
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.trigger > span {
+  display: grid;
+  place-items: center;
+  inline-size: 15px;
+  block-size: 15px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-100);
+  font-style: normal;
+  line-height: 1;
+}
+
+.trigger:hover {
+  /* Hover may change the colour. Hover may NOT reveal information. Nothing opens here. */
+  color: var(--ink);
+}
+
+.sm > span {
+  inline-size: 13px;
+  block-size: 13px;
+}
+
+/* ------------------------------------------------------------------------- the panel */
+
+.panel {
+  /* Top layer via popover="auto", so a table's overflow:hidden can never clip it. */
+  inline-size: min(30rem, calc(100vw - var(--sp-5)));
+  max-block-size: min(30rem, calc(100vh - var(--sp-6)));
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+}
+
+.panel:not(:popover-open) {
+  display: none;
+}
+
+/*
+ * CSS anchor positioning, behind a support check. anchor-scope handles the collision case
+ * of an explain button repeated across 26 column headers, where every panel would otherwise
+ * try to resolve the same anchor name.
+ *
+ * HONEST LIMITATION, not yet closed: where anchor positioning is unsupported the panel
+ * falls back to the popover's default centred placement rather than sitting next to its
+ * trigger. That is legible and dismissible, so it is not broken, but it is not the designed
+ * position. The spec calls for a Floating UI fallback. Floating UI is not a dependency yet
+ * and I am not adding one in the first milestone. Tracked, and it is a real gap, not a
+ * finished behaviour.
+ */
+@supports (anchor-name: --x) {
+  .panel {
+    position: absolute;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-block, flip-inline;
+    margin: var(--sp-1);
+  }
+}
+
+.lead {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  color: var(--ink);
+  margin-block-end: var(--sp-3);
+}
+
+.dl {
+  display: grid;
+  gap: var(--sp-1);
+  margin-block-end: var(--sp-3);
+}
+
+.dl dt {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  margin-block-start: var(--sp-2);
+}
+
+.dl dd {
+  color: var(--dim);
+}
+
+/* ------------------------------------------------------- the live computation record */
+
+.compute {
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line-2);
+}
+
+.computeHead {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  margin-block-end: var(--sp-2);
+}
+
+.factors {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.factors li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-block: var(--sp-1);
+  border-block-end: 1px dashed var(--line);
+  color: var(--dim);
+}
+
+.factors li:last-child {
+  border-block-end: none;
+}
+
+/* Direction is carried by the sign in the text, not by the colour alone. Render this panel
+ * in greyscale and every contribution is still readable. */
+.pos {
+  color: var(--olive);
+  font-weight: var(--fw-semibold);
+}
+
+.neg {
+  color: var(--red);
+  font-weight: var(--fw-semibold);
+}
+
+.abstain {
+  color: var(--faint);
+  font-style: normal;
+}
+
+.counterfactual,
+.gaps {
+  margin-block-start: var(--sp-2);
+  color: var(--dim);
+}
+
+.counterfactual strong,
+.gaps strong {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.stamp {
+  margin-block-start: var(--sp-3);
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.more {
+  display: inline-block;
+  margin-block-start: var(--sp-3);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+}
+
+.pending {
+  display: grid;
+  gap: var(--sp-2);
+  color: var(--dim);
+}
