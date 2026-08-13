@@ -170,9 +170,31 @@ describe('R1.2 each component of the reading carries its own evidence grade', ()
     expect(AWARD_CLOCK_PROVENANCE.offset.citation).toContain('Master Solicitation')
   })
 
-  it('grades the timezone ESTIMATED, and does NOT claim a citation for it', () => {
-    expect(AWARD_CLOCK_PROVENANCE.timezone.grade).toBe('ESTIMATED')
-    expect(AWARD_CLOCK_PROVENANCE.timezone.citation).toBeNull()
+  /*
+   * UPDATED 2026-08-13 by @T6-AUTOMATION. This assertion previously required the timezone to be
+   * ESTIMATED with a null citation, and it was correct when written. The fact changed: the zone
+   * was read from primary text (Master Solicitation Rev-81, RETURN DATE AND TIME section) and
+   * the PDF was on disk the whole time. The research recorded it unverifiable because dla.mil
+   * returns 403, which was a block on FETCHING the document, not on HAVING it.
+   *
+   * The test is kept strict in the other direction now: the citation must be real, and the
+   * grade must be CITED and never VERIFIED, because para 2(h) does not restate the zone.
+   */
+  it('grades the timezone CITED with a real citation, and never claims VERIFIED', () => {
+    expect(AWARD_CLOCK_PROVENANCE.timezone.grade).toBe('CITED')
+    expect(AWARD_CLOCK_PROVENANCE.timezone.citation).toContain('Master Solicitation Rev-81')
+    expect(AWARD_CLOCK_PROVENANCE.timezone.citation).toContain('Eastern Standard Time')
+    // The sweep inherits the zone rather than citing it, so the strongest honest grade is CITED.
+    expect(AWARD_CLOCK_PROVENANCE.timezone.grade).not.toBe('VERIFIED')
+  })
+
+  it('grades the weekend and federal-holiday rollover CITED, scoped to the return date', () => {
+    expect(AWARD_CLOCK_PROVENANCE.weekendHolidayRollover.grade).toBe('CITED')
+    expect(AWARD_CLOCK_PROVENANCE.weekendHolidayRollover.citation)
+      .toContain('Saturday, Sunday or federal holiday')
+    // The honesty that matters: the cited sentence extends the RETURN DATE. Applying it to the
+    // sweep is our reading, and the note must say so rather than quietly widening the citation.
+    expect(AWARD_CLOCK_PROVENANCE.weekendHolidayRollover.note).toContain('our reading')
   })
 
   it('grades the counting convention UNVERIFIED rather than pretending it is settled', () => {
@@ -186,11 +208,14 @@ describe('R1.2 each component of the reading carries its own evidence grade', ()
   it('returns one qualifier PER unresolved component, not a single blanket hedge', () => {
     const disclosure = deadlineDisclosure(cutoffInstantOn(d(2026, 11, 2)))
     expect(disclosure.estimated).toBe(true)
-    expect(disclosure.qualifiers.length).toBe(2) // timezone + counting convention
-    expect(disclosure.qualifiers.some((q) => q.toLowerCase().includes('timezone'))).toBe(true)
+    // ONE qualifier now, not two. The timezone was cited from primary text on 2026-08-13, so a
+    // qualifier for it would be a hedge on a settled fact, which is its own kind of dishonesty.
+    // The counting convention is genuinely still open and still earns its qualifier.
+    expect(disclosure.qualifiers.length).toBe(1)
     expect(disclosure.qualifiers.some((q) => q.toLowerCase().includes('counting'))).toBe(true)
-    // The offset IS cited, so nothing may imply it is open.
+    // The offset and the timezone are BOTH cited, so nothing may imply either is open.
     expect(disclosure.qualifiers.some((q) => q.includes('3 business day'))).toBe(false)
+    expect(disclosure.qualifiers.some((q) => q.toLowerCase().includes('timezone'))).toBe(false)
     expect(disclosure.label).toContain('3:00 PM EST')
   })
 })

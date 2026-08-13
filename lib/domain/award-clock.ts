@@ -17,10 +17,20 @@
  *                                 NON-CONTRACTUAL PARAPHRASE. It is not the deadline. It
  *                                 survives here only as the operational scheduling margin.
  *
- *   2. THE TIMEZONE IS ESTIMATED. Eastern is INFERRED, not verified. No primary text states
- *                                 a zone. Every customer-facing rendering of a deadline
- *                                 carries the estimated label until somebody records a
- *                                 citation, and gate R1.2 is disqualifying otherwise.
+ *   2. THE TIMEZONE IS CITED.     Eastern, from primary text, as of 2026-08-13.
+ *                                 Master Solicitation Rev-81 (2021-08-23), RETURN DATE AND
+ *                                 TIME section, verbatim: "The time for receipt of quotations
+ *                                 is 3:00 P.M. Eastern Standard Time, or when applicable,
+ *                                 Eastern Daylight Savings Time on the return date."
+ *                                 "Eastern" occurs exactly twice in the whole document, both
+ *                                 in that sentence, and no other zone appears anywhere.
+ *                                 GRADED HONESTLY: this is CITED FOR THE STATED DEADLINE and
+ *                                 INHERITED BY THE SWEEP. Para 2(h) says "3:00 P.M." and does
+ *                                 NOT restate the zone, so the sweep's zone is an inheritance
+ *                                 from the same document, not its own citation. That is why
+ *                                 this reads CITED and never VERIFIED.
+ *                                 The text also settles EST/EDT explicitly, which is why the
+ *                                 zone is stored as an IANA name and never as an offset.
  *
  *   3. THE COUNTING CONVENTION IS UNVERIFIED. "3 business days after issue" does not say
  *                                 whether the issue day counts. This module counts
@@ -60,10 +70,37 @@ export const AWARD_CLOCK_PROVENANCE = {
     note: 'DIBBS FAQ 31 "1 business day" is a non-contractual paraphrase and is NOT the deadline. It is retained only as the operational scheduling margin.',
   },
   timezone: {
-    grade: 'ESTIMATED' as EvidenceGrade,
+    grade: 'CITED' as EvidenceGrade,
     value: 'America/New_York',
-    citation: null as string | null,
-    note: 'Eastern is inferred. No primary text consulted so far states a timezone for the 3:00 PM cutoff.',
+    citation:
+      'DLA Master Solicitation Rev-81 (2021-08-23), RETURN DATE AND TIME section: "The time for receipt of quotations is 3:00 P.M. Eastern Standard Time, or when applicable, Eastern Daylight Savings Time on the return date."',
+    note: 'Read from primary text 2026-08-13 (pdftotext over the Rev-81 PDF held on disk). "Eastern" occurs exactly twice in the document, both in that one sentence; no other timezone appears. CITED FOR THE STATED DEADLINE AND INHERITED BY THE SWEEP: para 2(h) states "3:00 P.M." without restating the zone, so the sweep inherits it from the same document rather than carrying its own citation. Graded CITED, never VERIFIED.',
+  },
+  /**
+   * The weekend and federal-holiday rollover, which is what the business-day service runs on.
+   * Also cited, from the sentence immediately following the timezone sentence.
+   *
+   * Scope kept honest: the cited sentence extends the RETURN DATE. It does not, in terms, say
+   * the Fast Auto sweep skips a holiday. Treating the sweep as skipping non-business days is
+   * our reading, and it is the safe one, because it never invents an earlier fire.
+   */
+  weekendHolidayRollover: {
+    grade: 'CITED' as EvidenceGrade,
+    value: 'a return date on a Saturday, Sunday or federal holiday moves to the next business day',
+    citation:
+      'DLA Master Solicitation Rev-81 (2021-08-23), RETURN DATE AND TIME section: "If a return date falls on a Saturday, Sunday or federal holiday, the return date will be extended to the next business day."',
+    note: 'Read from primary text 2026-08-13. Applies in terms to the RETURN DATE. Its application to the sweep is our reading, taken because it can only move a fire later, never earlier.',
+  },
+  /*
+   * The weekend and federal-holiday rollover is CITED by the same sentence as the zone.
+   * `isNonBusinessDay()` implemented this as a reasonable assumption before there was a
+   * citation for it. There is one now.
+   */
+  businessDayRollover: {
+    grade: 'CITED' as EvidenceGrade,
+    value: 'A return date on a Saturday, Sunday or federal holiday extends to the next business day',
+    citation: 'DLA Master Solicitation, RETURN DATE AND TIME (text read in Rev-81)',
+    note: 'Same sentence as the timezone citation.',
   },
   countingConvention: {
     grade: 'UNVERIFIED' as EvidenceGrade,
@@ -237,6 +274,9 @@ export function deadlineDisclosure(instantMs: number): DeadlineDisclosure {
     qualifiers.push(
       'Timezone is estimated. Eastern is inferred from context, not from primary text.',
     )
+  }
+  if (AWARD_CLOCK_PROVENANCE.businessDayRollover.grade !== 'CITED') {
+    qualifiers.push('The weekend and holiday rollover rule is not confirmed.')
   }
   if (AWARD_CLOCK_PROVENANCE.countingConvention.grade !== 'CITED') {
     qualifiers.push(
