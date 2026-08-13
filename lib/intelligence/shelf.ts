@@ -82,43 +82,69 @@ export function fillableAtFloor(position: ShelfPosition): Niin[] {
 /* THE PORT TO T3. Their arithmetic, consumed, never reimplemented.                       */
 /* ------------------------------------------------------------------------------------ */
 
-/** An evaluation factor that applies to this line but carries no resolvable amount. */
+/**
+ * ---------------------------------------------------------------------------------------
+ * STAGED AGAINST T3'S PUBLISHED CONTRACT, NOT YET IMPORTED FROM IT
+ * ---------------------------------------------------------------------------------------
+ * T3 accepted the open-adder finding and published the contract below. It is NOT on disk yet:
+ * they land it after their adversarial verification pass, because editing that file mid-pass
+ * would be wiped by the verifier's restore.
+ *
+ * So these types MIRROR their contract field for field rather than importing it. Importing a
+ * type that does not exist yet breaks the build for every lane, which is a mistake this lane
+ * already made once today on the help registry and is not making twice.
+ *
+ * WHEN `lib/engine/pricing/evaluated.ts` LANDS: delete this block and replace it with an
+ * import of their `EvaluatedTotalOutcome`, `EvaluatedFloor` and `UnpricedFactor`. Nothing
+ * else in this file changes, which is the point of matching their names exactly.
+ */
+
+/**
+ * An evaluation factor that applies to this line and carries no resolvable amount.
+ *
+ * `applicable: true` is a literal rather than a boolean on purpose: an unpriced factor that
+ * does NOT apply is not a thing, so the type refuses to model one.
+ */
 export type UnpricedFactor = {
-  /** The factor's name as the governing clause states it. */
-  name: string
-  /** Why no amount could be attached. Never "unknown" with no explanation. */
-  reason: string
-  /** The clause it comes from, so an operator can read it. */
-  citation: string
+  /** Open code from dated config. Never a union: the factor set is open by primary text. */
+  readonly code: string
+  readonly applicable: true
+  readonly reason: 'NO_AMOUNT_IN_PRIMARY_TEXT' | 'NO_DATED_ENTRY_AT_INSTANT'
+  readonly citation: string
+}
+
+export type EvaluatedTotal = {
+  readonly kind: 'EVALUATED_TOTAL'
+  readonly evaluatedTotalUsd: number
+  readonly quotedTotalUsd: number
+  readonly appliedFactors: ReadonlyArray<{ code: string; amountUsd: number }>
 }
 
 /**
- * What T3's pricing returns, as this lane needs to consume it.
+ * The floor.
  *
- * Modelled as a discriminated union so the floor case cannot be read as a total by a caller
- * that forgot to check a boolean. If T3's own outcome type gains a floor arm, this port
- * becomes a direct alias and this shape goes away.
+ * The figure is named `atLeastUsd` and there is deliberately no `evaluatedTotalUsd` on this
+ * arm, so a call site that reaches for the total on a floor FAILS TO COMPILE. That makes the
+ * error impossible rather than merely discouraged, which is the only version of this
+ * guarantee worth having.
  */
-export type EvaluatedOutcome =
-  | {
-      kind: 'total'
-      evaluatedTotalUsd: number
-      quotedTotalUsd: number
-      appliedFactors: Array<{ name: string; amountUsd: number }>
-    }
-  | {
-      kind: 'floor'
-      /** The evaluated figure is AT LEAST this. The true total is higher by an unknown amount. */
-      atLeastUsd: number
-      quotedTotalUsd: number
-      appliedFactors: Array<{ name: string; amountUsd: number }>
-      /** Named, never counted. This is what makes the number a floor. */
-      unpricedFactors: UnpricedFactor[]
-    }
-  | {
-      kind: 'abstained'
-      reason: string
-    }
+export type EvaluatedFloor = {
+  readonly kind: 'EVALUATED_FLOOR_AT_LEAST'
+  readonly atLeastUsd: number
+  readonly quotedTotalUsd: number
+  readonly appliedFactors: ReadonlyArray<{ code: string; amountUsd: number }>
+  /** By name, never a count. A count cannot be checked by the person reading the screen. */
+  readonly unpricedFactors: readonly UnpricedFactor[]
+  readonly directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS'
+  readonly sentence: string
+}
+
+export type EvaluatedTotalAbstention = {
+  readonly kind: 'EVALUATED_ABSTAINED'
+  readonly reason: string
+}
+
+export type EvaluatedOutcome = EvaluatedTotal | EvaluatedFloor | EvaluatedTotalAbstention
 
 export type AnchorOutcome =
   | {
@@ -162,7 +188,7 @@ export type PositionValuation = {
     asOf: string | null
   } | null
   /** Factors that apply and could not be priced. Non-empty means the figure is a floor. */
-  unpricedFactors: UnpricedFactor[]
+  unpricedFactors: readonly UnpricedFactor[]
   /** Named, never empty by omission. */
   gaps: string[]
   /** The sentence the surface renders. One place, so no screen invents its own phrasing. */
@@ -207,16 +233,20 @@ export function valuePosition(position: ShelfPosition, pricing: PricingPort): Po
 
   const evaluated = pricing.evaluatedFor(position.niin, position.quantity)
 
-  if (evaluated.kind === 'abstained') {
+  if (evaluated.kind === 'EVALUATED_ABSTAINED') {
     gaps.push(`evaluated price unavailable: ${evaluated.reason}`)
   }
 
-  const unpricedFactors = evaluated.kind === 'floor' ? evaluated.unpricedFactors : []
+  const unpricedFactors: readonly UnpricedFactor[] =
+    evaluated.kind === 'EVALUATED_FLOOR_AT_LEAST' ? evaluated.unpricedFactors : []
   const isFloor = unpricedFactors.length > 0
 
   if (isFloor) {
     for (const f of unpricedFactors) {
-      gaps.push(`evaluation factor "${f.name}" applies and carries no resolvable amount: ${f.reason}`)
+      gaps.push(
+        `evaluation factor "${f.code}" applies and carries no resolvable amount (${f.reason}), ` +
+          `so the evaluated figure is a floor: ${f.citation}`,
+      )
     }
   }
 
@@ -247,11 +277,11 @@ export function valuePosition(position: ShelfPosition, pricing: PricingPort): Po
  * total. The floor sentence names the missing input rather than hedging vaguely, because
  * "approximately" tells an operator nothing about which direction the number is wrong in.
  */
-function buildStatement(isFloor: boolean, unpriced: UnpricedFactor[]): string {
+function buildStatement(isFloor: boolean, unpriced: readonly UnpricedFactor[]): string {
   if (!isFloor) {
     return 'Modelled value, not a measurement. The anchor, the adjustment, the comparison set and the horizon are shown beside it.'
   }
-  const names = unpriced.map((f) => f.name).join(', ')
+  const names = unpriced.map((f) => f.code).join(', ')
   return `At least this much. ${names} applies to this line and carries no stated amount, so the evaluated figure is a floor rather than a total and the true figure is higher by an amount we cannot yet determine.`
 }
 

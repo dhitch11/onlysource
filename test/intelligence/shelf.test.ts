@@ -20,8 +20,9 @@ import {
 } from '@/lib/intelligence/shelf'
 
 const BUY_AMERICAN: UnpricedFactor = {
-  name: 'Buy American statute or Balance of Payments Program factor',
-  reason: 'the governing clause states no dollar amount for this factor',
+  code: 'BUY_AMERICAN_BALANCE_OF_PAYMENTS',
+  applicable: true,
+  reason: 'NO_AMOUNT_IN_PRIMARY_TEXT',
   citation: 'Master Solicitation Part I 3(b)(3), referencing DFARS 225.502(c)',
 }
 
@@ -49,10 +50,10 @@ const anchored = {
 const port = (over: Partial<PricingPort> = {}): PricingPort => ({
   anchorFor: () => anchored,
   evaluatedFor: () => ({
-    kind: 'total',
+    kind: 'EVALUATED_TOTAL',
     evaluatedTotalUsd: 17_424,
     quotedTotalUsd: 17_224,
-    appliedFactors: [{ name: 'unused former Government surplus', amountUsd: 200 }],
+    appliedFactors: [{ code: 'UNUSED_FORMER_GOVERNMENT_SURPLUS', amountUsd: 200 }],
   }),
   ...over,
 })
@@ -63,11 +64,13 @@ describe('a floor is never a total', () => {
       position(),
       port({
         evaluatedFor: () => ({
-          kind: 'floor',
+          kind: 'EVALUATED_FLOOR_AT_LEAST',
           atLeastUsd: 17_424,
           quotedTotalUsd: 17_224,
-          appliedFactors: [{ name: 'unused former Government surplus', amountUsd: 200 }],
+          appliedFactors: [{ code: 'UNUSED_FORMER_GOVERNMENT_SURPLUS', amountUsd: 200 }],
           unpricedFactors: [BUY_AMERICAN],
+          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
+          sentence: 'At least this much.',
         }),
       }),
     )
@@ -80,15 +83,17 @@ describe('a floor is never a total', () => {
       position(),
       port({
         evaluatedFor: () => ({
-          kind: 'floor',
+          kind: 'EVALUATED_FLOOR_AT_LEAST',
           atLeastUsd: 1,
           quotedTotalUsd: 1,
           appliedFactors: [],
           unpricedFactors: [BUY_AMERICAN],
+          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
+          sentence: 'At least this much.',
         }),
       }),
     )
-    expect(v.gaps.join(' ')).toContain('Buy American')
+    expect(v.gaps.join(' ')).toContain('BUY_AMERICAN_BALANCE_OF_PAYMENTS')
     expect(v.gaps.join(' ')).toContain('no resolvable amount')
   })
 
@@ -97,11 +102,13 @@ describe('a floor is never a total', () => {
       position(),
       port({
         evaluatedFor: () => ({
-          kind: 'floor',
+          kind: 'EVALUATED_FLOOR_AT_LEAST',
           atLeastUsd: 1,
           quotedTotalUsd: 1,
           appliedFactors: [],
           unpricedFactors: [BUY_AMERICAN],
+          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
+          sentence: 'At least this much.',
         }),
       }),
     )
@@ -175,11 +182,13 @@ describe('the portfolio total inherits the floor', () => {
     position({ positionId: 'P2' }),
     port({
       evaluatedFor: () => ({
-        kind: 'floor',
+        kind: 'EVALUATED_FLOOR_AT_LEAST',
         atLeastUsd: 1,
         quotedTotalUsd: 1,
         appliedFactors: [],
         unpricedFactors: [BUY_AMERICAN],
+        directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
+        sentence: 'At least this much.',
       }),
     }),
   )
