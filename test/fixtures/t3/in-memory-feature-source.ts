@@ -40,14 +40,17 @@ export function inMemoryFeatureSource(seed: {
   readonly observations: readonly unknown[]
 }): InMemoryFeatureSource {
   const calls: RecordedCall[] = []
+  // REST PARAMETERS, NOT NAMED ONES. A method declared `(entity, ctx)` silently discards a third
+  // argument, so a recorder built that way cannot see the engine passing the as-of instant down,
+  // and it would clear the very check it exists for. A mutation run caught exactly that.
   return {
     calls,
-    async definitions(entity: FeatureEntity, ctx: FeatureContext) {
-      calls.push({ method: 'definitions', args: [entity, ctx] })
+    async definitions(...args: [FeatureEntity, FeatureContext]) {
+      calls.push({ method: 'definitions', args })
       return seed.definitions
     },
-    async observations(entity: FeatureEntity, ctx: FeatureContext) {
-      calls.push({ method: 'observations', args: [entity, ctx] })
+    async observations(...args: [FeatureEntity, FeatureContext]) {
+      calls.push({ method: 'observations', args })
       return seed.observations as readonly FeatureObservation[]
     },
   }

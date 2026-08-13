@@ -1,0 +1,760 @@
+{
+  "schema_version": 1,
+  "version": "v0",
+  "name": "Surplus fit opportunity scorecard",
+  "author": "@T3-ENGINE",
+  "reviewed_on": "2026-08-13",
+  "previous_version": null,
+  "diff_from_previous": null,
+  "rationale": "An additive integer point scorecard, hand checkable on a napkin, because the principal must be able to check the arithmetic himself and because in a succession year the business needs the object that IS the decision, not a post hoc explanation of a black box. Every feature traces to a verbatim statement in the corpus. The points do not.",
+  "epistemic_status": {
+    "weights_are": "PRIOR",
+    "grade": "ESTIMATED",
+    "statement": "The points on this card are a PRIOR, not a measurement. No point value here was fitted to an outcome. They encode the relative emphasis the expert places on each signal in his own written words, and they are wrong in ways nobody can currently quantify. Every surface that renders a score must say so.",
+    "refit_precondition": "Refit from labelled decisions once resolved outcomes exist. The rule layer stays in front of any learned layer permanently, because it is the fallback when a feature is unavailable and it is the artifact a successor can read.",
+    "calibration_note": "The threshold is calibrated to a single on record decision, n equals 1. See threshold.rationale. It is a queue length control, not a cost optimum."
+  },
+  "scale": {
+    "min": 0,
+    "max": 100,
+    "integer": true,
+    "direction": "higher is a stronger surplus fit opportunity"
+  },
+  "max_positive_points": 100,
+  "threshold": {
+    "flag_at_or_above": 50,
+    "rationale": "Set at the point where the expert's own fully enumerated cue set on NSN 4730-00-536-2210, the corpus decision fixture, clears it. That fixture scores 50 exactly on the cues he wrote down. This is a calibration to one on record decision, n equals 1, and it is stated as such rather than dressed as a cost optimum. Brain mapping 7 is the reason: the classification threshold is not the control variable, the queue length is, so this number moves when the operator's daily capacity moves and it carries no claim beyond that."
+  },
+  "coverage": {
+    "min_core_features_observed": 4,
+    "core_features": [
+      "recent_surplus_award_run",
+      "oem_qty_ratio_log10",
+      "offers_on_prior_solicitation",
+      "scarcity_gradient",
+      "last_supplier_class",
+      "depot_stock_zero_years",
+      "award_count_last_5y"
+    ],
+    "rationale": "Below four observed core features the card abstains regardless of score. A row can reach the threshold on non core signals alone plus three core signals, and flagging that row would present a surplus thesis while four of its seven thesis features were never seen. The abstention on a high value row is an alert, not a silence.",
+    "abstain_when_unobserved_could_cross": true,
+    "abstain_when_unobserved_could_cross_rationale": "A row that scores below the threshold but whose unobserved features could carry it over is an abstention, not a skip. Calling it a skip asserts a negative the evidence does not support."
+  },
+  "counterfactual": {
+    "tie_break": ["fewest_features_changed", "most_actionable"],
+    "tie_break_statement": "Fewest features changed wins first. Among changes of equal count, the most actionable feature wins, taken from the ranked actionability list on this card. A single feature flip names the smallest band change that still crosses the threshold, because the useful sentence is the nearest one. A combination names each member at its furthest reachable band.",
+    "realistic_combination_max_features": 3,
+    "realistic_combination_rationale": "Beyond three simultaneous changes the sentence stops being a counterfactual an operator can act on and becomes a restatement of the whole card. When the minimum is larger than this, the honest answer is to say so and name the count.",
+    "changes_only_observed_features": true,
+    "changes_only_observed_features_rationale": "An unobserved field is a measurement gap, not a value that could have been different. Unobserved fields belong in data_gaps, never in a counterfactual change list.",
+    "actionability_rank": [
+      "stock_in_hand_or_affiliate",
+      "scarcity_gradient",
+      "oem_qty_ratio_log10",
+      "offers_on_prior_solicitation",
+      "depot_stock_zero_years",
+      "award_count_last_5y",
+      "recent_surplus_award_run",
+      "last_supplier_class",
+      "incumbent_activity_decline",
+      "prior_awardee_mortality",
+      "contracting_office_single_offer_rate",
+      "non_stocked_flag",
+      "platform_longevity_proxy"
+    ],
+    "actionability_rank_rationale": "Ordered by how much the operator can actually influence or re acquire the field, most first. Buying the shelf is the most actionable thing this business does, and cornering thin availability is the second. Platform longevity and the depot stocking policy are facts about the world that no operator changes."
+  },
+  "reasons": {
+    "max_principal_reasons": 3,
+    "never_pad": true,
+    "order": "absolute points contributed, descending, then card feature order",
+    "order_rationale": "A heavy penalty is a principal reason. Ranking by signed points would bury the single strongest argument against a row underneath three weak arguments for it.",
+    "direction_lexicon": {
+      "raises": ["raises"],
+      "lowers": ["lowers"]
+    },
+    "direction_lexicon_rationale": "Exactly two words, chosen so the check is unambiguous. A sentence carrying a direction word whose polarity contradicts the sign of its contribution fails the R3.7 gate.",
+    "sentence_placeholders": ["{value}", "{points}", "{abs_points}"],
+    "sentence_numeral_rule": "A band sentence may contain no bare digits. Every numeral it renders must arrive through a placeholder that resolves to a field on the emitted reason, so a numeral in generated prose can always be traced back to the payload."
+  },
+  "excluded_by_design": [
+    {
+      "feature": "forecast_application",
+      "why": "Not connected. It stays an honest empty state and is never fed from the award frequency inference, and the inference is never presented as a forecast."
+    },
+    {
+      "feature": "latest_award_cancelled",
+      "why": "Cancelled award supersession is an ETL rule with a date, applied in the load. As a feature it would compute every downstream statistic from data the expert considers void."
+    },
+    {
+      "feature": "observed_losing_bid",
+      "why": "Price discovery. It tells you what the thing is worth, not whether you will win. It lives in pricing and never enters the probability estimand."
+    },
+    {
+      "feature": "management_price",
+      "why": "Third party aggregator vocabulary that appears zero times in primary government text. The expert genuinely uses it, so pricing carries it with that provenance on its face, but a scored signal would launder somebody else's model output into ours."
+    },
+    {
+      "feature": "required_delivery_days",
+      "why": "T2 posted delivery_days_est as ESTIMATED and this lane committed that no shipped score depends on it until it is confirmed against real solicitation PDFs."
+    },
+    {
+      "feature": "set_aside_indicator_raw",
+      "why": "Same T2 notice. ESTIMATED, so the preference and the tie breaker that key off it ship disabled with a data gap rather than running on an inferred field."
+    },
+    {
+      "feature": "first_article_test_required",
+      "why": "Structural eligibility runs before scoring as a yes or no gate, never as a negative weight. A high score must never outvote a fact about whether the product can play at all."
+    },
+    {
+      "feature": "aidc_surplus_disqualification",
+      "why": "Same reason. It is an eligibility emission, not a point deduction."
+    },
+    {
+      "feature": "free_text_remarks_present",
+      "why": "Same reason. A single character of remarks removes a quote from automated award, which is a gate outcome, not a score adjustment."
+    }
+  ],
+  "cues_present_not_cited": [
+    {
+      "cue": "demand_gap_as_maintenance_tell",
+      "expert_span_ref": "wayne.4730.demand_gap",
+      "why": "The expert reads a LARGE GAP between orders as maintenance opportunities ahead, and separately reads a HIGH award frequency as continued demand. Those are opposite readings of the same measurement, and v0 will not encode a contradiction. Which regime applies needs elicitation, not a weight."
+    },
+    {
+      "cue": "price_jump_on_falling_volume",
+      "expert_span_ref": "wayne.4730.price_jump",
+      "why": "It must be computed from the printed procurement history after the cancelled award supersession rule runs in the load. That loader is not connected, and scoring it from unsuperseded history would compute a monopoly signal from data the expert considers void."
+    },
+    {
+      "cue": "lead_time_urgency",
+      "expert_span_ref": "wayne.4730.lead_time",
+      "why": "See excluded_by_design for required_delivery_days. The cue is real and the expert states it plainly, but the underlying field is ESTIMATED and this lane committed not to score it yet."
+    },
+    {
+      "cue": "management_price_as_market_read",
+      "expert_span_ref": "wayne.4730.management_price",
+      "why": "Espoused use of a signal does not upgrade its provenance. Carried in pricing with the aggregator provenance shown, never scored."
+    },
+    {
+      "cue": "approved_manufacturer_local",
+      "expert_span_ref": "wayne.4730.approved_manufacturer",
+      "why": "An approved source is not automatically a stocking shelf. Turning it into points would read an approval as physical availability, which is a fabricated readiness finding."
+    },
+    {
+      "cue": "last_supplier_revenue_trajectory",
+      "expert_span_ref": "wayne.4730.supplier_growth",
+      "why": "No connected source of vendor revenue trajectory exists. Scoring it would require inventing the input."
+    }
+  ],
+  "expert_spans": {
+    "note": "Verbatim from the cited file, with runs of whitespace normalized to a single space and nothing else changed.",
+    "spans": {
+      "wayne.1650.surplus_run": {
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "Note that the previous 9 awards back to 1988 for this NSN were to suppliers of surplus material."
+      },
+      "wayne.1650.oem_small_lot": {
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "The Moog 2017 award was for 17 units. If Moog submitted quotes for substantially lesser qty, its quotes would have been for much more than the inflation adjusted value."
+      },
+      "wayne.1650.inferred_demand": {
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "There is no forecast for the subject NSN but were 13 awards for 80 units in less than the past 5 years. Continued demand is likely. Continued demand in small qty increments is likely."
+      },
+      "wayne.1650.corner": {
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "During that time, they competed against each other, quoting far less than they could have if there were only a single source of supply."
+      },
+      "wayne.4730.thin_competition": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "You want to quote on something with less competition. That indicates that inventories are low"
+      },
+      "wayne.4730.zero_stock": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "It just shows that they have no other choices but to try to get it from somebody."
+      },
+      "wayne.4730.non_stocked": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "They are depending on distributors to carry these items instead of them carrying it on their depot shelves."
+      },
+      "wayne.4730.platform": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Current planes will be used in the future and repair and maintenance is going to be an ongoing opportunity."
+      },
+      "wayne.4730.scarcity_gradient": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "In this instance where there are not many available on NSN now but lots on EFF, it's time to investigate whether or not the demand for the parts would justify buying out the inventory that's available in the marketplace. Having control of all the available inventory is a great position to be in for controlling price."
+      },
+      "wayne.4730.distressed_incumbent": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Are they tired of doing work for DLA? Are they having problems in doing business with DLA or have they been merged with somebody else and their priorities have changed? Any of these create opportunities for the purchase of their inventory in bulk."
+      },
+      "wayne.4730.affiliate_holding": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Western air is an affiliate. They have five pieces. This means that we can have a priority as far as accessing the parts that they do have."
+      },
+      "wayne.4730.demand_gap": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "There were large gaps in demand. It may indicate that there are maintenance opportunities ahead."
+      },
+      "wayne.4730.price_jump": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Over a short amount of time there was a huge jump in price for less parts"
+      },
+      "wayne.4730.lead_time": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Lead time is an important indicator. The quicker they want it, the more urgently they need it and they're willing to pay for it."
+      },
+      "wayne.4730.management_price": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Management price is an indicator as to if the government is thinking that they're going to need to pay more or less for a component. It's not the Bible but it is an indicator as to what the market will bear."
+      },
+      "wayne.4730.approved_manufacturer": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Hydro air is an approved manufacturer for the part they're local"
+      },
+      "wayne.4730.supplier_growth": {
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Last order was to a manufacturer. their sales are growing considerably from 1,000,000 to a three million over the last three years"
+      },
+      "research.mortality": {
+        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "quote": "the subsequent manufactures that received the higher qty awards were no longer in business."
+      },
+      "research.contracting_office": {
+        "source": "/Users/user/project-x/03-findings/edge/competitor-and-market-structure.md",
+        "quote": "SPE4A5 ran a 64.7% single-offer rate on 119 POs, SPE4A6 30.6% on 855, SPE4A7 42.0% on 255. Office selection is itself a lever, and nobody in the corpus talks about it."
+      }
+    }
+  },
+  "features": [
+    {
+      "key": "recent_surplus_award_run",
+      "label": "Run of consecutive most recent awards to surplus dealers",
+      "value_type": "integer",
+      "signal_class": "competition_and_monopoly",
+      "never_price_input": true,
+      "labels": [],
+      "resolves_with": "The printed procurement history on the solicitation face, with each awardee CAGE classified through the curated dealer map.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "quote": "the four most recent awards were for surplus material is treated as the strongest single trigger"
+      },
+      "expert_span_ref": "wayne.1650.surplus_run",
+      "bands": [
+        {
+          "id": "run_three_or_more",
+          "when": { "op": "gte", "value": 3 },
+          "points": 12,
+          "direction": "raises",
+          "representative_value": 3,
+          "sentence": "The {value} most recent awards on this stock number all went to surplus dealers, which is the pattern the expert says caught his eye first, and it raises the score by {abs_points} points."
+        },
+        {
+          "id": "run_one_or_two",
+          "when": { "op": "gte", "value": 1 },
+          "points": 7,
+          "direction": "raises",
+          "representative_value": 1,
+          "sentence": "The last {value} awards went to surplus dealers rather than to the manufacturer, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "no_run",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0,
+          "sentence": "There is no run of recent surplus awards on this stock number, so this signal contributes nothing."
+        }
+      ]
+    },
+    {
+      "key": "oem_qty_ratio_log10",
+      "label": "Log base ten of the historical manufacturer award quantity over the quantity now solicited",
+      "value_type": "number",
+      "signal_class": "competition_and_monopoly",
+      "never_price_input": true,
+      "labels": [
+        "A large gap is a competition and monopoly signal. It is never a price input."
+      ],
+      "resolves_with": "The manufacturer award quantity from the printed procurement history, against the quantity on the current solicitation.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "The Moog 2017 award was for 17 units. If Moog submitted quotes for substantially lesser qty, its quotes would have been for much more than the inflation adjusted value."
+      },
+      "expert_span_ref": "wayne.1650.oem_small_lot",
+      "bands": [
+        {
+          "id": "ratio_order_of_magnitude",
+          "when": { "op": "gte", "value": 1 },
+          "points": 10,
+          "direction": "raises",
+          "representative_value": 1,
+          "sentence": "The historical manufacturer award was at least ten times the quantity now being solicited, so the small lot size structurally excludes the manufacturer from competing, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "ratio_material",
+          "when": { "op": "gte", "value": 0.3 },
+          "points": 5,
+          "direction": "raises",
+          "representative_value": 0.3,
+          "sentence": "The historical manufacturer award was several times the quantity now being solicited, which pushes the manufacturer's unit economics the wrong way and raises the score by {abs_points} points."
+        },
+        {
+          "id": "ratio_none",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0,
+          "sentence": "The solicited quantity is close to the historical manufacturer award quantity, so the lot size excludes nobody."
+        }
+      ]
+    },
+    {
+      "key": "offers_on_prior_solicitation",
+      "label": "Offers received on the prior solicitation for this stock number",
+      "value_type": "integer",
+      "signal_class": "competition_and_monopoly",
+      "never_price_input": true,
+      "labels": [
+        "Fewer bidders is a BUY signal on this card, not a risk signal. The expert states the direction himself.",
+        "The DLA Aviation FY2025 baseline this reads against is a mean of 3.44 offers, a median of 2, and 36.3 percent of awards receiving exactly one offer, measured over 1,229 new purchase orders."
+      ],
+      "resolves_with": "numberOfOffersReceived on the prior award in FPDS, which is published free and coded consistently across offices.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "You want to quote on something with less competition. That indicates that inventories are low"
+      },
+      "expert_span_ref": "wayne.4730.thin_competition",
+      "bands": [
+        {
+          "id": "uncontested",
+          "when": { "op": "lte", "value": 1 },
+          "points": 12,
+          "direction": "raises",
+          "representative_value": 1,
+          "sentence": "Only {value} offer was received on the prior solicitation, and thin competition is a buy signal here because it indicates inventories are low, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "thin",
+          "when": { "op": "lte", "value": 2 },
+          "points": 8,
+          "direction": "raises",
+          "representative_value": 2,
+          "sentence": "{value} offers were received on the prior solicitation, at or below the aviation median and well under the office mean, and thinner competition is a buy signal here, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "contested",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 3,
+          "sentence": "Competition on the prior solicitation was at or above the aviation baseline, so this signal contributes nothing."
+        }
+      ]
+    },
+    {
+      "key": "scarcity_gradient",
+      "label": "Scarcity gradient across the listing sources",
+      "value_type": "enum",
+      "value_domain": ["few_primary_many_secondary", "similar", "many_primary", "unknown"],
+      "signal_class": "competition_and_monopoly",
+      "never_price_input": false,
+      "labels": [
+        "This is the corner ability read: few on one network and many on another is an inventory you could buy out."
+      ],
+      "resolves_with": "A listed availability count from each connected source, taken on the same day.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Very few available on NSN now, lots on EFF"
+      },
+      "expert_span_ref": "wayne.4730.scarcity_gradient",
+      "bands": [
+        {
+          "id": "cornerable",
+          "when": { "op": "in", "values": ["few_primary_many_secondary"] },
+          "points": 10,
+          "direction": "raises",
+          "representative_value": "few_primary_many_secondary",
+          "sentence": "Very few units are listed on the primary network while the secondary network is deep, so buying out the available inventory is a corner the operator could actually take, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "no_gradient",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": "similar",
+          "sentence": "Availability is similar across the sources on file, so no corner is visible from here."
+        }
+      ]
+    },
+    {
+      "key": "last_supplier_class",
+      "label": "Class of the supplier that received the last award",
+      "value_type": "enum",
+      "value_domain": ["surplus_dealer", "oem", "manufacturer", "distributor", "unknown"],
+      "signal_class": "market_structure",
+      "never_price_input": true,
+      "labels": [
+        "unknown is the default and is never imputed, in particular never from small business status."
+      ],
+      "resolves_with": "The awardee CAGE on the last award, classified through the curated dealer and manufacturer map.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "quote": "Wayne's MEETING 2.0 email states five criteria (LAST SUPPLIER, PREVIOUS QTY, DELIVERY DAYS, UNSUCCESSFUL BIDDER REPORT, CANCELLED AWARDS)"
+      },
+      "expert_span_ref": null,
+      "bands": [
+        {
+          "id": "last_was_surplus_dealer",
+          "when": { "op": "in", "values": ["surplus_dealer"] },
+          "points": 8,
+          "direction": "raises",
+          "representative_value": "surplus_dealer",
+          "sentence": "The last award went to a surplus dealer, which is the market this business competes in directly, and it raises the score by {abs_points} points."
+        },
+        {
+          "id": "last_was_oem",
+          "when": { "op": "in", "values": ["oem"] },
+          "points": -12,
+          "direction": "lowers",
+          "representative_value": "oem",
+          "sentence": "The last award went to the original manufacturer, who can price a repeat buy directly and is still in the competition, which lowers the score by {abs_points} points."
+        },
+        {
+          "id": "last_supplier_other",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": "unknown",
+          "sentence": "The class of the last supplier is not one this card scores, so it contributes nothing."
+        }
+      ]
+    },
+    {
+      "key": "depot_stock_zero_years",
+      "label": "Consecutive years the depot has carried zero on hand stock",
+      "value_type": "integer",
+      "signal_class": "availability_and_leverage",
+      "never_price_input": true,
+      "labels": [],
+      "resolves_with": "The government on hand quantity series for this stock number.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "0 stock since 2009"
+      },
+      "expert_span_ref": "wayne.4730.zero_stock",
+      "bands": [
+        {
+          "id": "zero_long_span",
+          "when": { "op": "gte", "value": 5 },
+          "points": 10,
+          "direction": "raises",
+          "representative_value": 5,
+          "sentence": "The depot has carried zero stock for {value} years, so the government has no other choice but to buy it from somebody, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "zero_recent",
+          "when": { "op": "gte", "value": 1 },
+          "points": 5,
+          "direction": "raises",
+          "representative_value": 1,
+          "sentence": "The depot has carried zero stock for {value} years, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "depot_holds_stock",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0,
+          "sentence": "The depot holds stock on this item, so there is no shortage to work with."
+        }
+      ]
+    },
+    {
+      "key": "award_count_last_5y",
+      "label": "Awards on this stock number in the last five years",
+      "value_type": "integer",
+      "signal_class": "inferred_demand",
+      "never_price_input": true,
+      "labels": [
+        "INFERRED FROM AWARD HISTORY. This is not a forecast and must never be rendered as one, and the forecast feature is never fed from it."
+      ],
+      "resolves_with": "The award dates in the printed procurement history, counted back five years from the evaluation date.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "quote": "There is no forecast for the subject NSN but were 13 awards for 80 units in less than the past 5 years. Continued demand is likely."
+      },
+      "expert_span_ref": "wayne.1650.inferred_demand",
+      "bands": [
+        {
+          "id": "frequent",
+          "when": { "op": "gte", "value": 10 },
+          "points": 7,
+          "direction": "raises",
+          "representative_value": 10,
+          "sentence": "There have been {value} awards on this stock number in the last five years, which reads as continued demand inferred from award history rather than from any forecast, and raises the score by {abs_points} points."
+        },
+        {
+          "id": "regular",
+          "when": { "op": "gte", "value": 4 },
+          "points": 4,
+          "direction": "raises",
+          "representative_value": 4,
+          "sentence": "There have been {value} awards on this stock number in the last five years, which reads as recurring demand inferred from award history, and raises the score by {abs_points} points."
+        },
+        {
+          "id": "sparse",
+          "when": { "op": "gte", "value": 1 },
+          "points": 2,
+          "direction": "raises",
+          "representative_value": 1,
+          "sentence": "There have been {value} awards on this stock number in the last five years, which is thin but non zero demand inferred from award history, and raises the score by {abs_points} points."
+        },
+        {
+          "id": "none",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0,
+          "sentence": "There have been no awards on this stock number in the last five years, so no demand can be inferred from award history."
+        }
+      ]
+    },
+    {
+      "key": "prior_awardee_mortality",
+      "label": "Share of prior awardees no longer active",
+      "value_type": "number",
+      "signal_class": "market_structure",
+      "never_price_input": true,
+      "labels": [
+        "Entity status is a moving target. It must be read as of the decision date, not as of today."
+      ],
+      "resolves_with": "Entity status with effective dates for each prior awardee CAGE.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "quote": "the subsequent manufactures that received the higher qty awards were no longer in business."
+      },
+      "expert_span_ref": "research.mortality",
+      "bands": [
+        {
+          "id": "half_or_more_dead",
+          "when": { "op": "gte", "value": 0.5 },
+          "points": 5,
+          "direction": "raises",
+          "representative_value": 0.5,
+          "sentence": "At least half of the prior awardees are no longer active, so the sources that used to compete here are gone, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "quarter_dead",
+          "when": { "op": "gte", "value": 0.25 },
+          "points": 3,
+          "direction": "raises",
+          "representative_value": 0.25,
+          "sentence": "A quarter or more of the prior awardees are no longer active, which thins the field and raises the score by {abs_points} points."
+        },
+        {
+          "id": "field_intact",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0,
+          "sentence": "The prior awardees are still active, so the field has not thinned."
+        }
+      ]
+    },
+    {
+      "key": "contracting_office_single_offer_rate",
+      "label": "Measured single offer rate at the contracting office",
+      "value_type": "number",
+      "signal_class": "market_structure",
+      "never_price_input": true,
+      "labels": [
+        "Measured on new purchase orders at DLA Aviation offices across four days of FY2025. SPE4A5 ran 64.7 percent single offer on 119 purchase orders, SPE4A6 30.6 percent on 855, SPE4A7 42.0 percent on 255, against a 36.3 percent baseline over 1,229 records.",
+        "Use numberOfOffersReceived. Never use extentCompeted, whose coding is office specific and produces a fake edge."
+      ],
+      "resolves_with": "The office DoDAAC on the solicitation, joined to the measured office baseline table.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/project-x/03-findings/edge/competitor-and-market-structure.md",
+        "quote": "SPE4A5 ran a 64.7% single-offer rate on 119 POs, SPE4A6 30.6% on 855, SPE4A7 42.0% on 255. Office selection is itself a lever, and nobody in the corpus talks about it."
+      },
+      "expert_span_ref": "research.contracting_office",
+      "bands": [
+        {
+          "id": "office_far_above_baseline",
+          "when": { "op": "gte", "value": 0.6 },
+          "points": 4,
+          "direction": "raises",
+          "representative_value": 0.6,
+          "sentence": "This contracting office ran a single offer rate far above the aviation baseline in the measured fiscal year, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "office_above_baseline",
+          "when": { "op": "gte", "value": 0.4 },
+          "points": 2,
+          "direction": "raises",
+          "representative_value": 0.4,
+          "sentence": "This contracting office ran a single offer rate above the aviation baseline in the measured fiscal year, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "office_at_baseline",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": 0.3,
+          "sentence": "This contracting office runs at or below the aviation baseline for single offer awards."
+        }
+      ]
+    },
+    {
+      "key": "platform_longevity_proxy",
+      "label": "Longevity of the platform the end item flies on",
+      "value_type": "enum",
+      "value_domain": ["active_fleet", "unknown"],
+      "signal_class": "inferred_demand",
+      "never_price_input": true,
+      "labels": [
+        "A forward demand PROXY, labelled as a proxy on every surface. It is never the forecast and never stands in for one."
+      ],
+      "resolves_with": "The end item application for this stock number, joined to a reviewed platform status list.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "They go on good planes F16 and F14"
+      },
+      "expert_span_ref": "wayne.4730.platform",
+      "bands": [
+        {
+          "id": "platform_active",
+          "when": { "op": "in", "values": ["active_fleet"] },
+          "points": 6,
+          "direction": "raises",
+          "representative_value": "active_fleet",
+          "sentence": "The end item is on a platform still in service, which is a forward demand proxy and not a forecast, and it raises the score by {abs_points} points."
+        },
+        {
+          "id": "platform_unknown",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": "unknown",
+          "sentence": "Platform longevity on the end item is not established, so it contributes nothing."
+        }
+      ]
+    },
+    {
+      "key": "non_stocked_flag",
+      "label": "Item is listed non stocked",
+      "value_type": "boolean",
+      "signal_class": "availability_and_leverage",
+      "never_price_input": true,
+      "labels": [],
+      "resolves_with": "The stocked or non stocked indicator on the item record.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Listed as non stocked"
+      },
+      "expert_span_ref": "wayne.4730.non_stocked",
+      "bands": [
+        {
+          "id": "non_stocked",
+          "when": { "op": "eq", "value": true },
+          "points": 6,
+          "direction": "raises",
+          "representative_value": true,
+          "sentence": "The item is listed non stocked, so the depot depends on distributors to carry it rather than holding it on its own shelves, which raises the score by {abs_points} points."
+        },
+        {
+          "id": "stocked",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": false,
+          "sentence": "The item is stocked at the depot, so there is no distributor dependence to work with."
+        }
+      ]
+    },
+    {
+      "key": "incumbent_activity_decline",
+      "label": "Incumbent holding stock is doing materially less work than in past years",
+      "value_type": "enum",
+      "value_domain": ["confirmed_major_decline", "none_observed", "unknown"],
+      "signal_class": "availability_and_leverage",
+      "never_price_input": true,
+      "labels": [
+        "The signal belongs in the score. The outreach that follows it belongs to another lane."
+      ],
+      "resolves_with": "The incumbent's award volume by year, compared against its own prior years.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Vendor is listed as having stock but is doing considerably less work in 2025 than in past years maybe 80 to 90% less"
+      },
+      "expert_span_ref": "wayne.4730.distressed_incumbent",
+      "bands": [
+        {
+          "id": "incumbent_declining",
+          "when": { "op": "in", "values": ["confirmed_major_decline"] },
+          "points": 6,
+          "direction": "raises",
+          "representative_value": "confirmed_major_decline",
+          "sentence": "The vendor listed as holding stock is doing far less work than in past years, which is a shelf that may be available to buy in bulk, and it raises the score by {abs_points} points."
+        },
+        {
+          "id": "incumbent_steady",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": "none_observed",
+          "sentence": "No decline in the incumbent's activity is on file."
+        }
+      ]
+    },
+    {
+      "key": "stock_in_hand_or_affiliate",
+      "label": "Material already held by the operator or by a named affiliate",
+      "value_type": "boolean",
+      "signal_class": "sourcing",
+      "never_price_input": true,
+      "labels": [
+        "This is the score side read only. The full sourcing confidence level is its own payload field and is not restated here."
+      ],
+      "resolves_with": "The operator and affiliate inventory positions for this stock number, with the quantity stated.",
+      "provenance": {
+        "grade": "VERIFIED",
+        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "quote": "Western air has five pieces"
+      },
+      "expert_span_ref": "wayne.4730.affiliate_holding",
+      "bands": [
+        {
+          "id": "held",
+          "when": { "op": "eq", "value": true },
+          "points": 4,
+          "direction": "raises",
+          "representative_value": true,
+          "sentence": "The material is already held by the operator or by a named affiliate, which gives priority access to it, and raises the score by {abs_points} points."
+        },
+        {
+          "id": "not_held",
+          "when": { "op": "always" },
+          "points": 0,
+          "direction": "neutral",
+          "representative_value": false,
+          "sentence": "No material is held by the operator or by a named affiliate."
+        }
+      ]
+    }
+  ]
+}

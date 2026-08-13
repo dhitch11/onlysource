@@ -78,9 +78,41 @@ const OBSERVATION_SCHEMA = z.object({
   grade: z.enum(PROVENANCE_GRADES),
 })
 
+/**
+ * The structural contract on one registered feature.
+ *
+ * Definitions are CONFIG, not data, so a malformed one throws rather than degrading: a registry
+ * with a non-finite publication start cannot distinguish the calendar from the item for any row
+ * that uses it, and continuing would mean scoring every one of them on an absence nobody can
+ * read. A bad row of data is a data gap; a bad registry is a broken build.
+ */
+const DEFINITION_SCHEMA = z.object({
+  name: z.string().min(1),
+  publication: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('always'), note: z.string() }),
+    z.object({ kind: z.literal('from'), startMs: z.number(), note: z.string() }),
+    z.object({ kind: z.literal('unknown'), note: z.string() }),
+  ]),
+  allowedValues: z.array(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  whatWouldResolveAbsence: z.string().min(1),
+})
+
 /** ISO rendering of an instant for operator-facing sentences. `new Date(number)` is deterministic. */
 function isoOf(instantMs: number): string {
   return new Date(instantMs).toISOString()
+}
+
+/**
+ * How to name an instant in a sentence when the instant may not be one.
+ *
+ * `isoOf` throws on a non-finite input, and the one place that can happen is the canary, which
+ * inspects sets it did not build. A canary that crashes reports nothing, so it says plainly that
+ * the timestamp is unusable instead of pretending it is a date.
+ */
+function describeInstant(instantMs: number): string {
+  return Number.isFinite(instantMs)
+    ? isoOf(instantMs)
+    : `an unusable timestamp (${String(instantMs)})`
 }
 
 /** Lexicographic, not locale aware. `localeCompare` would make byte-identical output a lie. */
@@ -189,7 +221,16 @@ export async function featuresAsOf(
   const observations = await source.observations(entity, ctx)
 
   const byName = new Map<string, FeatureDefinition>()
-  for (const def of definitions) {
+  for (const raw of definitions) {
+    const parsed = DEFINITION_SCHEMA.safeParse(raw)
+    if (!parsed.success) {
+      const name =
+        raw && typeof raw === 'object' && typeof (raw as { name?: unknown }).name === 'string'
+          ? (raw as { name: string }).name
+          : '(unreadable definition)'
+      throw new Error(`featuresAsOf: feature definition "${name}" is malformed`)
+    }
+    const def: FeatureDefinition = parsed.data
     if (byName.has(def.name)) {
       throw new Error(`featuresAsOf: feature "${def.name}" is registered twice`)
     }
@@ -334,8 +375,8 @@ export function detectLeakage(featureSet: FeatureSet, at: number): LeakageReport
       extractedAt: value.extractedAt,
       latenessMs: Number.isFinite(value.extractedAt) ? value.extractedAt - at : Number.NaN,
       sentence:
-        `Feature "${value.feature}" carries a value extracted at ${isoOf(value.extractedAt)}, after the ` +
-        `as-of instant ${isoOf(at)}. It was not knowable at the moment of decision and must not score.`,
+        `Feature "${value.feature}" carries a value extracted at ${describeInstant(value.extractedAt)}, ` +
+        `which was not knowable at the as-of instant ${describeInstant(at)}. It must not score.`,
     })
   }
 
