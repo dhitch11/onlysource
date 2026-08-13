@@ -1,0 +1,242 @@
+/*
+ * SALES HUB layout. Owner: T6 AUTOMATION.
+ *
+ * SCOPE, stated because it is a live coordination boundary: this module holds LAYOUT ONLY.
+ * The kanban column grid, the card frame and the banner frame. Every atom inside them is a
+ * T8 component (Button, StatusChip, Money, Identifier, Provenance, EmptyState, ExplainButton).
+ *
+ * T8 does not yet ship a deal card, a stage column, an Active toggle or a guard chip. Those
+ * are my four outstanding asks. Until they land I own these frames, exactly as my claim said,
+ * and the moment T8 publishes them this file shrinks to almost nothing. It is deliberately
+ * written to be deleted.
+ *
+ * NO RAW HEX AND NO RAW PX, per the stylesheet's own rule. The one exception is 1px hairline
+ * borders, which are a physical unit rather than a type size.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-600);
+  line-height: var(--lh-600);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-tight);
+}
+
+.subtitle {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+}
+
+/* ---------------------------------------------------------------- the Hunter Mode banner */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+}
+
+.bannerMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.bannerTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-400);
+  font-weight: var(--fw-semibold);
+}
+
+.bannerLine {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+}
+
+/*
+ * The withheld line. Deliberately NOT styled as a warning.
+ *
+ * Restraint is a result, not a fault: "3 outreach withheld today: 2 quiet hours, 1
+ * suppression" is the product doing its job. Painting it amber or red would both misuse the
+ * clock-reserved colours and teach the operator that being careful is an error state.
+ */
+.withheld {
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  color: var(--faint);
+  font-family: var(--font-mono);
+}
+
+.bannerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- the pipeline */
+
+/*
+ * The five columns scroll INSIDE this container. The page itself never scrolls sideways,
+ * which is the reflow rule at 320px: wide content scrolls in its own box, not the document.
+ */
+.pipe {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15rem, 1fr);
+  gap: var(--sp-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: var(--sp-2);
+  scrollbar-gutter: stable;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.colHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-height: var(--target-min);
+}
+
+.dot {
+  inline-size: var(--sp-2);
+  block-size: var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  flex: none;
+}
+
+.colName {
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.colCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--ink);
+  margin-inline-start: auto;
+}
+
+.colValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--faint);
+  inline-size: 100%;
+}
+
+.colBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-height: var(--sp-7);
+}
+
+/* ---------------------------------------------------------------- the deal card */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--raised);
+  box-shadow: var(--shadow-card);
+}
+
+.cardTitle {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  font-weight: var(--fw-semibold);
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.owner {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--sp-5);
+  block-size: var(--sp-5);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--olive);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-bold);
+  flex: none;
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- honest states */
+
+.notice {
+  padding: var(--sp-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+}
+
+.columnEmpty {
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  color: var(--faint);
+  padding: var(--sp-3) 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    transition: border-color var(--dur-fast) var(--ease);
+  }
+}
