@@ -1,0 +1,60 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
+dist/
+
+# environment. Secrets are by reference, never committed.
+# If a secret ever lands here, treat it as compromised and rotate it. Do not just delete the commit.
+.env
+.env.*
+!.env.example
+
+# vercel
+.vercel
+
+# sentry
+.sentryclirc
+
+# test + tooling output
+coverage/
+.vitest/
+*.tsbuildinfo
+/artifacts/
+
+# os
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+
+# local scratch
+/tmp/
+/.scratch/
+
+# ---------------------------------------------------------------------------
+# PENDING CONDUCTOR RULING, not a permanent exclusion.
+#
+# Research corpus and lane coordination material. Deliberately untracked in the first
+# commit rather than swept in, because this repo is intended to gain a GitHub remote and
+# git history is forever. A three-way credential scan over these paths (key shapes, AWS /
+# Slack / Stripe / GitHub token shapes, password prose) came back clean on 2026-08-12, so
+# this is caution about scope, not a known finding: T1-FOUNDATION 4.11 records that the
+# seeding corpus carries live plaintext credentials, flagged twice, and "the scan I ran
+# found nothing" is not the same claim as "there is nothing".
+#
+# TO INCLUDE THEM: the conductor rules that research material belongs in the deployable
+# repo, somebody re-runs the scan, and these three lines are deleted in one commit.
+# .vercelignore already keeps them out of every build regardless.
+# ---------------------------------------------------------------------------
+_intel/
+HANDOFFS/
+.terminal-claims.md

@@ -1,0 +1,7 @@
+# Research and coordination material never needs to reach a build container.
+_intel/
+HANDOFFS/
+docs/
+.terminal-claims.md
+test/
+artifacts/
