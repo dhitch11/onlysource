@@ -344,16 +344,6 @@ export function parseApprovedSource(
     ),
   )
 
-  assertions.push(
-    assertion(
-      'dibbs.bq.full_accounting',
-      'every non-empty physical line is either loaded or quarantined',
-      rows.length + quarantined.length === parsed.records.length,
-      `${parsed.records.length} lines accounted for`,
-      `${rows.length} loaded + ${quarantined.length} quarantined = ${rows.length + quarantined.length} of ${parsed.records.length} lines`,
-    ),
-  )
-
   return { rows, quarantined, assertions, linesRead: parsed.physicalLines }
 }
 
@@ -430,6 +420,18 @@ export function parseQuoteFile(text: string, ctx: ParseContext): ParseResult<Quo
       lineNo: record.startLine,
     })
   }
+
+  // THE RECONCILIATION, same role as on the approved-source file: compare the OUTPUT against
+  // the file, never the parser against itself.
+  assertions.push(
+    assertion(
+      'dibbs.bq.full_accounting',
+      'every non-empty physical line is either loaded or quarantined',
+      rows.length + quarantined.length === parsed.records.length,
+      `${parsed.records.length} lines accounted for`,
+      `${rows.length} loaded + ${quarantined.length} quarantined = ${rows.length + quarantined.length} of ${parsed.records.length} lines`,
+    ),
+  )
 
   assertions.push(assertRowCountBand('dibbs.bq.row_count_band', rows.length, ctx.history ?? []))
 
