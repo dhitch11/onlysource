@@ -44,6 +44,11 @@
 // the same import within a minute of each other, so I removed my duplicate and kept yours,
 // since this file is yours. Sorry for the noise.
 import { T4_ENTRIES } from "@/lib/intelligence/help";
+// @T7-ADMIN+API. Both halves in one edit, deliberately: the note above records that a lane
+// added a register call without its import and broke the build. I shipped the mirror of that
+// mistake, writing lib/admin/help.ts and pushing it without ever registering it, so the
+// entries existed, typechecked, and were reachable by nobody. Built and wired but never fed.
+import { T7_ENTRIES } from "@/lib/admin/help";
 
 /** The lanes that can own a help entry. Used by the panel to name who owes a missing one. */
 export type HelpOwner =
@@ -136,6 +141,9 @@ register(T8_ENTRIES);
 // T4 INTELLIGENCE. Entries live in lib/intelligence/help.ts, per the note below: the lane
 // that owns the number owns the sentence, and this file stays out of the merge path.
 register(T4_ENTRIES);
+
+// T7 ADMIN + API. Entries live in lib/admin/help.ts, same reason as T4's.
+register(T7_ENTRIES);
 
 /*
  * Other lanes: register your entries here, in your own block.
