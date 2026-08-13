@@ -51,7 +51,7 @@ export type EvidenceGrade = 'CITED' | 'ESTIMATED' | 'UNVERIFIED'
 export const AWARD_CLOCK = {
   /** Wall-clock local time of the auto-award cutoff, 24 hour. */
   localTime: { hour: 15, minute: 0 },
-  /** IANA zone. Never an offset. See `provenance.timezone`, this is ESTIMATED. */
+  /** IANA zone. Never an offset. CITED from primary text; see `provenance.timezone`. */
   zone: 'America/New_York',
   /** The deadline itself: business days after issue. CITED. */
   citedBusinessDaysAfterIssue: 3,
@@ -78,7 +78,16 @@ export const AWARD_CLOCK_PROVENANCE = {
   },
   /**
    * The weekend and federal-holiday rollover, which is what the business-day service runs on.
-   * Also cited, from the sentence immediately following the timezone sentence.
+   * Cited by the sentence immediately following the timezone sentence.
+   *
+   * `isNonBusinessDay()` implemented this as a reasonable assumption before there was a
+   * citation for it. There is one now (T1's observation, recorded here on merge).
+   *
+   * DEDUPE NOTE, 2026-08-13: T1 and T6 independently added a provenance entry for this same
+   * sentence within a minute of each other (commits 858abb2 and a592f2f), producing TWO records
+   * of one fact in the file whose own header calls three copies of a date a FAIL. Merged to
+   * this single entry, which carries the fuller citation and the scope caveat. The duplicate
+   * `businessDayRollover` key is gone; nothing referenced it.
    *
    * Scope kept honest: the cited sentence extends the RETURN DATE. It does not, in terms, say
    * the Fast Auto sweep skips a holiday. Treating the sweep as skipping non-business days is
@@ -90,17 +99,6 @@ export const AWARD_CLOCK_PROVENANCE = {
     citation:
       'DLA Master Solicitation Rev-81 (2021-08-23), RETURN DATE AND TIME section: "If a return date falls on a Saturday, Sunday or federal holiday, the return date will be extended to the next business day."',
     note: 'Read from primary text 2026-08-13. Applies in terms to the RETURN DATE. Its application to the sweep is our reading, taken because it can only move a fire later, never earlier.',
-  },
-  /*
-   * The weekend and federal-holiday rollover is CITED by the same sentence as the zone.
-   * `isNonBusinessDay()` implemented this as a reasonable assumption before there was a
-   * citation for it. There is one now.
-   */
-  businessDayRollover: {
-    grade: 'CITED' as EvidenceGrade,
-    value: 'A return date on a Saturday, Sunday or federal holiday extends to the next business day',
-    citation: 'DLA Master Solicitation, RETURN DATE AND TIME (text read in Rev-81)',
-    note: 'Same sentence as the timezone citation.',
   },
   countingConvention: {
     grade: 'UNVERIFIED' as EvidenceGrade,
@@ -275,7 +273,9 @@ export function deadlineDisclosure(instantMs: number): DeadlineDisclosure {
       'Timezone is estimated. Eastern is inferred from context, not from primary text.',
     )
   }
-  if (AWARD_CLOCK_PROVENANCE.businessDayRollover.grade !== 'CITED') {
+  // Repointed on the 2026-08-13 dedupe: T1's `businessDayRollover` and T6's
+  // `weekendHolidayRollover` were two records of one sentence, merged into the latter.
+  if (AWARD_CLOCK_PROVENANCE.weekendHolidayRollover.grade !== 'CITED') {
     qualifiers.push('The weekend and holiday rollover rule is not confirmed.')
   }
   if (AWARD_CLOCK_PROVENANCE.countingConvention.grade !== 'CITED') {
