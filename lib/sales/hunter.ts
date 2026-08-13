@@ -66,7 +66,8 @@ export type WithheldReason =
   | 'do_not_contact'
   | 'quiet_hours'
   | 'unknown_timezone'
-  | 'wireless_without_basis'
+  | 'wireless_with_imported_basis_only'
+  | 'line_type_unknown'
   | 'line_type_lookup_failed'
   | 'government_line'
   | 'hunter_paused'
@@ -82,7 +83,9 @@ export const WITHHELD_LABEL: Record<WithheldReason, string> = {
   do_not_contact: 'do not contact flag',
   quiet_hours: 'quiet hours',
   unknown_timezone: 'timezone unknown',
-  wireless_without_basis: 'wireless number with no recorded basis',
+  wireless_with_imported_basis_only:
+    'mobile or VoIP number whose only basis is a bulk import',
+  line_type_unknown: 'line type could not be determined',
   line_type_lookup_failed: 'line type lookup failed',
   government_line: 'government line, never dialed by design',
   hunter_paused: 'Hunter Mode paused',
@@ -180,9 +183,30 @@ export function evaluateOutboundGate(
 
   const line = lookups.lineType(contact.phoneE164)
   if (!line.ok) return { allowed: false, reason: 'line_type_lookup_failed' }
-  // Wireless without a recorded basis is never AI-dialed and routes to a human call task.
-  if (line.type === 'wireless' && consent.record.basis === 'imported_from_operator_records') {
-    return { allowed: false, reason: 'wireless_without_basis' }
+
+  /*
+   * A LOOKUP THAT SUCCEEDS AND SAYS "unknown" IS THE SAME FACT AS A LOOKUP THAT FAILED.
+   *
+   * Found by T5's audit (cycle T5>T6), reproduced against this function: `!line.ok` catches a
+   * lookup that ERRORS, and caught nothing when the lookup returned `type: 'unknown'`, which is
+   * a first-class member of our own LineType union. Measured before the fix:
+   *     lookup errors  -> refused, line_type_lookup_failed
+   *     type 'unknown' -> ALLOWED, and the dialer dialed
+   * Both states mean exactly one thing: we do not know whether this rings a mobile.
+   *
+   * The same call was already made correctly eight lines above, where an unknown timezone is
+   * treated as inside quiet hours. This is that principle, applied where it was missing.
+   *
+   * VOIP IS DECIDED DELIBERATELY RATHER THAN LEFT TO FALL THROUGH. A VoIP number can terminate
+   * on a mobile handset and the carrier lookup cannot tell us that it does not, so it is held
+   * to the same standard as wireless. The cost of being wrong in this direction is a call
+   * routed to a human; the cost in the other direction lands on the customer.
+   */
+  if (line.type === 'unknown') return { allowed: false, reason: 'line_type_unknown' }
+
+  const needsStrongBasis = line.type === 'wireless' || line.type === 'voip'
+  if (needsStrongBasis && consent.record.basis === 'imported_from_operator_records') {
+    return { allowed: false, reason: 'wireless_with_imported_basis_only' }
   }
 
   return { allowed: true, consentBasis: consent.record.basis, lineType: line.type }
@@ -228,7 +252,10 @@ const OPERATOR_ACTION: Record<WithheldReason, string> = {
   do_not_contact: 'This contact carries a do-not-contact flag. Open the contact to see who set it and why.',
   quiet_hours: 'It is outside calling hours where this supplier is. This will run when hours open.',
   unknown_timezone: 'Set this contact timezone so calling hours can be honoured.',
-  wireless_without_basis: 'This is a wireless number with no recorded basis. Use the human call task instead.',
+  wireless_with_imported_basis_only:
+    'This number is mobile or VoIP and its only recorded basis is a bulk import, which is the weakest basis we hold. Use the human call task, or record a stronger basis such as a purchase order.',
+  line_type_unknown:
+    'The carrier could not tell us whether this number is a mobile. Nothing was dialed. Use the human call task.',
   line_type_lookup_failed: 'The line type could not be checked. Nothing was dialed. Retry, or use the human call task.',
   government_line: 'Government lines are never dialed by design. Contact them yourself.',
   hunter_paused: 'Hunter Mode is paused. Switch it to Active to resume outreach.',

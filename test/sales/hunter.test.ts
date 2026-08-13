@@ -9,6 +9,7 @@ import {
   type GateLookups,
   type HunterCounters,
   type HunterState,
+  WITHHELD_LABEL,
   type WithheldReason,
 } from '@/lib/sales/hunter'
 
@@ -52,6 +53,9 @@ describe('the outbound gate refuses on UNCERTAINTY, not only on a known-bad answ
     ['consent store unreadable', { consent: () => ({ ok: false }) }, {}, 'consent_store_unreadable'],
     ['suppression store unreadable', { suppression: () => ({ ok: false }) }, {}, 'suppression_store_unreadable'],
     ['line type lookup failed', { lineType: () => ({ ok: false }) }, {}, 'line_type_lookup_failed'],
+    // Found by T5's audit: a lookup that SUCCEEDS and says 'unknown' is the same fact as one
+    // that failed, and it used to dial.
+    ['line type unknown', { lineType: () => ({ ok: true, type: 'unknown' }) }, {}, 'line_type_unknown'],
     ['no consent record', { consent: () => ({ ok: true, record: null }) }, {}, 'no_consent_basis'],
     ['suppressed', { suppression: () => ({ ok: true, suppressed: true }) }, {}, 'suppressed'],
     ['outside calling hours', { withinCallingHours: () => false }, {}, 'quiet_hours'],
@@ -92,7 +96,36 @@ describe('the outbound gate refuses on UNCERTAINTY, not only on a known-bad answ
       CONFIG, NOW,
     )
     expect(d.allowed).toBe(false)
-    if (!d.allowed) expect(d.reason).toBe('wireless_without_basis')
+    if (!d.allowed) expect(d.reason).toBe('wireless_with_imported_basis_only')
+  })
+
+  it('holds VoIP to the same standard as wireless, decided rather than fallen through', () => {
+    // A VoIP number can terminate on a mobile handset and the lookup cannot tell us it does
+    // not. Deciding it deliberately is the point; leaving it to fall through was the defect.
+    const d = evaluateOutboundGate(
+      contact(), 'voice', ACTIVE,
+      lookups({
+        lineType: () => ({ ok: true, type: 'voip' }),
+        consent: () => ({
+          ok: true,
+          record: {
+            contactId: 'c1', basis: 'imported_from_operator_records', sourceArtifactId: 'imp-1',
+            capturedAt: NOW, revokedAt: null,
+          },
+        }),
+      }),
+      CONFIG, NOW,
+    )
+    expect(d.allowed).toBe(false)
+    if (!d.allowed) expect(d.reason).toBe('wireless_with_imported_basis_only')
+  })
+
+  it('the withheld LABEL states what actually triggered it, not something false', () => {
+    // The old name and copy said "no recorded basis" while the trigger required a basis to
+    // EXIST. On a TCPA path, "no basis" and "weakest basis" are legally different, and an
+    // operator opening that contact would have seen a basis and been told there was none.
+    expect(WITHHELD_LABEL.wireless_with_imported_basis_only).toContain('bulk import')
+    expect(WITHHELD_LABEL.wireless_with_imported_basis_only).not.toContain('no recorded')
   })
 
   it('POSITIVE CONTROL: a fully cleared contact IS allowed on both channels', () => {

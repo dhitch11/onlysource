@@ -97,9 +97,23 @@ export type CallerIdentity = {
  * identity challenge as "are you a bot?". Requiring a frame here would have missed it, and did.
  */
 const MACHINE_NOUNS_STRONG = [
-  'bot', 'bots', 'robot', 'robots', 'chatbot', 'android', 'ai', 'artificial', 'synthetic',
-  'prerecorded', 'automated', 'automation', 'algorithm', 'robocall',
+  'bot', 'bots', 'robot', 'robots', 'chatbot', 'android', 'ai', 'artificial',
+  'prerecorded', 'algorithm', 'robocall',
 ]
+
+/*
+ * 'automated', 'automation' and 'synthetic' were MOVED OUT of the strong set to the weak one.
+ *
+ * "Automated" is the single most common word in this product's domain: automated evaluation,
+ * automated award, the automated program that awards under the micro-purchase threshold. A
+ * supplier saying "Is this an automated solicitation?" is asking about DLA's award process,
+ * not about who is on the phone. Measured: six sentences from the trade corpus disclosed on
+ * this word alone. 'synthetic' follows it because synthetic materials are real stock.
+ *
+ * They keep disclosing when a question frame is present and no procurement vocabulary is,
+ * which is what "Is this an automated call?" looks like and what "Automated evaluation closes
+ * at three" does not.
+ */
 
 /**
  * WEAK machine words: these need a question frame, because each has an ordinary use in this
@@ -108,7 +122,7 @@ const MACHINE_NOUNS_STRONG = [
  */
 const MACHINE_NOUNS_WEAK = [
   'machine', 'machines', 'computer', 'computers', 'software', 'program', 'programme', 'script',
-  'recording', 'recorded', 'system', 'generated',
+  'recording', 'recorded', 'system', 'generated', 'automated', 'automation', 'synthetic',
 ]
 
 /**
@@ -120,7 +134,10 @@ const MACHINE_NOUNS_WEAK = [
  */
 const HUMAN_NOUNS = [
   'human', 'humans', 'person', 'people', 'somebody', 'someone', 'anyone', 'anybody',
-  'operator', 'agent', 'manager', 'supervisor', 'boss',
+  'manager', 'supervisor', 'boss',
+  // 'agent' and 'operator' were REMOVED as bare referents: a freight or purchasing agent and
+  // an operator manual are ordinary trade nouns. Both survive as explicit phrases in the
+  // unambiguous sweep ("operator please", "live agent", "put me through to an operator").
 ]
 
 /**
@@ -140,6 +157,27 @@ const ORG_SUPPRESSORS = [
   'makes', 'make', 'made', 'manufactures', 'manufactured', 'builds', 'built', 'produces',
   'produced', 'supplies', 'supplied', 'supply', 'sells', 'sold', 'owns', 'owned', 'bought',
   'buys', 'stocks', 'stocked', 'holds', 'held',
+]
+
+/**
+ * PROCUREMENT VOCABULARY. When one of these is present the utterance is trade talk, and a
+ * machine or human referent in it is describing goods and paperwork, not asking who is
+ * speaking.
+ *
+ * Every entry earns its place from a real sentence that used to disclose:
+ *   "Is this an automated solicitation?"        solicitation
+ *   "Let me pull the recording of that order"   order
+ *   "That drawing is computer generated"        drawing
+ *   "Just the operator manual for the lathe"    manual, lathe
+ *   "Can you send it to our agent in Dallas?"   send
+ */
+const PROCUREMENT_WORDS = [
+  'solicitation', 'solicitations', 'award', 'awards', 'awarded', 'evaluation', 'quote',
+  'quotes', 'quoted', 'quoting', 'order', 'orders', 'invoice', 'packing', 'slip', 'shipment',
+  'drawing', 'drawings', 'manual', 'handbook', 'spec', 'specs', 'nsn', 'niin', 'cage', 'part',
+  'parts', 'item', 'items', 'stock', 'shelf', 'lot', 'batch', 'cert', 'certs', 'traceability',
+  'price', 'pricing', 'unit', 'units', 'quantity', 'quantities', 'delivery', 'lead', 'freight', 'warehouse', 'inventory',
+  'lathe', 'send', 'ship', 'shipping', 'supplier', 'manufacturer', 'contract',
 ]
 
 /** Part-description words that make a nearby "machine" mechanical rather than existential. */
@@ -173,13 +211,19 @@ function machineIsMechanical(tokens: string[]): boolean {
 const CERTAIN: Array<[IdentityFamily, RegExp]> = [
   ['MACHINE_PROBE', /\bflesh and blood\b/],
   ['MACHINE_PROBE', /\bpiece of (software|code)\b/],
-  ['MACHINE_PROBE', /\b(a|an)?\s*(bot|robot|computer|machine|recording|ai|a\.?i\.?|android)\b/],
-  ['MACHINE_PROBE', /\b(automated|artificial|synthetic|prerecorded|pre recorded|generated)\b/],
+  // NOTE: two BARE-NOUN patterns used to live here, matching /bot|robot|computer|machine|
+  // recording|ai|android/ and /automated|artificial|synthetic|prerecorded|generated/ anywhere
+  // in the utterance. They were removed by the T5 audit fix. See the ORDER note on
+  // `classifyIdentityQuestion`: a bare noun in this list made the domain suppression
+  // unreachable and disclosed on ordinary trade language. Bare nouns now live in the
+  // referent lists and require either a frame or membership of the strong set.
   ['MACHINE_PROBE', /\bam i (talking|speaking|chatting) (to|with) a (real )?(person|human|machine)\b/],
   ['MACHINE_PROBE', /\b(are|is) (you|this|that) (a )?(real )?(human|person|people|live)\b/],
   ['MACHINE_PROBE', /\bis (this|that) (a )?(live )?(person|human|agent)\b/],
   ['MACHINE_PROBE', /\bare you (real|alive|human|a machine|a person)\b/],
   ['MACHINE_PROBE', /\b(is|are) (this|you) (being )?record(ed|ing)\b/],
+  ['MACHINE_PROBE', /\bis (this|that) a recording\b/],
+  ['MACHINE_PROBE', /\b(are|is) (you|this|that) (a |an )?(bot|robot|ai|android|chatbot)\b/],
   ['HUMAN_REQUEST', /\b(put|get|connect|transfer|hand) (me )?(to |on )?(a |an )?(real )?(person|human|agent|someone|somebody|operator)\b/],
   ['HUMAN_REQUEST', /\b(i want|i need|can i|could i|may i|let me) (to )?(speak|talk) (to|with) (a |an )?(real )?(person|human|manager|someone|somebody)\b/],
   ['HUMAN_REQUEST', /\breal person\b/],
@@ -192,7 +236,9 @@ const CERTAIN: Array<[IdentityFamily, RegExp]> = [
   // Elliptical, extremely common, and carries no referent noun for the compositional pass
   // to catch. It is only ever asking one thing.
   ['PERSON_PROBE', /\band you are\b/],
-  ['ORIGIN_PROBE', /\b(what|which) (company|firm|business|outfit|organisation|organization)\b/],
+  // REMOVED: /(what|which) (company|firm|business|...)/ was a bare referent in disguise and
+  // fired on "Which company makes this part?" and "What company supplied the original lot?".
+  // Origin probes now go through the compositional path, where ORG_SUPPRESSORS apply.
   ['ORIGIN_PROBE', /\bwho (do you|d'?you) work for\b/],
   ['ORIGIN_PROBE', /\bwhere are you calling from\b/],
 ]
@@ -242,6 +288,50 @@ export function classifyIdentityQuestion(utterance: string): IdentityVerdict {
       return { mustAnswerHonestly: true, family, confidence: 'certain', matched: re.source }
     }
   }
+  /*
+   * ORDER IS THE FIX, AND IT IS THE WHOLE FIX.
+   *
+   * T5's audit (cycle T5>T6) proved `machineIsMechanical` was DEAD CODE: it is only reachable
+   * from the compositional pass, and the certain sweep above used to match a bare "machine"
+   * first, so the suppression only ever saw text containing no "machine" at all. Measured, all
+   * graded 'certain', all wrong:
+   *     "I have the machine screws in stock"        -> disclosed
+   *     "BUSHING, MACHINE THREAD, quantity 40"      -> disclosed  (a real federal item name)
+   *     "Is this an automated solicitation?"        -> disclosed  (the central term here)
+   *     "That drawing is computer generated"        -> disclosed
+   *     "Just the operator manual for the lathe"    -> disclosed
+   * Fail-honest, so never a safety breach. A credibility one, and constant in this domain: a
+   * supplier saying "I have the machine screws" was answered "Yes. I am an automated
+   * assistant", and the call is derailed by the guard rather than by the question.
+   *
+   * So the sweep above now holds only UNAMBIGUOUS PHRASES, which no procurement sentence
+   * produces, and the domain suppression runs BEFORE any referent is considered.
+   */
+  const tokens0 = t.split(' ').filter(Boolean)
+
+  /*
+   * STRONG REFERENTS ARE CHECKED BEFORE SUPPRESSION, AND THAT ORDER IS A SAFETY PROPERTY.
+   *
+   * Caught by this file's own positive control the first time it ran: with suppression first,
+   * "Are you a bot? I am calling about the solicitation." went SILENT, because "solicitation"
+   * suppressed it. A domain suppressor placed above the strong check is not a suppressor, it
+   * is a bypass, and any supplier could have disarmed the identity floor by mentioning a
+   * purchase order in the same breath as the question.
+   *
+   * Words in the strong set have no innocent use in this trade, so they answer regardless of
+   * whatever else the sentence is about.
+   */
+  if (hasWord(tokens0, MACHINE_NOUNS_STRONG)) {
+    return {
+      mustAnswerHonestly: true, family: 'MACHINE_PROBE', confidence: 'unsure',
+      matched: 'strong-referent:before-suppression',
+    }
+  }
+
+  if (hasWord(tokens0, PROCUREMENT_WORDS) || machineIsMechanical(tokens0)) {
+    return { mustAnswerHonestly: false, family: null, confidence: null, matched: null }
+  }
+
   for (const [family, re] of UNSURE) {
     if (re.test(t)) {
       return { mustAnswerHonestly: true, family, confidence: 'unsure', matched: re.source }
@@ -257,7 +347,7 @@ export function classifyIdentityQuestion(utterance: string): IdentityVerdict {
   const machineWeak = hasWord(tokens, MACHINE_NOUNS_WEAK) && !machineIsMechanical(tokens)
   const humanRef = hasWord(tokens, HUMAN_NOUNS)
 
-  if (machineStrong || (questionFrame && machineWeak)) {
+  if (questionFrame && machineWeak) {
     return {
       mustAnswerHonestly: true, family: 'MACHINE_PROBE', confidence: 'unsure',
       matched: 'compositional:frame+machine-referent',
