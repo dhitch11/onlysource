@@ -25,7 +25,7 @@ function deal(over: Partial<Deal> = {}): Deal {
     subject: { kind: 'solicitation', ref: 'SPE4A7-25-T-0001', niin: '011805372', title: 'Bushing' },
     pursuitId: null,
     modeledValueCents: 1_820_000,
-    valueBasis: 'modeled',
+    valueBasis: 'modelled',
     nextAction: 'Start outreach',
     updatedAt: NOW,
     ...over,
@@ -154,7 +154,7 @@ describe('metrics are computed, and unknown is not zero', () => {
 
   it('sums only KNOWN values and counts the unknown ones separately', () => {
     const m = computeStageMetrics([
-      deal({ id: 'a', modeledValueCents: 100_000, valueBasis: 'modeled' }),
+      deal({ id: 'a', modeledValueCents: 100_000, valueBasis: 'modelled' }),
       deal({ id: 'b', modeledValueCents: 50_000, valueBasis: 'measured' }),
       deal({ id: 'c', modeledValueCents: null, valueBasis: 'insufficient' }),
     ])
