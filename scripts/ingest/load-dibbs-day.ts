@@ -26,7 +26,7 @@ import {
   client,
 } from '../../lib/ingest/db'
 import { parseApprovedSource, parseDibbsIndex, parseQuoteFile } from '../../lib/ingest/parse/dibbs'
-import { readZipMembers } from '../../lib/ingest/parse/zip'
+import { assertZipIntegrity, readZipMembers } from '../../lib/ingest/parse/zip'
 import { parseSolicitation } from '../../lib/intelligence/niin'
 import { blockingFailures, failures, landedFailures } from '../../lib/ingest/assert'
 import { systemClock } from '../../lib/time/clock'
@@ -307,8 +307,22 @@ async function main(): Promise<void> {
     if (zipObject) {
       const buffer = await readFile(join(ARCHIVE_ROOT, zipObject.storage_key))
       const zip = readZipMembers(buffer)
-      if (zip.truncated) {
-        console.log(`  NOTE: ${zipObject.storage_key} has no central directory (truncated download)`)
+
+      // ZIP INTEGRITY, ASSERTED WITH NO HISTORY REQUIRED.
+      //
+      // A row-count band cannot catch a truncation on the FIRST load of a source, because
+      // there is no history to compare against, and that is exactly when it bit us: the `ca`
+      // package arrived at 217 of roughly 3,095 solicitations, cut off mid-stream, and read
+      // as a plausible 56 MB download. A zip states its own completeness through the central
+      // directory, so this check needs no prior day and fires on load one.
+      const integrity = assertZipIntegrity(zip)
+      const zipBroken = blockingFailures(integrity)
+      if (zipBroken.length > 0) {
+        console.log(
+          `  ZIP INTEGRITY FAILED for ${zipObject.storage_key}:\n` +
+            zipBroken.map((a) => `      ${a.id}: ${a.actual}`).join('\n') +
+            `\n      Members that DID inflate are still loaded below, and the ledger records this.`,
+        )
       }
 
       const asMember = zip.members.find((m) => m.name.startsWith('as') && m.complete)
@@ -335,7 +349,7 @@ async function main(): Promise<void> {
             rowsIn: parsed.linesRead,
             rowsLoaded: loaded,
             quarantined: parsed.quarantined,
-            assertions: parsed.assertions,
+            assertions: [...integrity, ...parsed.assertions],
           }
         })
       }

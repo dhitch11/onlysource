@@ -22,6 +22,9 @@
 
 import { inflateRawSync } from 'node:zlib'
 
+import { assertion } from '../assert'
+import type { AssertionResult } from '../types'
+
 const LOCAL_HEADER_SIG = 0x04034b50
 const CENTRAL_DIR_SIG = 0x02014b50
 const EOCD_SIG = 0x06054b50
@@ -125,4 +128,40 @@ export function readZipMember(buffer: Buffer, name: string): Buffer | null {
   const result = readZipMembers(buffer)
   const member = result.members.find((m) => m.name === name && m.complete)
   return member ? member.data : null
+}
+
+/**
+ * Assert a zip arrived whole. NEEDS NO HISTORY, WHICH IS THE POINT.
+ *
+ * A row-count band cannot catch a truncation on the FIRST load of a source, because there is
+ * no prior day to compare against, and that is exactly when it bit this project: the `ca`
+ * solicitation package arrived at 217 of roughly 3,095 solicitations, cut off mid-stream, and
+ * read as a plausible 56 MB download. Byte length matched the expected order of magnitude, so
+ * nothing looked wrong.
+ *
+ * A zip states its own completeness. The central directory is written LAST, so its absence is
+ * proof the transfer did not finish. That is a self-describing integrity check available on
+ * load one, before any band exists.
+ */
+export function assertZipIntegrity(result: ZipReadResult): AssertionResult[] {
+  return [
+    assertion(
+      'dibbs.zip.central_directory',
+      'the archive carries its central directory, so the download completed',
+      !result.truncated,
+      'central directory present',
+      result.truncated
+        ? `absent: ${result.localHeaderCount} local headers and no central directory, so this download was cut short`
+        : `present, ${result.localHeaderCount} members`,
+    ),
+    assertion(
+      'dibbs.zip.members_complete',
+      'no member was cut off mid-stream',
+      result.incompleteMembers.length === 0,
+      '0 incomplete members',
+      result.incompleteMembers.length === 0
+        ? `all ${result.members.length} members inflate cleanly`
+        : `${result.incompleteMembers.length} cut off: ${result.incompleteMembers.join(', ')}`,
+    ),
+  ]
 }

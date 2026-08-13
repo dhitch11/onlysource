@@ -22,8 +22,8 @@ import { join } from 'node:path'
 
 import { parseCsv, parseCsvByLine } from '../../lib/ingest/parse/csv'
 import { parseApprovedSource, parseDibbsIndex, parseQuoteFile } from '../../lib/ingest/parse/dibbs'
-import { readZipMembers } from '../../lib/ingest/parse/zip'
-import { blockingFailures, landedFailures } from '../../lib/ingest/assert'
+import { assertZipIntegrity, readZipMembers } from '../../lib/ingest/parse/zip'
+import { assertContentLength, blockingFailures, landedFailures } from '../../lib/ingest/assert'
 import type { AssertionResult } from '../../lib/ingest/types'
 
 const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? '/Users/user/onlysource-data/archive'
@@ -306,5 +306,98 @@ describe('date parsing states its century inference and refuses to guess', () =>
     expect(result.rows).toHaveLength(0)
     expect(result.quarantined[0]?.ruleId).toBe('index.return_by_unparseable')
     expect(result.quarantined[0]?.rawLine).toBe(row) // the raw line is kept, always
+  })
+})
+
+describe('zip integrity fires on the TRUNCATED package, with no history required', () => {
+  it('goes RED on the real cut-off ca package. THE RED RUN', () => {
+    const result = readZipMembers(captured('ca260811.zip'))
+    const checks = assertZipIntegrity(result)
+
+    const centralDirectory = checks.find((c) => c.id === 'dibbs.zip.central_directory')
+    expect(centralDirectory?.passed).toBe(false)
+    expect(centralDirectory?.severity).toBe('reject')
+    expect(centralDirectory?.actual).toContain('cut short')
+
+    const members = checks.find((c) => c.id === 'dibbs.zip.members_complete')
+    expect(members?.passed).toBe(false)
+    expect(members?.actual).toContain('SPE2DS26T331X.pdf')
+  })
+
+  it('stays GREEN on the intact package, proving it discriminates', () => {
+    const checks = assertZipIntegrity(readZipMembers(captured('bq260811.zip')))
+    expect(checks.every((c) => c.passed)).toBe(true)
+  })
+})
+
+/**
+ * TAKEN FROM T7's ADVERSARIAL AUDIT AND OWNED HERE.
+ *
+ * T7 attacked this parser by running it, not reading it, and found the one attack of four that
+ * got through: a file truncated ON A ROW BOUNDARY parses perfectly clean. They cut the real day
+ * to its first 200 rows, a 94 percent loss, and it came back as 200 good rows with no failed
+ * assertion, because the historical band correctly reported that it could not run without two
+ * prior loads.
+ *
+ * That gap sat exactly on the perishable re-fetch: the first loads of a source are the ones
+ * with no second chance, and they are the loads where the band is inert.
+ *
+ * A verified reproduction of a data-loss defect must not live only in the finder's scratch
+ * directory, so it lives here now, in the path it defends.
+ */
+describe("boundary truncation: T7's attack, now a standing test", () => {
+  const real = captured('in260811.txt').toString('utf8')
+  const rows = real.split('\n').filter((l) => l !== '')
+
+  it('a clean cut to 200 rows is REJECTED by the absolute floor. The attack that got through', () => {
+    const truncated = rows.slice(0, 200).join('\n')
+    const result = parseDibbsIndex(truncated, CTX)
+
+    // Every row still parses. This is why the attack worked: there is nothing ragged to catch.
+    expect(result.rows).toHaveLength(200)
+    expect(result.quarantined).toHaveLength(0)
+    expect(byId(result.assertions, 'dibbs.index.row_width').passed).toBe(true)
+
+    // And the band still cannot run, exactly as before. That was never the fix.
+    const band = byId(result.assertions, 'dibbs.index.row_count_band')
+    expect(band.probeLanded).toBe(false)
+
+    // THE FIX: a floor that needs no history at all, and it is blocking severity.
+    const floor = byId(result.assertions, 'dibbs.index.absolute_floor')
+    expect(floor.probeLanded).toBe(true)
+    expect(floor.passed).toBe(false)
+    expect(floor.severity).toBe('reject')
+    expect(blockingFailures(result.assertions).length).toBeGreaterThan(0)
+  })
+
+  it('the full real day passes the same floor, proving it discriminates', () => {
+    const result = parseDibbsIndex(real, CTX)
+    expect(byId(result.assertions, 'dibbs.index.absolute_floor').passed).toBe(true)
+    expect(blockingFailures(result.assertions)).toHaveLength(0)
+  })
+
+  it('a day just above the floor still passes, so the floor is not secretly a band', () => {
+    const result = parseDibbsIndex(rows.slice(0, 501).join('\n'), CTX)
+    expect(byId(result.assertions, 'dibbs.index.absolute_floor').passed).toBe(true)
+  })
+})
+
+describe('Content-Length cross-check: truncation seen directly, not inferred', () => {
+  it('FAILS when fewer bytes arrive than the publisher advertised', () => {
+    const check = assertContentLength('probe', 27_000, '439490')
+    expect(check.probeLanded).toBe(true)
+    expect(check.passed).toBe(false)
+    expect(check.severity).toBe('reject')
+    expect(check.actual).toContain('shortfall')
+  })
+
+  it('PASSES when the byte counts agree', () => {
+    expect(assertContentLength('probe', 439_490, '439490').passed).toBe(true)
+  })
+
+  it('reports NOT LANDED when the header is absent, rather than passing vacuously', () => {
+    const check = assertContentLength('probe', 439_490, undefined)
+    expect(check.probeLanded).toBe(false)
+    expect(check.passed).toBe(false)
   })
 })

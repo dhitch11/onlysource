@@ -15,7 +15,7 @@
  */
 
 import { archiveBytes } from '../archive'
-import { assertNotAConsentBanner, assertion } from '../assert'
+import { assertContentLength, assertNotAConsentBanner, assertion } from '../assert'
 import type { AssertionResult } from '../types'
 
 /**
@@ -158,6 +158,17 @@ export async function fetchDailyFile(
       body.length > 0,
       'more than 0 bytes',
       `${body.length} bytes`,
+    ),
+  )
+
+  // THE DIRECT TRUNCATION CHECK. A row-count floor infers truncation from the shape of what
+  // arrived; Content-Length states how many bytes the publisher meant to send. A file cut on a
+  // row boundary parses perfectly clean and only this check sees it for what it is.
+  assertions.push(
+    assertContentLength(
+      'dibbs.fetch.content_length',
+      body.length,
+      response.headers['content-length'] ?? response.headers['Content-Length'],
     ),
   )
 

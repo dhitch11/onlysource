@@ -15,7 +15,13 @@
 
 import { parseNsn, parseCage } from '../../intelligence/niin'
 import { parseCsv, parseCsvByLine } from './csv'
-import { assertion, assertRowCountBand, notLanded, assertNotAConsentBanner } from '../assert'
+import {
+  assertAbsoluteFloor,
+  assertion,
+  assertRowCountBand,
+  notLanded,
+  assertNotAConsentBanner,
+} from '../assert'
 import type {
   ApprovedSourceObservation,
   ParseResult,
@@ -55,6 +61,26 @@ export const INDEX_ROW_WIDTH = 140
  *
  * This constant exists so there is ONE definition to get right. If you are validating a DIBBS
  * response anywhere in this codebase, import this rather than writing your own.
+ *
+ * ⚠️ PRESENCE CHECK ONLY. NEVER USE THIS TO EXTRACT A SOLICITATION NUMBER.
+ *
+ * Scanned unanchored over a fixed-width file, this pattern matches text that SPANS A FIELD
+ * BOUNDARY. Measured on the archived day: an unanchored scan finds 2,736 distinct SPE-prefixed
+ * tokens where the file contains 2,721 solicitations. All 15 extras begin inside the
+ * nomenclature field and run into the code block, and every one of them is the word
+ * SPECIAL / SPECIFICATION / SPECIMEN truncated at the nomenclature's 21-character limit:
+ *
+ *   "CABLE ASSEMBLY,SPECIA" + "DCS01P1N000"  ->  SPECIADCS01P1
+ *   "SEAL,NONMETALLIC SPEC" + "PLCL6R1Y100"  ->  SPECPLCL6R1Y1
+ *   "BACTERIOLOGICAL SPECI" + "DTP00Z1N000"  ->  SPECIDTP00Z1N
+ *
+ * They are NOT solicitations, NOT contract numbers, and NOT a class we are missing. They are
+ * an artifact of scanning across a boundary, and 2,721 remains the correct universe.
+ *
+ * **Extraction is POSITIONAL**: `INDEX_OFFSETS.solicitationNumber`, characters [0:13] of a
+ * verified 140-character row. That is why the harvest used to validate this canary was taken
+ * from the layout and not from a regex, and therefore did not share an assumption with the
+ * pattern under test.
  */
 export const SOLICITATION_CANARY = /SPE[0-9A-Z]{3}[0-9]{2}[A-Z][0-9A-Z]{4}/
 
@@ -259,6 +285,9 @@ export function parseDibbsIndex(text: string, ctx: ParseContext): ParseResult<Re
     })
   })
 
+  // THE FLOOR FIRST, because it needs no history and the band cannot run on a cold start,
+  // which is exactly when the perishable re-fetch runs.
+  assertions.push(assertAbsoluteFloor('dibbs.index.absolute_floor', rows.length))
   assertions.push(assertRowCountBand('dibbs.index.row_count_band', rows.length, ctx.history ?? []))
 
   // The canary: a well-formed NSN must come back. A file of 3,095 rows that yields zero
@@ -472,6 +501,7 @@ export function parseQuoteFile(text: string, ctx: ParseContext): ParseResult<Quo
     ),
   )
 
+  assertions.push(assertAbsoluteFloor('dibbs.bq.absolute_floor', rows.length))
   assertions.push(assertRowCountBand('dibbs.bq.row_count_band', rows.length, ctx.history ?? []))
 
   const withDelivery = rows.filter((r) => r.deliveryDaysAdo !== null).length

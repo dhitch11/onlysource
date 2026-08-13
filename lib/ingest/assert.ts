@@ -120,6 +120,90 @@ export function assertRowCountBand(
   )
 }
 
+/**
+ * AN ABSOLUTE FLOOR ON ROW COUNT, INDEPENDENT OF HISTORY.
+ *
+ * THE GAP THIS CLOSES, AND WHY IT IS NOT COVERED BY THE BAND.
+ *
+ * A file truncated ON A ROW BOUNDARY parses perfectly clean. There is no ragged final line to
+ * catch, every row is the right width, every field is in place. Cutting the real 3,095-row day
+ * to its first 200 rows, a 94 percent loss, yields 200 valid rows and no failed assertion.
+ *
+ * The historical band cannot save us there, because the band needs two prior loads and
+ * `assertRowCountBand` correctly reports that it DID NOT RUN on a cold start. That is honest,
+ * and it is also precisely the problem: **the first loads of a source are the perishable
+ * re-fetch, so the one ingest with no second chance runs with the band inert.**
+ *
+ * So the floor takes no history at all and fires on load one.
+ *
+ * PROVENANCE OF THE NUMBER, stated because it is a judgement and not a measurement:
+ * this project holds ONE measured feed day, 2026-08-11, at 3,095 rows, and the domain research
+ * records roughly 1,960 requirement lines on a typical working day. A floor of 500 is about a
+ * quarter of the documented daily volume: low enough that no real DIBBS working day, including
+ * a light one around a holiday, could plausibly fall beneath it, and high enough to reject a
+ * truncation that leaves a plausible-looking prefix. It is deliberately NOT tuned close to the
+ * observed 3,095, because n = 1 and a tight floor off one observation would reject real days.
+ *
+ * Revisit once daily capture gives a trailing 20-business-day distribution. Until then this is
+ * a defensible floor, not a measured threshold, and it says so.
+ */
+export function assertAbsoluteFloor(
+  id: string,
+  actualRows: number,
+  floor = ABSOLUTE_ROW_FLOOR,
+): AssertionResult {
+  return assertion(
+    id,
+    `row count is at or above the absolute floor of ${floor}, which needs no history`,
+    actualRows >= floor,
+    `at least ${floor} rows`,
+    actualRows >= floor
+      ? `${actualRows} rows`
+      : `${actualRows} rows, far below any plausible working day. A file truncated on a row ` +
+        `boundary parses clean, so a short row count is the only evidence of it`,
+  )
+}
+
+/**
+ * The floor. See `assertAbsoluteFloor` for how the number was chosen and why it is a
+ * judgement rather than a measurement.
+ */
+export const ABSOLUTE_ROW_FLOOR = 500
+
+/**
+ * CROSS-CHECK BYTES RECEIVED AGAINST WHAT THE SOURCE ADVERTISED.
+ *
+ * This is the only check here that addresses the actual failure mode rather than its
+ * statistical shadow. A row-count floor infers truncation from the shape of what arrived;
+ * `Content-Length` states directly how many bytes the publisher meant to send. When the header
+ * is present and the body is short, that is a dropped connection, full stop, with no inference.
+ *
+ * When the header is absent the probe reports that it DID NOT LAND rather than passing, because
+ * a check that silently skips is the failure this lane keeps finding in other people's code.
+ */
+export function assertContentLength(
+  id: string,
+  bytesReceived: number,
+  advertised: string | number | null | undefined,
+): AssertionResult {
+  if (advertised === null || advertised === undefined || advertised === '') {
+    return notLanded(id, 'bytes received match the advertised Content-Length', 'the source did not advertise Content-Length')
+  }
+  const expected = Number(advertised)
+  if (!Number.isFinite(expected)) {
+    return notLanded(id, 'bytes received match the advertised Content-Length', `Content-Length "${advertised}" is not a number`)
+  }
+  return assertion(
+    id,
+    'bytes received match the advertised Content-Length',
+    bytesReceived === expected,
+    `${expected} bytes`,
+    bytesReceived === expected
+      ? `${bytesReceived} bytes`
+      : `${bytesReceived} bytes received against ${expected} advertised, a shortfall of ${expected - bytesReceived}. The transfer did not complete`,
+  )
+}
+
 /** Did every assertion that reached a verdict pass, and did they all actually run. */
 export function allPassed(results: AssertionResult[]): boolean {
   return results.every((r) => r.probeLanded && r.gateFired && r.passed)

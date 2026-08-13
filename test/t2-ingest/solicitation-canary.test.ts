@@ -108,3 +108,41 @@ describe('position 8 is the automated-award indicator, measured not assumed', ()
     expect((ninth.get('T') ?? 0) + (ninth.get('U') ?? 0)).toBe(2566)
   })
 })
+
+describe('the canary is a PRESENCE check and must never be used to EXTRACT', () => {
+  /**
+   * T7's audit harvested SPE-prefixed tokens with an unanchored scan and found 2,736 where the
+   * file holds 2,721 solicitations, and asked whether the 15 extras are a class we are failing
+   * to capture. Measured answer: they are not. Every one begins inside the nomenclature field
+   * and runs into the code block.
+   */
+  const rows = feed.split(/\r?\n/).filter((l) => l.length > 0)
+  const positional = new Set(rows.map((l) => l.slice(0, 13)))
+  const unanchored = [...new Set(feed.match(/SPE[0-9A-Z]{10}/g) ?? [])]
+  const extras = unanchored.filter((t) => !positional.has(t))
+
+  it('an unanchored scan over a fixed-width file over-counts, by exactly 15 here', () => {
+    expect(positional.size).toBe(2721)
+    expect(unanchored.length).toBe(2736)
+    expect(extras).toHaveLength(15)
+  })
+
+  it('EVERY extra spans the nomenclature to code-block boundary, so none is a real number', () => {
+    for (const token of extras) {
+      const row = rows.find((l) => l.includes(token))
+      expect(row).toBeDefined()
+      const at = (row as string).indexOf(token)
+      // Nomenclature is [108:129]; the code block starts at 129. A boundary artifact begins
+      // inside the nomenclature and crosses into the code block.
+      expect(at).toBeGreaterThanOrEqual(108)
+      expect(at).toBeLessThan(129)
+      expect(at + token.length).toBeGreaterThan(129)
+    }
+  })
+
+  it('positional extraction, which is what the parser uses, never produces them', () => {
+    for (const token of extras) {
+      expect(positional.has(token)).toBe(false)
+    }
+  })
+})
