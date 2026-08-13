@@ -59,8 +59,11 @@ async function main(): Promise<void> {
           -- held by more than one rule, and by runs of more than one parser version. The
           -- question this reconciliation answers is "is every LINE accounted for", so the
           -- unit has to be the line.
+          -- Only rows still HELD. A row released because a corrected parser now loads it is
+          -- no longer withheld from the product, and counting it forever makes every
+          -- reconciliation wrong.
           (SELECT count(DISTINCT (storage_key, line_no)) FROM quarantine
-            WHERE rule_id LIKE 'as.%')                                         AS as_q
+            WHERE rule_id LIKE 'as.%' AND state = 'held')                      AS as_q
       )
       SELECT 'index rows (published 3,095)' AS label, '3095' AS expected, req::text AS actual,
              CASE WHEN req = 3095 THEN 'MATCH' ELSE 'MISMATCH' END AS verdict FROM x

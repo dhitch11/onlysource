@@ -153,6 +153,15 @@ async function main(): Promise<void> {
     const runFile = async (
       label: string,
       storageKey: string,
+      /**
+       * The rule-id namespace this file's checks live under (`index.`, `as.`, `bq.`).
+       *
+       * REQUIRED, because the approved-source file and the quoting file live inside ONE zip
+       * and therefore share a storage_key. Scoping a quarantine release by storage_key alone
+       * made each run release the OTHER file's held rows, which is a silent un-holding of rows
+       * nobody re-examined. Found by reconciling and coming up one short.
+       */
+      rulePrefix: string,
       work: () => Promise<{
         rowsIn: number
         rowsLoaded: number
@@ -169,6 +178,32 @@ async function main(): Promise<void> {
       )
 
       const result = await work()
+
+      // RELEASE WHAT A FIXED PARSER NO LONGER HOLDS.
+      //
+      // "Quarantine is a worklist, not a graveyard, and a quarantine with no owner is a delete
+      // with paperwork." A row held by a parser version that has since been corrected must not
+      // stay held forever: it makes every reconciliation wrong and it hides whether anyone ever
+      // acted on the backlog. Measured case: 14 approved-source rows with locally assigned
+      // stock numbers were held by an earlier rule, and after that rule was corrected they
+      // loaded cleanly while their stale quarantine rows still counted against the file.
+      //
+      // So: any line still HELD for this object that the CURRENT run did not hold is released,
+      // with the run that released it recorded. Nothing is deleted; the row keeps its raw text
+      // and its history.
+      const heldNow = result.quarantined.map((q) => q.lineNo)
+      const released = await c.query(
+        `UPDATE quarantine
+            SET state='released', released_at=$1, released_by=$2
+          WHERE storage_key=$3 AND state='held' AND rule_id LIKE $5
+            AND NOT (line_no = ANY($4::int[]))`,
+        [nowIso(), `run ${runId} (${label})`, storageKey, heldNow, `${rulePrefix}%`],
+      )
+      if ((released.rowCount ?? 0) > 0) {
+        console.log(
+          `      released ${released.rowCount} previously held line(s): the current parser no longer holds them`,
+        )
+      }
 
       for (const q of result.quarantined) {
         await c.query(
@@ -240,7 +275,7 @@ async function main(): Promise<void> {
     // ---- the index file, which is the requirement grain -------------------------------
     const indexObject = forDay.find((m) => m.storage_key.endsWith('.txt'))
     if (indexObject) {
-      await runFile('index (requirements)', indexObject.storage_key, async () => {
+      await runFile('index (requirements)', indexObject.storage_key, 'index.', async () => {
         const text = await readFile(join(ARCHIVE_ROOT, indexObject.storage_key), 'utf8')
         const history = (
           await c.query<{ rows_loaded: number }>(
@@ -327,7 +362,7 @@ async function main(): Promise<void> {
 
       const asMember = zip.members.find((m) => m.name.startsWith('as') && m.complete)
       if (asMember) {
-        await runFile('approved sources', zipObject.storage_key, async () => {
+        await runFile('approved sources', zipObject.storage_key, 'as.', async () => {
           const parsed = parseApprovedSource(asMember.data.toString('utf8'), {
             sourceKey: 'dibbs-rfq-daily',
             logicalDate: LOGICAL_DATE,
@@ -340,7 +375,7 @@ async function main(): Promise<void> {
               `INSERT INTO approved_source
                  (nsn_raw, niin, cage, part_number, observed_at, source_key, storage_key, line_no)
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-               ON CONFLICT (niin, cage, part_number, source_key, observed_at) DO NOTHING`,
+               ON CONFLICT (nsn_raw, cage, part_number, source_key, observed_at) DO NOTHING`,
               [r.nsnRaw, r.niin, r.cage, r.partNumber, r.observedAt, r.sourceKey, r.storageKey, r.lineNo],
             )
             loaded += res.rowCount ?? 0
@@ -356,7 +391,7 @@ async function main(): Promise<void> {
 
       const bqMember = zip.members.find((m) => m.name.startsWith('bq') && m.complete)
       if (bqMember) {
-        await runFile('quote lines', zipObject.storage_key, async () => {
+        await runFile('quote lines', zipObject.storage_key, 'bq.', async () => {
           const parsed = parseQuoteFile(bqMember.data.toString('utf8'), {
             sourceKey: 'dibbs-rfq-daily',
             logicalDate: LOGICAL_DATE,

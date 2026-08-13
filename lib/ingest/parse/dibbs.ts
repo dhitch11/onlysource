@@ -376,9 +376,14 @@ export function parseApprovedSource(
     }
 
     const [nsnRaw = '', cageRaw = '', partNumber = ''] = record.fields
+    // A stock number that is not 13 digits is NOT a bad row. 14 rows on the real feed day
+    // carry locally assigned stock numbers (1560LLNC00755, 1560LN0035612) which have no NIIN
+    // and are real approved-source relationships. They load with a null NIIN and the raw stock
+    // number preserved, exactly as the index parser already treats an unparseable NSN.
+    // Quarantining them was a silent loss of supplier relationships dressed as data hygiene.
     const parsedNsn = parseNsn(nsnRaw)
-    if (!parsedNsn) {
-      quarantine('as.nsn_unparseable', `"${nsnRaw}" is not an NSN or NIIN`)
+    if (nsnRaw === '') {
+      quarantine('as.nsn_missing', 'the stock number field is blank, so the row has no subject')
       continue
     }
     const cage = parseCage(cageRaw)
@@ -389,7 +394,7 @@ export function parseApprovedSource(
 
     rows.push({
       nsnRaw,
-      niin: parsedNsn.niin,
+      niin: parsedNsn?.niin ?? null,
       cage,
       partNumber,
       observedAt: ctx.observedAt,

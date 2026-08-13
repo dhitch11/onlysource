@@ -216,6 +216,7 @@ export type RequirementObservation = {
  */
 export type ApprovedSourceObservation = {
   nsnRaw: string
+  /** Null for a locally assigned stock number, which has no NIIN and is still a real row. */
   niin: string | null
   cage: string | null
   partNumber: string

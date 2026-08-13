@@ -198,17 +198,44 @@ CREATE INDEX IF NOT EXISTS quote_line_sol  ON quote_line (solicitation_number);
 -- The highest-value artifact in the free feed: one day's file holds only that day's board,
 -- so accumulating it builds a longitudinal table no single day contains. T4's monopoly map
 -- sits on this join.
+-- `niin` is NULLABLE here and that is deliberate, measured, and reversible only at the cost
+-- of real data. 14 of the 3,684 approved-source rows on the real feed day carry LOCALLY
+-- ASSIGNED stock numbers (1560LLNC00755, 1560LN0035612, 5306LN0035726 and friends) which are
+-- not 13 digits and therefore have no NIIN. They are REAL approved-source relationships
+-- published by the government. An earlier NOT NULL here quarantined all 14, which was a
+-- silent loss of supplier relationships dressed up as data hygiene.
+--
+-- Consumers joining on `niin` are unaffected: those rows simply do not match, exactly as when
+-- they were absent. The difference is that they are now VISIBLE and countable rather than
+-- held, and `nsn_raw` carries the stock number the government actually published.
 CREATE TABLE IF NOT EXISTS approved_source (
   id            bigserial PRIMARY KEY,
   nsn_raw       text NOT NULL,
-  niin          char(9) NOT NULL,
+  niin          char(9),
   cage          char(5) NOT NULL,
   part_number   text,
   observed_at   timestamptz NOT NULL,
   source_key    text NOT NULL REFERENCES source_registry(source_key),
   storage_key   text NOT NULL,
   line_no       integer NOT NULL,
-  UNIQUE (niin, cage, part_number, source_key, observed_at)
+  -- Keyed on the RAW stock number, not the NIIN, so a locally assigned number is still unique.
+  UNIQUE (nsn_raw, cage, part_number, source_key, observed_at)
 );
 CREATE INDEX IF NOT EXISTS approved_source_niin ON approved_source (niin);
 CREATE INDEX IF NOT EXISTS approved_source_cage ON approved_source (cage);
+
+-- ---------------------------------------------------------------------------
+-- Idempotent corrections applied to an existing database.
+--
+-- `CREATE TABLE IF NOT EXISTS` does not alter a table that already exists, so a corrected
+-- column definition above is invisible to a database created before it. These statements are
+-- safe to run repeatedly and bring an existing cluster up to the definition above.
+--
+-- T1 owns migration ordering for the real deployment. These exist so a developer's local
+-- cluster cannot silently sit on the superseded shape and report counts nobody can reconcile.
+-- ---------------------------------------------------------------------------
+ALTER TABLE approved_source ALTER COLUMN niin DROP NOT NULL;
+ALTER TABLE approved_source
+  DROP CONSTRAINT IF EXISTS approved_source_niin_cage_part_number_source_key_observed_at_key;
+CREATE UNIQUE INDEX IF NOT EXISTS approved_source_natural_key
+  ON approved_source (nsn_raw, cage, part_number, source_key, observed_at);

@@ -401,3 +401,42 @@ describe('Content-Length cross-check: truncation seen directly, not inferred', (
     expect(check.passed).toBe(false)
   })
 })
+
+describe('locally assigned stock numbers are REAL rows, not bad rows', () => {
+  const asText = (() => {
+    const member = readZipMembers(captured('bq260811.zip')).members.find(
+      (m) => m.name.startsWith('as') && m.complete,
+    )
+    if (!member) throw new Error('approved-source member missing')
+    return member.data.toString('utf8')
+  })()
+
+  /**
+   * Settled a one-row disagreement with T4 (they counted 3,670, this lane counted 3,669) and
+   * the reconcile exposed a defect here rather than in either count. 14 rows carry LOCALLY
+   * ASSIGNED stock numbers (1560LLNC00755, 1560LN0035612, 5306LN0035726) which are not 13
+   * digits and have no NIIN. They are real approved-source relationships published by the
+   * government, and an earlier NOT NULL on `niin` quarantined every one of them: a silent loss
+   * of supplier relationships dressed up as data hygiene.
+   */
+  it('loads the 14 locally assigned stock numbers with a null NIIN rather than holding them', () => {
+    const result = parseApprovedSource(asText, CTX)
+    const localAssigned = result.rows.filter((r) => r.niin === null)
+    expect(localAssigned).toHaveLength(14)
+    // The stock number the government published is preserved verbatim on every one.
+    for (const row of localAssigned) {
+      expect(row.nsnRaw).not.toBe('')
+      expect(row.cage).toMatch(/^[A-Z0-9]{5}$/)
+    }
+    expect(localAssigned.map((r) => r.nsnRaw)).toContain('1560LLNC00755')
+  })
+
+  it('reconciles exactly: 3,683 loaded plus 1 held equals the 3,684 published lines', () => {
+    const result = parseApprovedSource(asText, CTX)
+    expect(result.rows).toHaveLength(3683)
+    expect(result.quarantined).toHaveLength(1)
+    expect(result.rows.length + result.quarantined.length).toBe(3684)
+    // And the single held row is the genuinely malformed one, not a policy choice.
+    expect(result.quarantined[0]?.lineNo).toBe(963)
+  })
+})
