@@ -17,6 +17,7 @@ import {
 import {
   EMPTY_FACTS,
   buildDocumentsView,
+  normaliseFacts,
   type CapturedFacts,
 } from '@/lib/compliance/deliverables/view-model'
 import { runPreflight } from '@/lib/compliance/preflight'
@@ -545,5 +546,81 @@ describe('Rev-81 corrections: the open factor set and the two identical sentence
     // The source's unclosed parenthesis is the one opening "(see DFARS"; the cite itself ends "(c).".
     if (q.ok) expect(q.quote).toContain('(see DFARS 225.502(c).')
     expect(RULES.ms_automated_evaluation_factors.quote_normalization).toContain('Not corrected')
+  })
+})
+
+// =====================================================================================================
+// REGRESSION for the stop-ship T4's audit found: whitespace-only fields read as CAPTURED, cleared the
+// pre-flight, and rendered a purchase order with an extended total of "0.00" computed from three spaces.
+// T4's exact input is reproduced below.
+describe('REGRESSION: whitespace-only fields must not read as captured', () => {
+  const WS = '   '
+  const t4Input: CapturedFacts = {
+    ...EMPTY_FACTS,
+    nsn: '5325015619853',
+    cage: '58794',
+    solicitation_number: 'SPE4A626T14YZ',
+    validity_days: '30',
+    material_condition: 'new_unused',
+    acquisition_channel: 'dealer_purchase',
+    supplier: 'OLY Aero',
+    unit_price: WS,
+    qty: WS,
+  }
+
+  it('the purchase order REFUSES to build, naming the fields', () => {
+    const v = buildDocumentsView(t4Input, AS_OF)
+    const po = v.deliverables.find((d) => d.kind === 'purchase_order')
+    expect(po?.state).toBe('generate_from_blueprint')
+    expect(po?.state).not.toBe('ready_to_submit')
+    const missing = po?.missing.map((m) => m.ref) ?? []
+    expect(missing).toContain('f3') // unit price
+    expect(missing).toContain('f4') // quantity
+    expect(missing).toContain('f5') // extended total
+  })
+
+  it('NO artifact anywhere renders a total computed from whitespace', () => {
+    const v = buildDocumentsView(t4Input, AS_OF)
+    for (const a of v.artifacts) {
+      if (a.view.ok) {
+        expect(a.view.body).not.toContain('0.00')
+        // And nothing claims a figure whose value is blank.
+        for (const p of a.view.provenance) expect(p.value.trim()).not.toBe('')
+      }
+    }
+  })
+
+  it('the quote packet does not assert its provenance sentence over blank values', () => {
+    const v = buildDocumentsView(t4Input, AS_OF)
+    const qp = v.artifacts.find((a) => a.kind === 'quote_packet')
+    // Either it refused, or if it rendered, every listed figure is non-blank.
+    if (qp?.view.ok) {
+      for (const p of qp.view.provenance) expect(p.value.trim()).not.toBe('')
+    } else {
+      expect(qp === undefined || qp.view.ok === false).toBe(true)
+    }
+  })
+
+  it('normaliseFacts is the boundary: three spaces becomes empty', () => {
+    const n = normaliseFacts({ ...EMPTY_FACTS, qty: WS, unit_price: '  9.50  ', nsn: ` ${WS}1650 ` })
+    expect(n.qty).toBe('')
+    expect(n.unit_price).toBe('9.50')
+    expect(n.nsn).toBe('1650')
+  })
+
+  it('POSITIVE CONTROL: the same lot with real figures DOES build the PO', () => {
+    const v = buildDocumentsView({ ...t4Input, unit_price: '1021.50', qty: '8' }, AS_OF)
+    const po = v.deliverables.find((d) => d.kind === 'purchase_order')
+    // Draft rather than ready, because a purchase order always waits for a person.
+    expect(po?.state).toBe('draft_awaiting_approval')
+    const art = v.artifacts.find((a) => a.kind === 'purchase_order')
+    expect(art?.view.ok).toBe(true)
+    if (art?.view.ok) expect(art.view.body).toContain('8172.00')
+  })
+
+  it('a whitespace-only NSN produces the honest empty state, not a lot', () => {
+    const v = buildDocumentsView({ ...EMPTY_FACTS, nsn: WS }, AS_OF)
+    expect(v.captured).toBe(false)
+    expect(v.empty_state).not.toBeNull()
   })
 })

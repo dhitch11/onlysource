@@ -345,3 +345,52 @@ describe('classifier: the fork, and it fails closed', () => {
     expect(o.disclosure).toContain('file cabinet')
   })
 })
+
+// =====================================================================================================
+// Same defect class as T4's whitespace stop-ship, found by generalising their technique to the ladder.
+// A rung satisfied by whitespace is worse than a total computed from it: it asserts prior Government
+// ownership on a lot that holds no such document.
+describe('REGRESSION: a whitespace document reference does not satisfy a provenance rung', () => {
+  const m = <T>(v: T) => measured(v, SRC)
+
+  it('rung 1 is NOT satisfied by two whitespace document ids', () => {
+    const r = evaluateProvenanceLadder({
+      form_1427_document_id: m('   '),
+      sale_solicitation_document_id: m('\t\n '),
+    })
+    expect(r.highest_rung).toBeNull()
+  })
+
+  it('rung 3 is NOT satisfied when the original contract number is blank', () => {
+    const r = evaluateProvenanceLadder({
+      markings_nsn: m('1650-01-059-8221'),
+      markings_cage_code: m('99207'),
+      markings_part_number: m('70550-28900-106'),
+      markings_original_contract_number: m('  '),
+    })
+    expect(r.highest_rung).toBeNull()
+    const rung3 = r.rungs.find((x) => x.rung === 3)
+    if (rung3?.satisfied === false) {
+      expect(rung3.missing.join(' ')).toContain('original contract number')
+    }
+  })
+
+  it('POSITIVE CONTROL: real ids still satisfy rung 1', () => {
+    const r = evaluateProvenanceLadder({
+      form_1427_document_id: m('doc-1427-a'),
+      sale_solicitation_document_id: m('sol-99'),
+    })
+    expect(r.highest_rung).toBe(1)
+  })
+
+  it('and the classifier therefore does not reach C04 on whitespace provenance', () => {
+    const d = classifyLot({
+      lot_id: 'lot-ws',
+      material_condition: m('new_unused'),
+      acquisition_channel: m('dla_disposition_sale'),
+      provenance_evidence: { form_1427_document_id: m(' '), sale_solicitation_document_id: m(' ') },
+    })
+    expect(d.path).toBe('l04_part_numbered_traceability')
+    expect(d.path).not.toBe('c04_surplus_representation')
+  })
+})

@@ -117,10 +117,22 @@ export type LadderResult = {
   readonly rests_on_argument_only: boolean
 }
 
-/** Present and confirmed. An unconfirmed document reference does not satisfy a rung. */
+/**
+ * Present, confirmed, AND not blank. An unconfirmed document reference does not satisfy a rung, and
+ * neither does a confirmed one whose value is whitespace.
+ *
+ * THE BLANK CHECK IS NOT DEFENSIVE PADDING. T4's audit found that whitespace-only input read as
+ * captured elsewhere in this lane, and the same class of defect lands harder here: a document id of
+ * three spaces would have satisfied rung 1, which is the strongest available proof of prior
+ * Government ownership, on a lot that has no such document at all. That is a false representation
+ * with a signature waiting to go on it, and it is exactly the failure mode this whole module exists
+ * to prevent. A reference that is only whitespace is not a reference.
+ */
 function has(f: Fact<string> | undefined, label: string): { ok: boolean; missing?: string } {
   const r = requireConfirmed(label, f)
-  return r.ok ? { ok: true } : { ok: false, missing: label }
+  if (!r.ok) return { ok: false, missing: label }
+  if (r.fact.value.trim() === '') return { ok: false, missing: label }
+  return { ok: true }
 }
 
 /**

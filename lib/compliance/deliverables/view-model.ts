@@ -84,6 +84,55 @@ export const EMPTY_FACTS: CapturedFacts = {
   higher_level_quality_answered_none: false,
 }
 
+/**
+ * NORMALISE AT THE BOUNDARY. Every string field is trimmed before anything reads it.
+ *
+ * THE DEFECT THIS FIXES, found by T4's audit and it was a stop-ship. Emptiness is tested as
+ * `=== ''` throughout this lane, which is the right test against a trimmed string and a silent
+ * failure against an untrimmed one. A lot whose unit price and quantity were three spaces each
+ * read as CAPTURED, cleared the pre-flight, and rendered a purchase order with an empty unit
+ * price, an empty quantity, and an extended total of "0.00": a computed dollar figure invented
+ * from whitespace. The numeric guard could not save it either, because `Number('   ')` is 0 in
+ * JavaScript rather than NaN, so `Number.isFinite` was perfectly happy. Two guards, each
+ * assuming the other handled it.
+ *
+ * The fix belongs HERE rather than at any individual check, for one reason: this function is the
+ * only door into the view model, and a view model that trusts its caller is not a boundary. The
+ * page's own form reader already trimmed, so the page path never showed the defect; a direct
+ * caller, which is what an audit and a future database reader both are, walked straight in.
+ *
+ * The audit technique that found it is worth keeping: compare degenerate inputs against each
+ * other, because when a MORE degenerate input produces a MORE complete artifact, the validation
+ * is keyed on the wrong property. 'ZZZZ' was refused; three spaces rendered a dollar figure.
+ */
+export function normaliseFacts(f: CapturedFacts): CapturedFacts {
+  return {
+    nsn: f.nsn.trim(),
+    cage: f.cage.trim(),
+    part_number: f.part_number.trim(),
+    qty: f.qty.trim(),
+    unit_price: f.unit_price.trim(),
+    validity_days: f.validity_days.trim(),
+    supplier: f.supplier.trim(),
+    solicitation_number: f.solicitation_number.trim(),
+    countered_price: f.countered_price.trim(),
+    counter_price: f.counter_price.trim(),
+    original_contract_number: f.original_contract_number.trim(),
+    form_1427_document_id: f.form_1427_document_id.trim(),
+    sale_solicitation_document_id: f.sale_solicitation_document_id.trim(),
+    material_condition: f.material_condition.trim(),
+    acquisition_channel: f.acquisition_channel.trim(),
+    type_character: f.type_character.trim(),
+    package_markings_captured: f.package_markings_captured,
+    is_automated: f.is_automated,
+    offering_alternate_product: f.offering_alternate_product,
+    item_cites_qpl_or_qml: f.item_cites_qpl_or_qml,
+    quoted_manufacturer_listed: f.quoted_manufacturer_listed,
+    quote_carries_remark: f.quote_carries_remark,
+    higher_level_quality_answered_none: f.higher_level_quality_answered_none,
+  }
+}
+
 export const MATERIAL_CONDITIONS: readonly MaterialCondition[] = [
   'new_unused', 'used', 'reconditioned', 'remanufactured',
 ]
@@ -285,7 +334,11 @@ function labelOf(c: RuleCitation): string {
 /**
  * Build the whole view. Pure: no clock read (the caller passes `asOf`), no IO, no markup.
  */
-export function buildDocumentsView(f: CapturedFacts, asOf: string): DocumentsView {
+export function buildDocumentsView(raw: CapturedFacts, asOf: string): DocumentsView {
+  // The FIRST statement, deliberately. Nothing below may read an untrimmed field, so there is no
+  // ordering by which a later check sees the raw input.
+  const f = normaliseFacts(raw)
+
   const quarantined = quarantinedCitations().map((r) => ({
     identifier: `${r.authority} ${r.identifier}`,
     why:
