@@ -50,8 +50,16 @@ export const DIBBS_INDEX_SHAPE: FeedShape = {
   // A working day carries roughly 1,960 requirement lines; the band is deliberately wide
   // enough to admit a light Monday and narrow enough to reject a banner or a truncated file.
   countBand: { min: 200, max: 12000 },
-  // A solicitation number shape. Present in every real row, absent from any HTML page.
-  canary: /SPE[0-9A-Z]{2}-?[0-9]{2}-?[A-Z]?-?[0-9]{4}/,
+  // A solicitation number shape: SPE + a 3-character office segment (SPE7M2), the two-digit
+  // fiscal year, a one-letter type, and a four-digit serial, with the dashes optional because
+  // the fixed-width feed and the human-facing forms punctuate it differently.
+  //
+  // AN EARLIER VERSION OF THIS PATTERN READ `{2}` AND REJECTED EVERY REAL ROW. Both banner
+  // tests still passed, because a banner fails on content type long before the canary is
+  // reached. Only the positive control caught it. A classifier that rejects everything looks
+  // identical to a strict one until the day you notice the archive is empty, and by then a
+  // re-fetchable window has closed.
+  canary: /SPE[0-9A-Z]{3}-?[0-9]{2}-?[A-Z]?-?[0-9]{4}/,
 }
 
 export type FeedResponseFacts = {
