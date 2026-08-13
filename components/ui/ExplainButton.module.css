@@ -191,3 +191,24 @@
   gap: var(--sp-2);
   color: var(--dim);
 }
+
+/*
+ * The fifth field, "what this does not do". Styled apart from the other four on purpose.
+ *
+ * It is the only part of an explainer that argues AGAINST the number it sits next to, so it
+ * has to survive a fast scan by somebody who is reading to confirm rather than to question.
+ * Amber-keyed border, not amber text: amber is reserved for the auto-award clock in this
+ * palette and this is not the clock, so it borrows the attention without borrowing the
+ * meaning. The word "not" carries it, the shape supports it, the colour is the least of it.
+ */
+.limitsTerm {
+  color: var(--ink) !important;
+}
+
+.limits {
+  color: var(--dim);
+  padding: var(--sp-2) var(--sp-3);
+  border-inline-start: 2px solid var(--amber);
+  background: color-mix(in srgb, var(--amber) 6%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}

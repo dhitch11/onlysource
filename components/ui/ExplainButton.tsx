@@ -142,6 +142,22 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
               <dd>{record.why}</dd>
               <dt>Where the number came from</dt>
               <dd>{record.source}</dd>
+
+              {/*
+               * THE FIFTH FIELD. Rendered last and deliberately styled apart, because it is
+               * the sentence that stops somebody acting on a number the data cannot support.
+               * On a surface reading "115 candidate corners", this is where the product says
+               * that none of them are confirmed available to buy.
+               *
+               * Absent renders nothing rather than a placeholder. Required on score
+               * explainers, enforced by validateHelp and the coverage gate.
+               */}
+              {record.whatThisDoesNotDo ? (
+                <>
+                  <dt className={styles.limitsTerm}>What this does not do</dt>
+                  <dd className={styles.limits}>{record.whatThisDoesNotDo}</dd>
+                </>
+              ) : null}
             </dl>
 
             {/* L2, live half: the computation record for this row. The half that gets

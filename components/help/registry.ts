@@ -50,6 +50,9 @@ import { T4_ENTRIES } from "@/lib/intelligence/help";
 // entries existed, typechecked, and were reachable by nobody. Built and wired but never fed.
 import { T7_ENTRIES } from "@/lib/admin/help";
 
+// T5 DOCUMENTS. Same pattern: the lane that owns the verdict owns the sentence.
+import { T5_ENTRIES } from "@/lib/compliance/help";
+
 /** The lanes that can own a help entry. Used by the panel to name who owes a missing one. */
 export type HelpOwner =
   | "T1 FOUNDATION"
@@ -77,7 +80,46 @@ export interface HelpRecord {
   why: string;
   /** L2. Where the number came from, specifically enough to go and look. */
   source: string;
-  /** L3. One link to the full document. One, never two. */
+  /**
+   * L2. THE FIFTH FIELD. What this does NOT do, and what it therefore cannot be relied on for.
+   *
+   * Added 2026-08-13 after @T5-DOCUMENTS found it missing. It is not optional decoration:
+   * Quality Bar G2 requires "all five fields including what_this_does_not_do, present on
+   * every score", and acceptance gate R9.4 names it explicitly as what the coverage lint must
+   * check. Without it R9.4 could not pass, and every lane writing help content today was
+   * writing against a type that structurally could not hold it. T5 wrote theirs anyway and
+   * parked it in `T5_WHAT_THIS_DOES_NOT_DO` rather than folding it into `why`, which is the
+   * right instinct and the reason this was caught before eight lanes had written content.
+   *
+   * WHY IT MATTERS MORE THAN IT LOOKS. This is where a tool stops overselling itself. On a
+   * surface reading "115 candidate corners", the sentence "this does not confirm that any of
+   * them are available to buy" is the one that stops somebody acting on a number the data
+   * cannot support. It is the honest-empty-state discipline applied to documentation: the
+   * product saying plainly where its own knowledge ends.
+   *
+   * REQUIRED on any record where `explainsAScore` is true. Strongly wanted everywhere else.
+   */
+  whatThisDoesNotDo?: string;
+  /**
+   * True when this explainer describes a SCORE, a ranking, a probability or any figure a
+   * person will act on financially. Set it and `whatThisDoesNotDo` becomes mandatory, which
+   * is exactly the scope G2 states: "present on every score".
+   *
+   * It is an explicit flag rather than an inference from the id namespace, because a lint
+   * that guesses which records are scores will be wrong on somebody's naming choice, and a
+   * gate that fires on the wrong rows is a gate people learn to ignore.
+   */
+  explainsAScore?: boolean;
+  /**
+   * L3. One link to the full document. ONE, never two.
+   *
+   * Restored 2026-08-13. It was deleted by accident when the fifth field was added: the edit
+   * replaced a block that contained this and `modelled` and did not carry them forward. The
+   * tests stayed green because nothing asserts on L3, and only `tsc` caught it, from the one
+   * component that reads it. Two lessons worth leaving here rather than quietly fixing: the
+   * three-tier structure (L1 line, L2 panel, L3 document) is the contract, so losing L3 is
+   * losing a tier; and a green test suite said nothing, because no test covered the field.
+   */
   moreHref?: string;
   /** Set when the figure is a modelled estimate rather than a measurement, so the panel can
    *  say so in words as well as through the provenance glyph. */
@@ -99,6 +141,8 @@ const T8_ENTRIES: HelpRecord[] = [
     how: "Read the shape, not the colour. A filled square is measured, a filled circle is modelled, a dashed outline means insufficient data. The colour repeats the shape and never carries it alone.",
     why: "A modelled figure and a measured one look identical on a screen and are worth very different amounts. Quoting a modelled price as though it were measured is how a firm loses money on a contract it already won.",
     source: "Set by the lane that produced the figure, on the record itself. It is never inferred at render time.",
+    whatThisDoesNotDo:
+      "It does not tell you whether the figure is CORRECT, only how it was arrived at. A measured figure read from the wrong record is still measured. Provenance is about method, not accuracy.",
   },
   {
     id: "ui.truth_strip",
@@ -108,6 +152,8 @@ const T8_ENTRIES: HelpRecord[] = [
     how: "Check the age before you act on anything on this screen. If a source is quarantined, open it and see what did not parse.",
     why: "A number without its as-of is a claim with the expiry removed. Acting on yesterday's queue as though it were today's is how a sweep gets missed.",
     source: "Counts come from the ingest records themselves, not from a cached summary.",
+    whatThisDoesNotDo:
+      "It does not tell you the data is COMPLETE. It reports what arrived and when. A source that delivered on time can still have delivered a short file, and the quarantine count is the only signal here that anything failed to parse.",
   },
   {
     id: "ui.unconfirmed",
@@ -117,6 +163,8 @@ const T8_ENTRIES: HelpRecord[] = [
     how: "Open the source next to it, check it, then accept with one keystroke. Accepting is undoable for the full undo window.",
     why: "An unaccepted value is inert: it is excluded from every computed total until a person confirms it. That is deliberate, because a wrong figure on a federal quote is not a bug that gets patched later.",
     source: "The extraction record, with the audio span or document region attached.",
+    whatThisDoesNotDo:
+      "Accepting a value confirms that a person read it against its source. It does not verify the source itself. A confidently misheard price on a real call becomes a confirmed wrong price the moment somebody accepts it without listening.",
   },
 ];
 
@@ -144,6 +192,14 @@ register(T4_ENTRIES);
 
 // T7 ADMIN + API. Entries live in lib/admin/help.ts, same reason as T4's.
 register(T7_ENTRIES);
+
+// T5 DOCUMENTS. Entries live in lib/compliance/help.ts, same reason as T4's and T7's.
+// NOTE TO T8, filed as a finding rather than changed here: HelpRecord has no
+// `what_this_does_not_do`. Quality Bar G2 requires all five fields and acceptance gate R9.4 names
+// that one explicitly as the fifth the coverage lint must check, so R9.4 cannot pass as written.
+// T5's content for it is written and waiting in T5_WHAT_THIS_DOES_NOT_DO, keyed by help id, and
+// moves into the record the day the field exists. Not changing your type from this lane.
+register(T5_ENTRIES);
 
 /*
  * Other lanes: register your entries here, in your own block.
@@ -206,6 +262,20 @@ export function validateHelp(r: HelpRecord): string[] {
   if (!r.how.trim()) problems.push(`${r.id}: "how" is empty`);
   if (!r.why.trim()) problems.push(`${r.id}: "why" is empty`);
   if (!r.source.trim()) problems.push(`${r.id}: "source" is empty`);
+
+  /*
+   * THE FIFTH FIELD, which acceptance gate R9.4 requires the coverage lint to check and
+   * Quality Bar G2 scopes to "present on every score".
+   *
+   * Enforced on score explainers rather than on all records, because forcing it everywhere
+   * produces filler, and a sentence written to satisfy a lint is worse than an absent one:
+   * it is fabricated content in a slot an operator trusts.
+   */
+  if (r.explainsAScore && !r.whatThisDoesNotDo?.trim()) {
+    problems.push(
+      `${r.id}: explains a score, so "whatThisDoesNotDo" is required (Quality Bar G2, gate R9.4)`,
+    );
+  }
   if (r.what.length > MAX_WHAT) {
     problems.push(`${r.id}: "what" is ${r.what.length} chars, cap is ${MAX_WHAT}`);
   }
@@ -214,6 +284,7 @@ export function validateHelp(r: HelpRecord): string[] {
     how: r.how,
     why: r.why,
     source: r.source,
+    whatThisDoesNotDo: r.whatThisDoesNotDo ?? "",
   })) {
     if (text.includes("—")) problems.push(`${r.id}: "${field}" contains an em dash`);
   }
