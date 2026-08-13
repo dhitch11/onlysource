@@ -10,7 +10,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 
 import {
   DATA_PATHS,
@@ -19,6 +20,8 @@ import {
   buildNoQuoteGoldmine,
   reverseCompetitor,
   checkDataAvailability,
+  SOURCE_ARCHIVE,
+  DERIVED_SHA256,
 } from '@/lib/intelligence/datasets'
 import { readApprovedSourceFile, readDailyIndex, INDEX_ROW_WIDTH } from '@/lib/intelligence/seed/feed'
 
@@ -41,6 +44,24 @@ describe('intelligence datasets over the real files', () => {
   }
 
   /* ------------------------------------------------------------------------------- */
+  describe('the chain from the archived original to the derived file', () => {
+    it('the derived approved-source file still hashes to what came out of the archive', () => {
+      // The provenance we cite is the archived zip. The derived file is a convenience and
+      // nothing about its path proves where it came from, so the link is asserted rather
+      // than assumed. A derived file silently swapped, truncated, or regenerated from a
+      // different feed day changes every number on the map without changing a line of code,
+      // and this is the check that turns that into a red test instead of a quiet drift.
+      const actual = createHash('sha256').update(readFileSync(DATA_PATHS.approvedSource)).digest('hex')
+      expect(actual).toBe(DERIVED_SHA256.approvedSource)
+    })
+
+    it('cites the archive rather than the derived path in the map provenance', () => {
+      const d = buildAllDatasets()
+      expect(d.cornerMap.provenance.sourceArchiveSha256).toBe(SOURCE_ARCHIVE.sha256)
+      expect(d.cornerMap.provenance.sourceArchiveKey).toContain('bq260811.zip')
+    })
+  })
+
   describe('the daily feed parses at its specified shape', () => {
     it('reads every index row at the specified fixed width', () => {
       const index = readDailyIndex(DATA_PATHS.index)

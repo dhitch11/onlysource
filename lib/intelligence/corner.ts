@@ -85,6 +85,9 @@ export type CornerMap = {
   }
   provenance: {
     feedDay: string
+    /** The ARCHIVED ORIGINAL this derives from, with its hash. Cited on the surface. */
+    sourceArchiveKey: string
+    sourceArchiveSha256: string
     approvedSourceFile: string
     indexFile: string
     silenceListFile: string

@@ -29,9 +29,39 @@ import { buildCornerMap, type CornerMap } from './corner'
 /* WHERE THE REAL FILES LIVE                                                              */
 /* ------------------------------------------------------------------------------------ */
 
+/**
+ * THE PROVENANCE WE CITE IS THE ARCHIVED ZIP, NEVER THE DERIVED FILE.
+ *
+ * A derived file is a convenience: it can be regenerated, moved, or replaced, and nothing
+ * about it proves where it came from. The archived original is the artifact with a retrieval
+ * record and a hash, so that is what every surface cites.
+ *
+ * The chain is verified rather than assumed. The archived zip hashes to the value its
+ * manifest records, and each derived file hashes to the same value as the corresponding entry
+ * extracted from that zip. `test/intelligence/datasets.test.ts` asserts both, so a derived
+ * file that is silently swapped, truncated or regenerated from a different day fails the
+ * suite instead of quietly changing every number on the map.
+ */
+export const SOURCE_ARCHIVE = {
+  storageKey: 'dibbs-rfq-daily/2026-08-11/20260812T225617Z/bq260811.zip',
+  sha256: '491dad3652c4cca9ffc83006e23618d4822a72b848443902755ce0d7be2a5705',
+  byteLength: 119_233,
+  sourceUrl: 'https://dibbs2.bsm.dla.mil/Downloads/RFQ/Archive/bq260811.zip',
+  retrievedAt: '2026-08-12T22:56:17.334Z',
+  retrievedAtBasis: 'origin_file_mtime',
+} as const
+
+/** Hashes of the derived extractions, so the chain from the archive can be asserted. */
+export const DERIVED_SHA256 = {
+  approvedSource: '844c8677da9206f3543ba1ec4eab8f96c58ca0b81a43bcfd838d13e7c690b409',
+  quoting: 'be5a1104a538d96966f5693106ed28b1a98246e5c1dd54285b60bf897d086d3e',
+} as const
+
 export const DATA_PATHS = {
   feedDay: '2026-08-11',
-  approvedSource: '/tmp/bq/as260811.txt',
+  // Stabilised by T2 out of volatile /tmp. Read here, cited as SOURCE_ARCHIVE above.
+  approvedSource:
+    '/Users/user/onlysource-data/archive/derived/dibbs-rfq-daily/2026-08-11/as260811.txt',
   index:
     '/Users/user/onlysource-data/archive/dibbs-rfq-daily/2026-08-11/20260812T225616Z/in260811.txt',
   awardSilence: '/Users/user/Downloads/no awards in past 2 years (1).xlsx',
@@ -360,6 +390,8 @@ export function buildAllDatasets(paths = DATA_PATHS): IntelligenceDatasets {
     awardSilentCages,
     provenance: {
       feedDay: paths.feedDay,
+      sourceArchiveKey: SOURCE_ARCHIVE.storageKey,
+      sourceArchiveSha256: SOURCE_ARCHIVE.sha256,
       approvedSourceFile: paths.approvedSource,
       indexFile: paths.index,
       silenceListFile: paths.awardSilence,
