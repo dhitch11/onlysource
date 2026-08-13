@@ -75,9 +75,27 @@ function mustAssess(o: TripwireOutcome): TripwireAssessment {
   if (!o.assessed) throw new Error(`expected an assessment, got abstention: ${o.reason}`)
   return o
 }
+/**
+ * Narrows to the TOTAL arm, and refuses the floor arm out loud.
+ *
+ * This helper is where the floor arm's safety property first fired, and on its own author. It
+ * previously returned after excluding only the abstention, so once `EvaluatedTotalOutcome` gained
+ * `EvaluatedFloor` it stopped compiling: a floor has no `evaluatedTotalUsd` to read. That refusal
+ * is the entire reason the floor's figure is named `atLeastUsd` rather than sharing one field
+ * behind a boolean. A caller that forgets cannot silently read a floor as a total, it fails to
+ * build. Every case in this file supplies no applicable-but-unpriced factor, so a floor here would
+ * mean the implementation had started flooring unconditionally, which is worth failing loudly on.
+ */
 function mustEvaluate(o: EvaluatedTotalOutcome): EvaluatedTotal {
   if (o.kind === 'EVALUATED_TOTAL_ABSTENTION') {
     throw new Error(`expected an evaluated total, got abstention: ${o.reason}`)
+  }
+  if (o.kind === 'EVALUATED_FLOOR_AT_LEAST') {
+    throw new Error(
+      'expected an evaluated total, got a FLOOR. No case in this file declares an ' +
+        `applicable-but-unpriced factor, so this means the module floored unconditionally. ` +
+        `Unpriced factors named: ${o.unpricedFactors.map((f) => f.code).join(', ')}`,
+    )
   }
   return o
 }
