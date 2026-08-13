@@ -28,6 +28,45 @@ import type {
 export const INDEX_ROW_WIDTH = 140
 
 /**
+ * THE SOLICITATION-NUMBER CANARY. One definition, owned here, imported by everyone.
+ *
+ * A token that must appear in real feed data and cannot appear in a consent banner. It is the
+ * last check in the content ladder, because a canary alone would pass a truncated file that
+ * happens to contain one good row.
+ *
+ * DERIVED FROM MEASUREMENT, NOT FROM THE FORMAT DOCUMENTATION. Positional structure over all
+ * 2,721 distinct solicitation numbers on real feed day 2026-08-11:
+ *
+ *   pos 0-2    `SPE`        constant
+ *   pos 3      [0-9A-Z]     7 distinct: 1 2 3 4 7 8 F
+ *   pos 4      [A-Z]        7 distinct: A C D E L M S
+ *   pos 5      [0-9A-Z]     20 distinct
+ *   pos 6      `2`          constant
+ *   pos 7      [0-9]        5 or 6
+ *   pos 8      [A-Z]        Q 155, T 2,459, U 107. T and U mark the automated-award path
+ *   pos 9-10   [0-9]
+ *   pos 11-12  [0-9A-Z]
+ *
+ * Total length 13. **A pattern implying 14 characters matches nothing**, which is not a
+ * theoretical concern: the connector layer shipped with exactly that off-by-one and it scored
+ * 0 of 2,721 against this file. Because the canary is the final check and its miss returns a
+ * failed assertion, the wrong quantifier would have made a perfectly good feed day read as
+ * corrupt, and failed CLOSED on every ingest.
+ *
+ * This constant exists so there is ONE definition to get right. If you are validating a DIBBS
+ * response anywhere in this codebase, import this rather than writing your own.
+ */
+export const SOLICITATION_CANARY = /SPE[0-9A-Z]{3}[0-9]{2}[A-Z][0-9A-Z]{4}/
+
+/**
+ * Separator-tolerant variant, for text where the number may be hyphenated
+ * (`SPE4A5-26-T-8786` appears in the expert corpus alongside the unhyphenated form).
+ * Scores the same 2,721 of 2,721 on the feed file.
+ */
+export const SOLICITATION_CANARY_LOOSE =
+  /SPE[0-9A-Z]{2}-?[0-9A-Z]-?[0-9]{2}-?[A-Z]-?[0-9A-Z]{4}/
+
+/**
  * Byte offsets of the index file, VERIFIED against 3,095 real rows. Do not re-derive.
  * `[26:62]` the part number was blank on all 3,095 rows of the measured day; a part-numbered
  * path exists in the layout and is rare.
