@@ -24,6 +24,7 @@ import {
   DERIVED_SHA256,
 } from '@/lib/intelligence/datasets'
 import { readApprovedSourceFile, readDailyIndex, INDEX_ROW_WIDTH } from '@/lib/intelligence/seed/feed'
+import { parseSolicitation } from '@/lib/intelligence/niin'
 
 const inputs = checkDataAvailability()
 const ALL_PRESENT = inputs.every((i) => i.present)
@@ -128,6 +129,32 @@ describe('intelligence datasets over the real files', () => {
     it('reads the ninth character on real solicitation numbers', () => {
       const withRead = d.cornerMap.rows.filter((r) => r.automatedSolicitation !== null)
       expect(withRead.length).toBe(d.cornerMap.rows.length)
+    })
+
+    it('never treats an ABSENT approved source as a monopoly', () => {
+      // @T2-DATA's caution, turned into a standing check. On the real feed day, requirement
+      // stock numbers carry no approved source at all. That is "we do not know who is
+      // approved", NOT "nobody is approved", and reading it as the second manufactures a
+      // corner out of a coverage gap. Measured: those stock numbers appear ZERO times in the
+      // map, because the map is built by walking the approved-source mapping rather than the
+      // requirement list.
+      const index = readDailyIndex(DATA_PATHS.index)
+      const approved = readApprovedSourceFile(DATA_PATHS.approvedSource)
+      const withoutSource = [...index.byNiin.keys()].filter((n) => !approved.byNiin.has(n))
+      expect(withoutSource.length).toBeGreaterThan(0) // positive control: the case exists
+      const inMap = new Set(d.cornerMap.rows.map((r) => r.niin))
+      expect(withoutSource.filter((n) => inMap.has(n))).toHaveLength(0)
+    })
+
+    it('agrees with the measured ninth character on every real solicitation', () => {
+      // T2 measured position 8 across the real feed and found only Q, T and U. This asserts
+      // this lane's reading agrees with the bytes rather than with the corpus description.
+      const index = readDailyIndex(DATA_PATHS.index)
+      for (const row of index.rows) {
+        const ninth = row.solicitation.replace(/[-\s]/g, '').toUpperCase().charAt(8)
+        const parsed = parseSolicitation(row.solicitation)
+        expect(parsed?.automated).toBe(ninth === 'T' || ninth === 'U')
+      }
     })
 
     it('ranks by legs established rather than by an opaque score', () => {

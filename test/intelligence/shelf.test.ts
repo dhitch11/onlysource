@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { KNOWN_ADDER_CODES } from '@/lib/engine/pricing'
 import {
   valuePosition,
   summarizePortfolio,
@@ -20,11 +21,44 @@ import {
 } from '@/lib/intelligence/shelf'
 
 const BUY_AMERICAN: UnpricedFactor = {
-  code: 'BUY_AMERICAN_BALANCE_OF_PAYMENTS',
+  code: KNOWN_ADDER_CODES.BUY_AMERICAN_BALANCE_OF_PAYMENTS,
   applicable: true,
   reason: 'NO_AMOUNT_IN_PRIMARY_TEXT',
-  citation: 'Master Solicitation Part I 3(b)(3), referencing DFARS 225.502(c)',
+  detail: 'the clause states no dollar amount for this factor',
+  citation: {
+    authority: 'DLA Master Solicitation Part I 3(b)(3), referencing DFARS 225.502(c)',
+    quote: null,
+    sourceFile: 'corpus master solicitation pdf',
+    sourceLines: '194-198',
+    grade: 'PRIMARY_TEXT',
+  },
 }
+
+/** T3's shape for the arms this lane consumes. Built to their fields, not to a guess. */
+const COMMON = {
+  quotedTotalUsd: 17_224,
+  recommendedQuoteTotalUsd: 17_224,
+  addersAreIncludedInRecommendedQuote: false as const,
+  adders: [],
+  anyAdderLaterAmendmentsUnverified: false,
+}
+
+const TOTAL_OUTCOME = {
+  kind: 'EVALUATED_TOTAL_WHAT_DLA_COMPARES_NEVER_WHAT_WE_SEND' as const,
+  ...COMMON,
+  adderTotalUsd: 200,
+  evaluatedTotalUsd: 17_424,
+  surplusDrag: null,
+}
+
+const floorOutcome = (atLeastUsd: number) => ({
+  kind: 'EVALUATED_FLOOR_AT_LEAST' as const,
+  ...COMMON,
+  atLeastUsd,
+  unpricedFactors: [BUY_AMERICAN],
+  directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS' as const,
+  sentence: 'At least this much.',
+})
 
 const position = (over: Partial<ShelfPosition> = {}): ShelfPosition => ({
   positionId: 'P1',
@@ -49,12 +83,7 @@ const anchored = {
 
 const port = (over: Partial<PricingPort> = {}): PricingPort => ({
   anchorFor: () => anchored,
-  evaluatedFor: () => ({
-    kind: 'EVALUATED_TOTAL',
-    evaluatedTotalUsd: 17_424,
-    quotedTotalUsd: 17_224,
-    appliedFactors: [{ code: 'UNUSED_FORMER_GOVERNMENT_SURPLUS', amountUsd: 200 }],
-  }),
+  evaluatedFor: () => TOTAL_OUTCOME,
   ...over,
 })
 
@@ -63,15 +92,7 @@ describe('a floor is never a total', () => {
     const v = valuePosition(
       position(),
       port({
-        evaluatedFor: () => ({
-          kind: 'EVALUATED_FLOOR_AT_LEAST',
-          atLeastUsd: 17_424,
-          quotedTotalUsd: 17_224,
-          appliedFactors: [{ code: 'UNUSED_FORMER_GOVERNMENT_SURPLUS', amountUsd: 200 }],
-          unpricedFactors: [BUY_AMERICAN],
-          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
-          sentence: 'At least this much.',
-        }),
+        evaluatedFor: () => floorOutcome(17_424),
       }),
     )
     expect(v.valueState).toBe('floor')
@@ -82,15 +103,7 @@ describe('a floor is never a total', () => {
     const v = valuePosition(
       position(),
       port({
-        evaluatedFor: () => ({
-          kind: 'EVALUATED_FLOOR_AT_LEAST',
-          atLeastUsd: 1,
-          quotedTotalUsd: 1,
-          appliedFactors: [],
-          unpricedFactors: [BUY_AMERICAN],
-          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
-          sentence: 'At least this much.',
-        }),
+        evaluatedFor: () => floorOutcome(1),
       }),
     )
     expect(v.gaps.join(' ')).toContain('BUY_AMERICAN_BALANCE_OF_PAYMENTS')
@@ -101,15 +114,7 @@ describe('a floor is never a total', () => {
     const v = valuePosition(
       position(),
       port({
-        evaluatedFor: () => ({
-          kind: 'EVALUATED_FLOOR_AT_LEAST',
-          atLeastUsd: 1,
-          quotedTotalUsd: 1,
-          appliedFactors: [],
-          unpricedFactors: [BUY_AMERICAN],
-          directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
-          sentence: 'At least this much.',
-        }),
+        evaluatedFor: () => floorOutcome(1),
       }),
     )
     expect(v.statement).toContain('At least')
@@ -181,15 +186,7 @@ describe('the portfolio total inherits the floor', () => {
   const floored = valuePosition(
     position({ positionId: 'P2' }),
     port({
-      evaluatedFor: () => ({
-        kind: 'EVALUATED_FLOOR_AT_LEAST',
-        atLeastUsd: 1,
-        quotedTotalUsd: 1,
-        appliedFactors: [],
-        unpricedFactors: [BUY_AMERICAN],
-        directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS',
-        sentence: 'At least this much.',
-      }),
+      evaluatedFor: () => floorOutcome(1),
     }),
   )
   const unvalued = valuePosition(

@@ -84,67 +84,39 @@ export function fillableAtFloor(position: ShelfPosition): Niin[] {
 
 /**
  * ---------------------------------------------------------------------------------------
- * STAGED AGAINST T3'S PUBLISHED CONTRACT, NOT YET IMPORTED FROM IT
+ * COLLAPSED ONTO T3'S CONTRACT. The mirror is gone.
  * ---------------------------------------------------------------------------------------
- * T3 accepted the open-adder finding and published the contract below. It is NOT on disk yet:
- * they land it after their adversarial verification pass, because editing that file mid-pass
- * would be wiped by the verifier's restore.
+ * These were mirrored types while T3's floor arm was in flight. It has landed, so they are
+ * now a direct re-export of theirs. One model of one concept, which was the whole point of
+ * proposing the alias rather than keeping a parallel shape.
  *
- * So these types MIRROR their contract field for field rather than importing it. Importing a
- * type that does not exist yet breaks the build for every lane, which is a mistake this lane
- * already made once today on the help registry and is not making twice.
+ * TWO THINGS THEIR VERSION DOES THAT MINE DID NOT, both better:
  *
- * WHEN `lib/engine/pricing/evaluated.ts` LANDS: delete this block and replace it with an
- * import of their `EvaluatedTotalOutcome`, `EvaluatedFloor` and `UnpricedFactor`. Nothing
- * else in this file changes, which is the point of matching their names exactly.
+ *  - The total arm's discriminant is the full sentence
+ *    `EVALUATED_TOTAL_WHAT_DLA_COMPARES_NEVER_WHAT_WE_SEND`, so the distinction between the
+ *    buyer's comparison basis and the number we actually send is restated at EVERY narrowing
+ *    site rather than living in a comment somebody has to go and read.
+ *  - `comparisonFigure()` returns `usd` and `isFloor` bound together in one value, so a
+ *    ranker cannot take the number and drop the floor flag by accident, and returns `null` on
+ *    an abstention so an abstention can never be ranked as if it were a figure.
+ *
+ * SO THIS LANE READS THE NUMBER THROUGH `comparisonFigure` AND NEVER OFF THE ARM DIRECTLY.
  */
 
-/**
- * An evaluation factor that applies to this line and carries no resolvable amount.
- *
- * `applicable: true` is a literal rather than a boolean on purpose: an unpriced factor that
- * does NOT apply is not a thing, so the type refuses to model one.
- */
-export type UnpricedFactor = {
-  /** Open code from dated config. Never a union: the factor set is open by primary text. */
-  readonly code: string
-  readonly applicable: true
-  readonly reason: 'NO_AMOUNT_IN_PRIMARY_TEXT' | 'NO_DATED_ENTRY_AT_INSTANT'
-  readonly citation: string
-}
+export type {
+  AdderCode,
+  UnpricedFactor,
+  EvaluatedTotal,
+  EvaluatedFloor,
+  EvaluatedTotalAbstention,
+  EvaluatedTotalOutcome,
+} from '@/lib/engine/pricing'
 
-export type EvaluatedTotal = {
-  readonly kind: 'EVALUATED_TOTAL'
-  readonly evaluatedTotalUsd: number
-  readonly quotedTotalUsd: number
-  readonly appliedFactors: ReadonlyArray<{ code: string; amountUsd: number }>
-}
+import type { EvaluatedTotalOutcome, UnpricedFactor } from '@/lib/engine/pricing'
+import { comparisonFigure } from '@/lib/engine/pricing'
 
-/**
- * The floor.
- *
- * The figure is named `atLeastUsd` and there is deliberately no `evaluatedTotalUsd` on this
- * arm, so a call site that reaches for the total on a floor FAILS TO COMPILE. That makes the
- * error impossible rather than merely discouraged, which is the only version of this
- * guarantee worth having.
- */
-export type EvaluatedFloor = {
-  readonly kind: 'EVALUATED_FLOOR_AT_LEAST'
-  readonly atLeastUsd: number
-  readonly quotedTotalUsd: number
-  readonly appliedFactors: ReadonlyArray<{ code: string; amountUsd: number }>
-  /** By name, never a count. A count cannot be checked by the person reading the screen. */
-  readonly unpricedFactors: readonly UnpricedFactor[]
-  readonly directionOfError: 'ACTUAL_IS_HIGHER_THAN_THIS'
-  readonly sentence: string
-}
-
-export type EvaluatedTotalAbstention = {
-  readonly kind: 'EVALUATED_ABSTAINED'
-  readonly reason: string
-}
-
-export type EvaluatedOutcome = EvaluatedTotal | EvaluatedFloor | EvaluatedTotalAbstention
+/** Kept as the local name this file already used. It IS T3's outcome type now. */
+export type EvaluatedOutcome = EvaluatedTotalOutcome
 
 export type AnchorOutcome =
   | {
@@ -233,8 +205,12 @@ export function valuePosition(position: ShelfPosition, pricing: PricingPort): Po
 
   const evaluated = pricing.evaluatedFor(position.niin, position.quantity)
 
-  if (evaluated.kind === 'EVALUATED_ABSTAINED') {
-    gaps.push(`evaluated price unavailable: ${evaluated.reason}`)
+  // Read through T3's accessor, never off the arm. It binds usd to isFloor so a ranker
+  // cannot take the number and drop the flag, and returns null on an abstention so an
+  // abstention can never be ranked as though it were a figure.
+  const figure = comparisonFigure(evaluated)
+  if (figure === null) {
+    gaps.push('evaluated price unavailable: the pricing engine abstained')
   }
 
   const unpricedFactors: readonly UnpricedFactor[] =
@@ -244,8 +220,8 @@ export function valuePosition(position: ShelfPosition, pricing: PricingPort): Po
   if (isFloor) {
     for (const f of unpricedFactors) {
       gaps.push(
-        `evaluation factor "${f.code}" applies and carries no resolvable amount (${f.reason}), ` +
-          `so the evaluated figure is a floor: ${f.citation}`,
+        `evaluation factor "${f.code}" applies and carries no resolvable amount (${f.reason}): ` +
+          `${f.detail}. The evaluated figure is therefore a floor.`,
       )
     }
   }
