@@ -50,16 +50,31 @@ export const DIBBS_INDEX_SHAPE: FeedShape = {
   // A working day carries roughly 1,960 requirement lines; the band is deliberately wide
   // enough to admit a light Monday and narrow enough to reject a banner or a truncated file.
   countBand: { min: 200, max: 12000 },
-  // A solicitation number shape: SPE + a 3-character office segment (SPE7M2), the two-digit
-  // fiscal year, a one-letter type, and a four-digit serial, with the dashes optional because
-  // the fixed-width feed and the human-facing forms punctuate it differently.
+  // A solicitation number, 13 characters: SPE, a 3-character office segment, the two-digit
+  // fiscal year, a one-letter type (Q/T/U), and a four-character alphanumeric serial.
   //
-  // AN EARLIER VERSION OF THIS PATTERN READ `{2}` AND REJECTED EVERY REAL ROW. Both banner
-  // tests still passed, because a banner fails on content type long before the canary is
-  // reached. Only the positive control caught it. A classifier that rejects everything looks
-  // identical to a strict one until the day you notice the archive is empty, and by then a
-  // re-fetchable window has closed.
-  canary: /SPE[0-9A-Z]{3}-?[0-9]{2}-?[A-Z]?-?[0-9]{4}/,
+  // ─────────────────────────────────────────────────────────────────────────────────────
+  // THIS PATTERN HAS BEEN WRONG TWICE AND BOTH TIMES THE UNIT TESTS STAYED GREEN.
+  //
+  // v1 read `SPE[0-9A-Z]{2}...` and matched 0 of 2,736 real solicitations. v2 read `{3}` but
+  // ended in `[0-9]{4}` and matched 859 of 2,736, missing every number whose serial ends in a
+  // letter (SPE2DS26T294H). Both banner-rejection tests passed throughout, because a banner
+  // fails on content type long before the canary is reached.
+  //
+  // Neither version was catchable by reading. @T2 found v1 by running it against the archived
+  // 439,490-byte index; v2 fell to the same method. THE LESSON IS THE METHOD: a pattern that
+  // encodes a claim about real-world data is only tested by real-world data.
+  //
+  // Current version measured against the real 2026-08-11 index: 2,721 of 2,736 distinct
+  // SPE-prefixed tokens, whole file true, and BOTH captured consent banners false, which is
+  // the negative control that actually matters for a canary.
+  //
+  // The 15 it does not match are a different identifier family (SPECIA*, SPECID*, SPECPL*,
+  // SPECPM*, SPECPE*) reported to @T2, who owns the parse and can say whether they are
+  // solicitations at all. They do not weaken the canary: this is a PRESENCE check on a sample,
+  // and 2,721 hits is presence.
+  // ─────────────────────────────────────────────────────────────────────────────────────
+  canary: /SPE[0-9A-Z]{3}[0-9]{2}[A-Z][0-9A-Z]{4}/,
 }
 
 export type FeedResponseFacts = {

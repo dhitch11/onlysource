@@ -15,9 +15,18 @@ import {
  */
 
 const row = (n: number): string => {
-  // A 140-character fixed-width row carrying a solicitation number, as the real index does.
-  const head = `SPE7M2-26-T-${String(1000 + n).slice(0, 4)}`
-  return head.padEnd(140, ' ')
+  // A 140-character fixed-width row carrying a solicitation number in THE REAL FORMAT.
+  //
+  // This builder previously emitted `SPE7M2-26-T-1000`, a hyphenated 16-character shape that
+  // DOES NOT EXIST in the feed. Real numbers are 13 characters, unhyphenated: SPE1C126Q0346.
+  // The fixture encoded the same wrong assumption as the canary it was testing, which is
+  // exactly why every test here stayed green while the pattern matched 0 of 2,736 real
+  // solicitations. A hand-written fixture cannot audit a claim about real data; that is what
+  // `canary-vs-real-index.test.ts` is for, and why it reads the archived bytes instead.
+  const office = ['1C1', '7M2', '2DS', '4AX'][n % 4]
+  const type = ['Q', 'T', 'U'][n % 3]
+  const serial = String(1000 + (n % 9000))
+  return `SPE${office}26${type}${serial}`.padEnd(140, ' ')
 }
 
 const realFeed = (rows: number): string =>
@@ -40,7 +49,7 @@ describe('the positive control: a real feed classifies as data', () => {
 
   it('tolerates a single ragged final row, because a SAMPLE is a prefix', () => {
     const v = classifyFeedResponse(
-      facts({ sample: `${realFeed(50)}\nSPE7M2-26-T-9999 truncated` }),
+      facts({ sample: `${realFeed(50)}\nSPE1C126Q999` }),
       DIBBS_INDEX_SHAPE,
     )
     expect(v.kind).toBe('data')
@@ -101,7 +110,7 @@ describe('LENGTH IS NEVER THE SIGNAL, which is the whole point', () => {
 describe('shape and canary, in that order', () => {
   it('REFUSES rows of the wrong width even when a solicitation number is present', () => {
     // A truncated or re-formatted file. The canary alone would have passed this.
-    const ragged = ['SPE7M2-26-T-1000'.padEnd(120, ' '), 'SPE7M2-26-T-1001'.padEnd(120, ' ')].join(
+    const ragged = ['SPE1C126Q1000'.padEnd(120, ' '), 'SPE1C126Q1001'.padEnd(120, ' ')].join(
       '\n',
     )
     const v = classifyFeedResponse(facts({ sample: ragged }), DIBBS_INDEX_SHAPE)
