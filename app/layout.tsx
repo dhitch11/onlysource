@@ -16,7 +16,23 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    /*
+     * data-theme="dark" IS THE DEFAULT, AND IT IS LOAD-BEARING.
+     *
+     * MEASURED, not assumed: without it, a browser reporting prefers-color-scheme light OR
+     * no-preference renders --bg #fbfbf8 and a light product. Only a machine already set to
+     * dark saw the console David approved. Most machines are not set to dark, so most
+     * people would have opened ONLYSOURCE and seen a design nobody signed off.
+     *
+     * @T8's tokens are correct and unchanged; their own comment states that an explicit
+     * data-theme wins in both directions, which is exactly what this uses. Setting it here
+     * makes the shipped default match the ruling (dark is the default theme) while leaving
+     * their light theme fully intact for the moment a user preference exists to select it.
+     *
+     * When per-user display preferences land, this attribute is read from the preference
+     * and "system" becomes a third option that simply omits it.
+     */
+    <html lang="en" data-theme="dark">
       <body>{children}</body>
     </html>
   )
