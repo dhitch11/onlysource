@@ -1,0 +1,636 @@
+<title>ONLYSOURCE Console</title>
+<style>
+  :root{
+    --bg:#0A0D0B; --panel:#101410; --panel-2:#161C16; --raised:#1B221B;
+    --line:rgba(190,205,185,.09); --line-2:rgba(190,205,185,.17);
+    --ink:#EAEDE4; --dim:#98A18F; --faint:#636D5D;
+    --brass:#CBAB6C; --brass-2:#9C844C; --brass-soft:rgba(203,171,108,.14);
+    --olive:#8FA771; --olive-dim:#5f7350; --amber:#E4A83E; --red:#D16044; --steel:#74A7A6; --violet:#9d8bc4;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{font-size:13px;line-height:1.45;overflow-x:auto}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  button{font-family:inherit}
+
+  .app{display:grid;grid-template-columns:220px 1fr;min-height:100vh;min-width:1240px}
+
+  /* ---- SIDEBAR ---- */
+  .side{background:linear-gradient(180deg,#0D110E,#0A0D0B);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 14px}
+  .brand{display:flex;align-items:center;gap:11px;padding:2px 6px 22px}
+  .reticle{width:32px;height:32px;flex:none;filter:drop-shadow(0 0 8px rgba(203,171,108,.25))}
+  .reticle line,.reticle circle{stroke:var(--brass);fill:none;stroke-width:1.5}
+  .brand .wm{font-weight:700;letter-spacing:.06em;font-size:15px;line-height:1}
+  .brand .wm b{color:var(--brass);font-weight:700}
+  .brand .sub{font-size:9px;letter-spacing:.22em;color:var(--faint);text-transform:uppercase;margin-top:4px}
+  nav{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+  .nav{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:7px;color:var(--dim);cursor:pointer;font-weight:500;font-size:13px;border:1px solid transparent}
+  .nav svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;flex:none}
+  .nav:hover{background:var(--panel-2);color:var(--ink)}
+  .nav.on{background:linear-gradient(90deg,var(--brass-soft),rgba(203,171,108,.03));color:var(--ink);box-shadow:inset 2px 0 0 var(--brass)}
+  .nav .ct{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .nav.on .ct{color:var(--brass)}
+  .nav.hunter{margin-top:8px;border:1px solid var(--line-2);background:var(--panel)}
+  .nav.hunter svg{stroke:var(--amber)}
+  .navsep{height:1px;background:var(--line);margin:12px 4px}
+  .side .spacer{flex:1}
+  .org{border:1px solid var(--line);border-radius:9px;padding:9px 11px;display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--panel)}
+  .org .flag{width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,#2c3527,#171d17);border:1px solid var(--line-2);display:grid;place-items:center;color:var(--brass);flex:none}
+  .org .flag svg{width:13px;height:13px}
+  .org .nm{font-weight:600;font-size:12.5px}
+  .org .rl{font-size:9px;color:var(--faint);letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
+  .org .cv{margin-left:auto;color:var(--faint)}
+  .acct{display:flex;align-items:center;gap:10px;padding:10px 6px 0;margin-top:11px;border-top:1px solid var(--line)}
+  .acct .av{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#3c4835,#20281f);border:1px solid var(--line-2);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--olive);flex:none}
+  .acct .who{font-size:12px;font-weight:600}
+  .acct .em{font-size:10px;color:var(--faint)}
+  .acct .sw{margin-left:auto;color:var(--faint);cursor:pointer}
+
+  /* ---- MAIN + VIEWS ---- */
+  .main{display:flex;flex-direction:column;min-width:0;background:radial-gradient(1200px 420px at 82% -12%,rgba(203,171,108,.05),transparent 60%),var(--bg)}
+  .view{display:none;flex-direction:column;flex:1;min-height:0}
+  .view.on{display:flex}
+  .top{border-bottom:1px solid var(--line);padding:16px 24px;display:flex;align-items:center;gap:20px;flex:none}
+  .top .h{display:flex;flex-direction:column;gap:3px}
+  .top h1{font-size:20px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;gap:9px}
+  .top h1 .i{width:15px;height:15px;border:1px solid var(--line-2);border-radius:50%;display:grid;place-items:center;font-size:9px;color:var(--faint);font-style:normal;cursor:help}
+  .top .meta{font-size:11.5px;color:var(--dim)}
+  .top .meta b{color:var(--olive);font-family:var(--mono);font-weight:600}
+  .search{margin-left:6px;flex:1;max-width:320px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--faint)}
+  .search svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .search .k{margin-left:auto;font-family:var(--mono);font-size:10px;border:1px solid var(--line-2);border-radius:4px;padding:1px 5px}
+  .clock{margin-left:auto;display:flex;align-items:center;gap:12px;border:1px solid var(--line-2);border-radius:10px;padding:8px 15px;background:linear-gradient(180deg,rgba(228,168,62,.09),transparent)}
+  .clock .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(228,168,62,.16);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  @media (prefers-reduced-motion:reduce){.clock .dot,.hpip{animation:none}}
+  .clock .t{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--amber)}
+  .clock .s{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .primary{padding:9px 15px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;border:none;background:linear-gradient(180deg,#d7b978,#b6924f);color:#1a1509;box-shadow:0 1px 0 rgba(255,255,255,.18) inset;display:flex;align-items:center;gap:7px;letter-spacing:.01em}
+  .primary:hover{filter:brightness(1.07)}
+  .primary svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+  .body{flex:1;overflow:auto;padding:22px 24px 60px}
+
+  /* ---- DASHBOARD ---- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:15px 16px;background:linear-gradient(180deg,var(--panel),rgba(16,20,16,.4));position:relative;overflow:hidden}
+  .kpi .lbl{margin-bottom:9px}
+  .kpi .v{font-family:var(--mono);font-size:25px;font-weight:700;letter-spacing:-.01em;line-height:1}
+  .kpi .v small{font-size:14px;color:var(--dim)}
+  .kpi .d{font-size:10.5px;margin-top:7px;display:flex;align-items:center;gap:5px}
+  .kpi .d.up{color:var(--olive)} .kpi .d.hot{color:var(--amber)}
+  .kpi .spark{position:absolute;right:12px;top:14px;opacity:.9}
+  .kpi.accent{border-color:var(--brass-2);background:linear-gradient(180deg,rgba(203,171,108,.10),rgba(16,20,16,.3))}
+  .kpi.accent .v{color:var(--brass)}
+
+  .grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-top:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:16px 18px}
+  .card h3{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .card h3 .i{width:13px;height:13px;border:1px solid var(--line-2);border-radius:50%;display:grid;place-items:center;font-size:8px;color:var(--faint);font-style:normal;cursor:help}
+  .card .csub{font-size:11px;color:var(--faint);margin-bottom:14px}
+  .card h3 .rt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--olive);letter-spacing:0;text-transform:none}
+
+  .areawrap{position:relative}
+  .yg{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}
+  .yg span{border-top:1px solid var(--line);font-size:9px;color:var(--faint);padding-left:2px}
+  .funnel{display:flex;flex-direction:column;gap:10px}
+  .fn{display:flex;align-items:center;gap:12px}
+  .fn .fl{width:96px;font-size:11.5px;color:var(--dim);flex:none}
+  .fn .bar{height:26px;border-radius:5px;background:linear-gradient(90deg,var(--brass),var(--brass-2));display:flex;align-items:center;padding:0 10px;color:#160f04;font-family:var(--mono);font-weight:700;font-size:12px;min-width:44px}
+  .fn.s2 .bar{background:linear-gradient(90deg,#b6924f,#7d6636)}
+  .fn.s3 .bar{background:linear-gradient(90deg,#8FA771,#5f7350);color:#0f140b}
+  .fn.s4 .bar{background:linear-gradient(90deg,#74A7A6,#456663);color:#06110f}
+  .fn .fv{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim);flex:none}
+
+  .cats{display:flex;flex-direction:column;gap:12px}
+  .cat{display:flex;align-items:center;gap:11px}
+  .cat .cn{width:74px;font-size:11.5px;color:var(--dim);flex:none}
+  .cat .ct{flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.05);overflow:hidden}
+  .cat .ct i{display:block;height:100%;border-radius:5px;background:var(--olive)}
+  .cat .cv{font-family:var(--mono);font-size:11.5px;color:var(--ink);width:56px;text-align:right;flex:none}
+
+  .sweeps{display:flex;flex-direction:column;gap:0}
+  .swp{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .swp:last-child{border-bottom:none}
+  .swp .r{width:34px;height:34px;border-radius:50%;background:conic-gradient(var(--brass) calc(var(--v)*1%),rgba(255,255,255,.06) 0);display:grid;place-items:center;position:relative;flex:none}
+  .swp .r::before{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--panel)}
+  .swp .r b{position:relative;font-family:var(--mono);font-size:11px;font-weight:700}
+  .swp .sn{font-family:var(--mono);font-size:12px;font-weight:600}
+  .swp .sd{font-size:10.5px;color:var(--faint)}
+  .swp .sc{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:12px;text-align:right}
+  .swp .sc.crit{color:var(--red)} .swp .sc.warn{color:var(--amber)}
+  .swp .sc s{display:block;font-family:var(--sans);font-size:9px;color:var(--faint);text-decoration:none;font-weight:600}
+
+  .hunterc{border:1px solid var(--brass-2);border-radius:12px;background:linear-gradient(135deg,rgba(228,168,62,.12),rgba(203,171,108,.04));padding:16px 18px;display:flex;align-items:center;gap:16px}
+  .hunterc .ic{width:44px;height:44px;border-radius:10px;border:1px solid var(--amber);display:grid;place-items:center;color:var(--amber);flex:none;background:rgba(228,168,62,.08)}
+  .hunterc .ic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .hunterc .ht{font-size:14px;font-weight:700}
+  .hunterc .hs{font-size:11.5px;color:var(--dim);margin-top:3px}
+  .hunterc .hs b{color:var(--olive);font-family:var(--mono)}
+  .hpip{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;margin-right:5px;animation:pulse 2s infinite;vertical-align:middle}
+
+  /* ---- generic table (Board) ---- */
+  .clock2{margin-left:auto}
+  .fbar{display:flex;align-items:center;gap:8px;padding:12px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap;flex:none}
+  .chip{font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line-2);color:var(--dim);cursor:pointer;display:flex;align-items:center;gap:6px;background:var(--panel)}
+  .chip:hover{color:var(--ink)} .chip.on{background:rgba(143,167,113,.14);border-color:var(--olive-dim);color:var(--olive)}
+  .chip .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .fbar .rt{margin-left:auto;font-size:11px;color:var(--faint);display:flex;gap:14px}
+  .fbar .rt b{color:var(--dim);font-family:var(--mono)}
+  .work{display:grid;grid-template-columns:1fr 392px;flex:1;min-height:0}
+  .board{overflow:auto;border-right:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse}
+  thead th{position:sticky;top:0;background:#0c100d;z-index:2;text-align:left;padding:9px 13px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  thead th .i{display:inline-grid;place-items:center;width:13px;height:13px;border:1px solid var(--line-2);border-radius:50%;font-size:8px;color:var(--faint);margin-left:5px;vertical-align:middle;cursor:help}
+  th.r,td.r{text-align:right}
+  tbody td{padding:11px 13px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr{cursor:pointer} tbody tr:hover{background:var(--panel)}
+  tbody tr.sel{background:linear-gradient(90deg,var(--brass-soft),rgba(203,171,108,.02))}
+  tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--brass)}
+  .score{display:flex;align-items:center}
+  .ring{width:38px;height:38px;flex:none;border-radius:50%;background:conic-gradient(var(--c,var(--brass)) calc(var(--v)*1%),rgba(255,255,255,.06) 0);display:grid;place-items:center;position:relative}
+  .ring::before{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--panel)}
+  .ring b{position:relative;font-family:var(--mono);font-size:13px;font-weight:700}
+  .ring.lo{--c:var(--olive-dim)} .ring.mid{--c:var(--olive)}
+  .nsn{font-family:var(--mono);font-size:12.5px;font-weight:600}
+  .desc{color:var(--dim);font-size:11px;margin-top:2px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .desc .tag{color:var(--olive);font-weight:600}
+  .cl2{font-family:var(--mono);font-weight:600;font-size:12px;white-space:nowrap}
+  .cl2.crit{color:var(--red)} .cl2.warn{color:var(--amber)} .cl2.ok{color:var(--dim)}
+  .cl2 .ds{display:block;font-family:var(--sans);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .price .now{font-family:var(--mono);font-weight:600;font-size:12.5px}
+  .price .vs{font-size:10px;color:var(--faint);margin-top:2px} .price .vs b{color:var(--olive)}
+  .avail{font-family:var(--mono);font-size:12px} .avail .thin{color:var(--amber)} .avail .none{color:var(--faint)}
+  .avail .s{display:block;font-family:var(--sans);font-size:9px;color:var(--faint)}
+  .prov{display:inline-flex;align-items:center;gap:6px;font-size:11px}
+  .prov .g{width:8px;height:8px;border-radius:2px;flex:none}
+  .prov.meas .g{background:var(--olive)} .prov.meas{color:var(--olive)}
+  .prov.model .g{background:var(--steel);border-radius:50%} .prov.model{color:var(--steel)}
+  .prov.insuf .g{background:transparent;border:1px dashed var(--faint)} .prov.insuf{color:var(--faint)}
+  .mono-flag{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:5px;border:1px solid var(--brass-2);color:var(--brass);background:var(--brass-soft)}
+  .mono-flag svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .mono-flag.off{border-color:var(--line);color:var(--faint);background:none}
+  .lift{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--olive)}
+  .lift.dim{color:var(--dim);font-weight:600}
+  .lift .s{display:block;font-family:var(--sans);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  /* drawer */
+  .drawer{overflow:auto;background:linear-gradient(180deg,var(--panel-2),var(--bg));display:flex;flex-direction:column}
+  .truth{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--line-2);background:rgba(143,167,113,.06)}
+  .truth .g{width:9px;height:9px;border-radius:2px;background:var(--olive);flex:none;box-shadow:0 0 0 3px rgba(143,167,113,.15)}
+  .truth .txt{font-size:10.5px;color:var(--olive)} .truth .txt b{color:var(--ink)}
+  .dh{padding:18px;border-bottom:1px solid var(--line)}
+  .dh .top2{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+  .dh .nsn2{font-family:var(--mono);font-size:16px;font-weight:700}
+  .dh .d2{color:var(--dim);font-size:12px;margin-top:4px;line-height:1.5} .dh .d2 b{color:var(--ink)}
+  .bigring{--v:94;width:64px;height:64px;flex:none;border-radius:50%;background:conic-gradient(var(--brass) calc(var(--v)*1%),rgba(255,255,255,.06) 0);display:grid;place-items:center;position:relative}
+  .bigring::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel-2)}
+  .bigring .v{position:relative;text-align:center}
+  .bigring .v b{font-family:var(--mono);font-size:20px;font-weight:700;display:block;line-height:1}
+  .bigring .v s{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);text-decoration:none}
+  .kv{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .kv .p{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:5px;border:1px solid var(--line-2);color:var(--dim)} .kv .p b{color:var(--olive)}
+  .sec{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .sec h3{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+  .sec h3 .i{width:13px;height:13px;border:1px solid var(--line-2);border-radius:50%;display:grid;place-items:center;font-size:8px;color:var(--faint);font-style:normal;cursor:help}
+  .wf{display:flex;flex-direction:column}
+  .wf .row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .wf .row:last-child{border-bottom:none}
+  .wf .row .l{font-size:11.5px;color:var(--dim)} .wf .row .l s{display:block;font-size:9.5px;color:var(--faint);text-decoration:none;margin-top:1px}
+  .wf .row .n{font-family:var(--mono);font-size:13px;font-weight:600}
+  .wf .row.anchor .n{color:var(--olive)} .wf .row.pen .n{color:var(--amber)}
+  .wf .row.quote{margin-top:4px;padding-top:12px;border-top:1px solid var(--line-2);border-bottom:none}
+  .wf .row.quote .l{color:var(--ink);font-weight:600;font-size:12px} .wf .row.quote .n{color:var(--brass);font-size:16px;font-weight:700}
+  .thesis{font-size:12px;color:var(--dim);line-height:1.6} .thesis b{color:var(--ink)} .thesis .hl{color:var(--brass);font-family:var(--mono);font-weight:600}
+  .ils{display:flex;gap:8px;margin-top:12px}
+  .ils .u{flex:1;border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:var(--panel)}
+  .ils .u .q{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--olive)} .ils .u .n2{font-size:10px;color:var(--faint);margin-top:2px}
+  .srce{display:flex;align-items:center;gap:10px;border:1px solid var(--olive-dim);border-radius:8px;padding:11px 12px;background:rgba(143,167,113,.07)}
+  .srce .ok{width:24px;height:24px;border-radius:50%;background:rgba(143,167,113,.18);display:grid;place-items:center;color:var(--olive);flex:none}
+  .srce .ok svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+  .srce .t{font-size:12px} .srce .t b{color:var(--ink)} .srce .t s{display:block;color:var(--faint);font-size:10.5px;text-decoration:none;margin-top:1px}
+  .srce .pr{margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--olive);font-size:13px;text-align:right}
+  .acts{padding:16px 18px;display:flex;gap:10px;margin-top:auto}
+  .btn{flex:1;padding:11px;border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer;border:1px solid var(--line-2);text-align:center;color:var(--ink);background:var(--panel)}
+  .btn:hover{border-color:var(--olive-dim)}
+  .btn.pri{background:linear-gradient(180deg,#d7b978,#b6924f);color:#1a1509;border:none}
+
+  /* ---- SALES HUB (CRM pipeline) ---- */
+  .hunterbar{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,rgba(228,168,62,.10),transparent 70%);flex:none}
+  .hunterbar .ic{width:40px;height:40px;border-radius:10px;border:1px solid var(--amber);display:grid;place-items:center;color:var(--amber);flex:none;background:rgba(228,168,62,.08)}
+  .hunterbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .hunterbar .ht{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .hunterbar .hs{font-size:11.5px;color:var(--dim);margin-top:2px} .hunterbar .hs b{color:var(--olive);font-family:var(--mono)}
+  .toggle{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .tg{width:46px;height:25px;border-radius:20px;background:rgba(228,168,62,.28);position:relative;cursor:pointer;border:1px solid var(--amber)}
+  .tg::after{content:"";position:absolute;top:2px;left:23px;width:19px;height:19px;border-radius:50%;background:var(--amber);transition:left .18s}
+  .tg.off{background:rgba(255,255,255,.06);border-color:var(--line-2)} .tg.off::after{left:2px;background:var(--faint)}
+  .tglbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+
+  .pipe{flex:1;overflow:auto;display:flex;gap:14px;padding:20px 24px 60px;align-items:flex-start}
+  .col{width:262px;flex:none;display:flex;flex-direction:column;gap:10px}
+  .colh{display:flex;align-items:center;gap:8px;padding:2px 4px}
+  .colh .cdot{width:8px;height:8px;border-radius:50%;flex:none}
+  .colh .cn{font-size:12px;font-weight:700;letter-spacing:.03em}
+  .colh .cc{font-family:var(--mono);font-size:11px;color:var(--faint);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+  .colh .cv{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--olive);font-weight:600}
+  .colb{display:flex;flex-direction:column;gap:9px;background:rgba(255,255,255,.014);border:1px solid var(--line);border-radius:11px;padding:10px;min-height:120px}
+  .pcard{border:1px solid var(--line-2);border-radius:9px;background:linear-gradient(180deg,var(--raised),var(--panel));padding:12px;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .pcard:hover{border-color:var(--olive-dim);transform:translateY(-1px)}
+  .pcard .pt{font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .pcard .pt .rr{font-family:var(--mono);font-size:11px;color:var(--brass);border:1px solid var(--brass-2);border-radius:5px;padding:1px 6px;flex:none}
+  .pcard .pd{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+  .pcard .pm{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:10px;color:var(--faint)}
+  .pcard .pm .av{width:18px;height:18px;border-radius:50%;background:#2a3326;border:1px solid var(--line-2);display:grid;place-items:center;font-size:8px;color:var(--olive);font-weight:700}
+  .pcard .pm .stg{margin-left:auto;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600;letter-spacing:.04em}
+  .stg.hot{background:rgba(228,168,62,.16);color:var(--amber)} .stg.act{background:rgba(143,167,113,.16);color:var(--olive)} .stg.new{background:rgba(116,167,166,.16);color:var(--steel)}
+  .pcard .bar{margin-top:10px;display:flex;gap:6px}
+  .pcard .mini{flex:1;padding:6px;border-radius:6px;text-align:center;font-size:10px;font-weight:600;background:var(--panel);border:1px solid var(--line);color:var(--dim);cursor:pointer}
+  .pcard .mini.go{background:rgba(228,168,62,.14);border-color:var(--brass-2);color:var(--amber)}
+
+  /* ---- generic content views ---- */
+  .plist{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .doc{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:16px 18px;display:flex;gap:14px;align-items:flex-start}
+  .doc .dic{width:40px;height:44px;border-radius:6px;border:1px solid var(--line-2);display:grid;place-items:center;color:var(--brass);flex:none;background:var(--raised)}
+  .doc .dic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .doc .dt{font-size:13px;font-weight:600} .doc .dsub{font-size:11px;color:var(--faint);margin-top:3px;font-family:var(--mono)}
+  .doc .dtag{display:inline-block;margin-top:9px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+  .dtag.rdy{background:rgba(143,167,113,.16);color:var(--olive)} .dtag.draft{background:rgba(228,168,62,.14);color:var(--amber)} .dtag.gen{background:var(--brass-soft);color:var(--brass);border:1px dashed var(--brass-2)}
+  .doc .dgo{margin-left:auto;align-self:center;font-size:11px;font-weight:700;color:var(--brass);white-space:nowrap;cursor:pointer}
+
+  .utable{width:100%;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--panel)}
+  .utable .urow{display:grid;grid-template-columns:2fr 1.4fr 1fr 1fr 90px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .utable .urow:last-child{border-bottom:none}
+  .utable .uhead{background:#0c100d;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .uuser{display:flex;align-items:center;gap:11px}
+  .uuser .av{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#3c4835,#20281f);border:1px solid var(--line-2);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--olive);flex:none}
+  .uuser .un{font-size:13px;font-weight:600} .uuser .ue{font-size:10.5px;color:var(--faint)}
+  .urole{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;display:inline-block}
+  .urole.owner{background:var(--brass-soft);color:var(--brass)} .urole.admin{background:rgba(143,167,113,.16);color:var(--olive)}
+  .ust{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--olive)} .ust .d{width:7px;height:7px;border-radius:50%;background:var(--olive)}
+  .placeholder{border:1px dashed var(--line-2);border-radius:12px;padding:40px;text-align:center;color:var(--faint)}
+
+  .pv{position:fixed;bottom:0;left:220px;right:0;padding:7px 24px;background:rgba(10,13,11,.85);backdrop-filter:blur(6px);border-top:1px solid var(--line);font-size:10.5px;color:var(--faint);letter-spacing:.04em;display:flex;align-items:center;gap:10px;z-index:20}
+  .pv .b{width:6px;height:6px;border-radius:50%;background:var(--brass)} .pv b{color:var(--dim)}
+</style>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="side">
+    <div class="brand">
+      <svg class="reticle" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="14.5"/>
+        <circle cx="20" cy="20" r="8.5" stroke="var(--brass-2)"/>
+        <line x1="20" y1="1.5" x2="20" y2="8"/><line x1="20" y1="32" x2="20" y2="38.5"/>
+        <line x1="1.5" y1="20" x2="8" y2="20"/><line x1="32" y1="20" x2="38.5" y2="20"/>
+        <circle cx="20" cy="20" r="3.2" fill="var(--brass)" stroke="none"/>
+      </svg>
+      <div>
+        <div class="wm">ONLY<b>SOURCE</b></div>
+        <div class="sub">Intelligence</div>
+      </div>
+    </div>
+    <nav id="nav">
+      <div class="nav on" data-v="dashboard"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3zM13 5h8V3h-8z"/></svg>Dashboard</div>
+      <div class="nav" data-v="board"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>The Board<span class="ct">213</span></div>
+      <div class="nav" data-v="sales"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Sales Hub<span class="ct">CRM</span></div>
+      <div class="nav hunter" data-v="sales"><svg viewBox="0 0 24 24"><path d="M12 2l2 5 5 .5-3.8 3.4 1.2 5.1L12 18l-4.6 2 1.2-5.1L4.8 11.5 10 11z"/></svg>Hunter Mode<span class="ct" style="color:var(--amber)">ON</span></div>
+      <div class="navsep"></div>
+      <div class="nav" data-v="monopoly"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>Monopoly Map<span class="ct">1.2k</span></div>
+      <div class="nav" data-v="documents"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg>Documents &amp; POs</div>
+      <div class="nav" data-v="suppliers"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Suppliers</div>
+      <div class="nav" data-v="admin"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Admin &amp; Users</div>
+    </nav>
+    <div class="spacer"></div>
+    <div class="org">
+      <div class="flag"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="13" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="3.4" fill="currentColor"/><line x1="20" y1="4" x2="20" y2="9" stroke="currentColor" stroke-width="2"/><line x1="20" y1="31" x2="20" y2="36" stroke="currentColor" stroke-width="2"/></svg></div>
+      <div>
+        <div class="nm">ONLYSOURCE</div>
+        <div class="rl">Organization</div>
+      </div>
+      <svg class="cv" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="acct">
+      <div class="av">DH</div>
+      <div>
+        <div class="who">David Hitchman</div>
+        <div class="em">ProjectX</div>
+      </div>
+      <svg class="sw" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ============ DASHBOARD ============ -->
+    <section class="view on" id="v-dashboard">
+      <div class="top">
+        <div class="h">
+          <h1>Dashboard <i class="i" title="Your command view: what the machine found, what it is worth, and what is about to close.">i</i></h1>
+          <div class="meta">Good morning, David &middot; <b>11</b> sweeps fire before 3:00 PM &middot; <b>$4.24M</b> modeled lift in the pipeline</div>
+        </div>
+        <div class="clock2 clock">
+          <div class="dot"></div>
+          <div><div class="t">3:00 PM ET</div><div class="s">Next sweep &middot; 2h 14m</div></div>
+        </div>
+        <button class="primary"><svg viewBox="0 0 24 24"><path d="M12 2l2 5 5 .5-3.8 3.4 1.2 5.1L12 18l-4.6 2 1.2-5.1L4.8 11.5 10 11z"/></svg>Launch Hunter</button>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi accent">
+            <div class="lbl">Modeled lift in pipeline</div>
+            <div class="v">$4.24<small>M</small></div>
+            <div class="d up">&#9650; 12% vs last month</div>
+            <svg class="spark" width="52" height="24" viewBox="0 0 52 24"><polyline points="0,20 9,17 18,18 27,11 36,12 45,5 52,3" fill="none" stroke="var(--brass)" stroke-width="1.5"/></svg>
+          </div>
+          <div class="kpi">
+            <div class="lbl">Awards won (MTD)</div>
+            <div class="v">14 <small>&middot; $312K</small></div>
+            <div class="d up">&#9650; 3 vs last month</div>
+            <svg class="spark" width="52" height="24" viewBox="0 0 52 24"><polyline points="0,18 9,19 18,14 27,15 36,9 45,10 52,6" fill="none" stroke="var(--olive)" stroke-width="1.5"/></svg>
+          </div>
+          <div class="kpi">
+            <div class="lbl">Active pursuits</div>
+            <div class="v">38</div>
+            <div class="d up">&#9650; 9 in outreach</div>
+            <svg class="spark" width="52" height="24" viewBox="0 0 52 24"><polyline points="0,15 9,13 18,16 27,10 36,11 45,7 52,8" fill="none" stroke="var(--steel)" stroke-width="1.5"/></svg>
+          </div>
+          <div class="kpi">
+            <div class="lbl">Win rate</div>
+            <div class="v">34<small>%</small></div>
+            <div class="d up">&#9650; 5 pts</div>
+            <svg class="spark" width="52" height="24" viewBox="0 0 52 24"><polyline points="0,20 9,16 18,17 27,12 36,10 45,9 52,5" fill="none" stroke="var(--olive)" stroke-width="1.5"/></svg>
+          </div>
+          <div class="kpi">
+            <div class="lbl">Sweeps today</div>
+            <div class="v" style="color:var(--amber)">11</div>
+            <div class="d hot">&#9679; 3 within the hour</div>
+            <svg class="spark" width="52" height="24" viewBox="0 0 52 24"><polyline points="0,10 9,12 18,8 27,13 36,7 45,11 52,6" fill="none" stroke="var(--amber)" stroke-width="1.5"/></svg>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Modeled opportunity value <span class="i" title="Sum of modeled lift across the open pipeline, by week.">i</span><span class="rt">+$1.4M this quarter</span></h3>
+            <div class="csub">Last 12 weeks &middot; open pipeline, deterministic model</div>
+            <div class="areawrap" style="height:190px">
+              <div class="yg"><span>$5M</span><span>$4M</span><span>$3M</span><span>$2M</span><span></span></div>
+              <svg width="100%" height="190" viewBox="0 0 620 190" preserveAspectRatio="none" style="position:relative">
+                <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(203,171,108,.34)"/><stop offset="1" stop-color="rgba(203,171,108,0)"/></linearGradient></defs>
+                <path d="M0,150 L52,140 L104,146 L156,120 L208,126 L260,104 L312,110 L364,84 L416,74 L468,66 L520,52 L572,40 L620,30 L620,190 L0,190 Z" fill="url(#ag)"/>
+                <path d="M0,150 L52,140 L104,146 L156,120 L208,126 L260,104 L312,110 L364,84 L416,74 L468,66 L520,52 L572,40 L620,30" fill="none" stroke="var(--brass)" stroke-width="2"/>
+                <circle cx="620" cy="30" r="4" fill="var(--brass)"/><circle cx="620" cy="30" r="8" fill="none" stroke="var(--brass)" stroke-width="1" opacity=".4"/>
+              </svg>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Pipeline funnel <span class="i" title="Opportunities the machine surfaced, narrowing to awards won.">i</span></h3>
+            <div class="csub">This month &middot; opportunity &rarr; award</div>
+            <div class="funnel">
+              <div class="fn"><div class="fl">Opportunities</div><div class="bar" style="width:100%">213</div><div class="fv">$4.24M</div></div>
+              <div class="fn s2"><div class="fl">Leads</div><div class="bar" style="width:64%">74</div><div class="fv">$1.61M</div></div>
+              <div class="fn s3"><div class="fl">Quoting</div><div class="bar" style="width:38%">38</div><div class="fv">$0.92M</div></div>
+              <div class="fn s4"><div class="fl">Won &amp; revenue</div><div class="bar" style="width:18%">14</div><div class="fv">$312K</div></div>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:11px;color:var(--faint)">
+              <span>Conversion opp &rarr; won</span><span class="mono" style="color:var(--olive);font-weight:700">6.6%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="card">
+            <h3>Value by platform <span class="i" title="Where the modeled lift concentrates by weapon system.">i</span></h3>
+            <div class="csub">Open pipeline</div>
+            <div class="cats">
+              <div class="cat"><div class="cn">F-15</div><div class="ct"><i style="width:100%"></i></div><div class="cv">$1.12M</div></div>
+              <div class="cat"><div class="cn">C-130</div><div class="ct"><i style="width:75%"></i></div><div class="cv">$840K</div></div>
+              <div class="cat"><div class="cn">C-5</div><div class="ct"><i style="width:46%"></i></div><div class="cv">$520K</div></div>
+              <div class="cat"><div class="cn">Ground</div><div class="ct"><i style="width:37%"></i></div><div class="cv">$410K</div></div>
+              <div class="cat"><div class="cn">Other</div><div class="ct"><i style="width:33%"></i></div><div class="cv">$370K</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Sweeping today <span class="i" title="Auto-award clocks firing at 3:00 PM. Quote before the sweep.">i</span><span class="rt">11 open</span></h3>
+            <div class="csub">Quote before 3:00 PM ET</div>
+            <div class="sweeps">
+              <div class="swp"><div class="r" style="--v:88"><b>88</b></div><div><div class="sn">4820-01-049-5470</div><div class="sd">VALVE, ANGLE</div></div><div class="sc crit">0h 41m<s>sweeps</s></div></div>
+              <div class="swp"><div class="r" style="--v:82"><b>82</b></div><div><div class="sn">5340-00-782-1101</div><div class="sd">BRACKET, MOUNTING</div></div><div class="sc warn">1h 12m<s>sweeps</s></div></div>
+              <div class="swp"><div class="r" style="--v:77"><b>77</b></div><div><div class="sn">6685-01-119-3320</div><div class="sd">GAUGE, PRESSURE</div></div><div class="sc warn">2h 08m<s>sweeps</s></div></div>
+            </div>
+          </div>
+          <div class="card" style="display:flex;flex-direction:column;gap:14px">
+            <div class="hunterc" style="border:none;padding:0;background:none">
+              <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2l2 5 5 .5-3.8 3.4 1.2 5.1L12 18l-4.6 2 1.2-5.1L4.8 11.5 10 11z"/></svg></div>
+              <div><div class="ht"><span class="hpip"></span>Hunter Mode active</div><div class="hs"><b>12</b> outreach sequences running &middot; <b>4</b> replies today</div></div>
+            </div>
+            <div style="border-top:1px solid var(--line);padding-top:14px">
+              <div class="lbl" style="margin-bottom:10px">Deliverables ready to send</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <div style="display:flex;align-items:center;gap:10px;font-size:12px"><span class="dtag rdy" style="margin:0">PACKET</span>Moog manifold &middot; quote packet<span style="margin-left:auto;color:var(--brass);font-weight:700;cursor:pointer">Review</span></div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:12px"><span class="dtag draft" style="margin:0">PO</span>OLY Aero &middot; PO draft $8,172<span style="margin-left:auto;color:var(--brass);font-weight:700;cursor:pointer">Review</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ THE BOARD ============ -->
+    <section class="view" id="v-board">
+      <div class="top">
+        <div class="h">
+          <h1>The Board <i class="i" title="Every open DLA requirement, scored by modeled lift. The core tool.">i</i></h1>
+          <div class="meta"><b>1,960</b> new today &middot; <b>22,140</b> open &middot; ranked by modeled lift</div>
+        </div>
+        <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Search NSN, part, CAGE, supplier&hellip;<span class="k">&#8984;K</span></div>
+        <div class="clock2 clock"><div class="dot"></div><div><div class="t">3:00 PM ET</div><div class="s">Next sweep &middot; 2h 14m</div></div></div>
+      </div>
+      <div class="fbar">
+        <div class="chip on"><span class="d"></span>Auto-award eligible</div>
+        <div class="chip">Surplus on ILS</div>
+        <div class="chip on"><span class="d"></span>Monopoly corner</div>
+        <div class="chip">My holdings</div>
+        <div class="chip">No-quote class</div>
+        <div class="chip">Score &ge; 70</div>
+        <div class="rt"><span>Sorted <b>Modeled lift</b></span><span>Showing <b>9 of 213</b></span></div>
+      </div>
+      <div class="work">
+        <div class="board">
+          <table>
+            <thead><tr>
+              <th>Score</th><th>NSN / Item</th><th>Sweep <span class="i" title="When the 3:00 PM auto-award fires.">i</span></th><th>Evaluated <span class="i" title="Government or market price for context.">i</span></th><th>Surplus (ILS)</th><th>Sourcing <span class="i" title="Green measured, cyan modeled, dashed insufficient.">i</span></th><th>Corner</th><th class="r">Modeled lift <span class="i" title="Deterministic model, not a guarantee.">i</span></th>
+            </tr></thead>
+            <tbody>
+              <tr class="sel"><td><div class="score"><div class="ring" style="--v:94"><b>94</b></div></div></td><td><div class="nsn">1650-01-059-8221</div><div class="desc">MANIFOLD, HYDRAULIC &middot; <span class="tag">Moog / F-15</span></div></td><td><div class="cl2 warn">2 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$3,565</div><div class="vs">OEM-anchor <b>$2,150</b></div></div></td><td><div class="avail"><span class="thin">10 units</span><span class="s">Quality 2 &middot; OLY 8</span></div></td><td><div class="prov meas"><span class="g"></span>Verified</div></td><td><span class="mono-flag"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift">+$18.2K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring" style="--v:91"><b>91</b></div></div></td><td><div class="nsn">2910-00-766-2036</div><div class="desc">FILTER ELEMENT &middot; 4 oz unit</div></td><td><div class="cl2 ok">6 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$9,827</div><div class="vs">Last buy <b>$23</b> (2011)</div></div></td><td><div class="avail">available<span class="s">3 listings</span></div></td><td><div class="prov model"><span class="g"></span>Modeled</div></td><td><span class="mono-flag"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift">+$41.0K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring" style="--v:88"><b>88</b></div></div></td><td><div class="nsn">4820-01-049-5470</div><div class="desc">VALVE, ANGLE &middot; <span class="tag">48&rarr;1 bids</span></div></td><td><div class="cl2 crit">Today 3:00<span class="ds">Sweeps today</span></div></td><td><div class="price"><div class="now">$1,729</div><div class="vs">Won 2018 &middot; <b>surplus</b></div></div></td><td><div class="avail">6 units<span class="s">in hand</span></div></td><td><div class="prov meas"><span class="g"></span>In hand</div></td><td><span class="mono-flag"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift">+$9.4K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring" style="--v:86"><b>86</b></div></div></td><td><div class="nsn">1650-00-049-3862</div><div class="desc">COUPLING, SHAFT &middot; <span class="tag">C-130</span></div></td><td><div class="cl2 ok">9 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$38,237</div><div class="vs">Cost basis <b>$40</b></div></div></td><td><div class="avail">200 units<span class="s">affiliate shelf</span></div></td><td><div class="prov meas"><span class="g"></span>Affiliate</div></td><td><span class="mono-flag"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift">+$34.1K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring mid" style="--v:79"><b>79</b></div></div></td><td><div class="nsn">5330-01-421-7714</div><div class="desc">GASKET &middot; <span class="tag">0 quotes received</span></div></td><td><div class="cl2 warn">3 bus. days<span class="ds">No-quote</span></div></td><td><div class="price"><div class="now">$&mdash;</div><div class="vs">No award history</div></div></td><td><div class="avail"><span class="none">none</span><span class="s">make-side</span></div></td><td><div class="prov model"><span class="g"></span>Mfr match</div></td><td><span class="mono-flag off"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift dim">+$12-60K<span class="s">range</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring mid" style="--v:74"><b>74</b></div></div></td><td><div class="nsn">CAGE 06853 &middot; Rexnord</div><div class="desc"><span class="tag">14 NSNs</span> &middot; source inactive, forecast</div></td><td><div class="cl2 ok">Pre-solicit<span class="ds">Predictive</span></div></td><td><div class="price"><div class="now">forecast</div><div class="vs">not yet posted</div></div></td><td><div class="avail"><span class="none">TBD</span><span class="s">inversion</span></div></td><td><div class="prov insuf"><span class="g"></span>Unknown</div></td><td><span class="mono-flag"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift dim">horizon<span class="s">watch</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring lo" style="--v:66"><b>66</b></div></div></td><td><div class="nsn">3110-00-100-3455</div><div class="desc">BEARING, ROLLER &middot; qty 4</div></td><td><div class="cl2 ok">5 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$842</div><div class="vs">OEM-anchor <b>$610</b></div></div></td><td><div class="avail">22 units<span class="s">4 listings</span></div></td><td><div class="prov model"><span class="g"></span>Listed</div></td><td><span class="mono-flag off"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift dim">+$3.1K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring lo" style="--v:61"><b>61</b></div></div></td><td><div class="nsn">5945-01-227-8891</div><div class="desc">RELAY, ELECTROMAGNETIC</div></td><td><div class="cl2 ok">7 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$318</div><div class="vs">OEM-anchor <b>$240</b></div></div></td><td><div class="avail">8 units<span class="s">2 listings</span></div></td><td><div class="prov model"><span class="g"></span>Listed</div></td><td><span class="mono-flag off"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift dim">+$1.4K<span class="s">modeled</span></div></td></tr>
+              <tr><td><div class="score"><div class="ring lo" style="--v:54"><b>54</b></div></div></td><td><div class="nsn">4730-00-536-2210</div><div class="desc">ELBOW, PIPE &middot; qty 12</div></td><td><div class="cl2 ok">8 bus. days<span class="ds">Fast Auto</span></div></td><td><div class="price"><div class="now">$196</div><div class="vs">OEM-anchor <b>$150</b></div></div></td><td><div class="avail">40+ units<span class="s">commoditized</span></div></td><td><div class="prov insuf"><span class="g"></span>Thin edge</div></td><td><span class="mono-flag off"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 22"/></svg></span></td><td class="r"><div class="lift dim">+$0.6K<span class="s">modeled</span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <aside class="drawer">
+          <div class="truth"><span class="g"></span><span class="txt"><b>Every figure below traces to a source.</b> Green measured, cyan modeled, dashed insufficient.</span></div>
+          <div class="dh"><div class="top2"><div><div class="nsn2">1650-01-059-8221</div><div class="d2"><b>MANIFOLD, HYDRAULIC</b><br>Moog Inc &middot; CAGE 94697 &middot; P/N A21378-1 &middot; F-15</div></div><div class="bigring" style="--v:94"><div class="v"><b>94</b><s>Score</s></div></div></div>
+            <div class="kv"><span class="p">Fast Auto <b>&#10003;</b></span><span class="p">Surplus <b>eligible</b></span><span class="p">Corner <b>live</b></span></div></div>
+          <div class="sec"><h3>Pricing <span class="i" title="Anchored to the OEM award, inflated forward.">i</span> &middot; anchored to the OEM</h3>
+            <div class="wf">
+              <div class="row anchor"><div class="l">OEM procurement 2017<s>17 units @ actual award</s></div><div class="n">$1,537.85</div></div>
+              <div class="row"><div class="l">CPI-adjusted<s>&times; 1.3223</s></div><div class="n">$2,034</div></div>
+              <div class="row anchor"><div class="l">DoD procurement index<s>&times; 1.40 (preferred)</s></div><div class="n">$2,150</div></div>
+              <div class="row"><div class="l">Surplus clears at ~50%<s>market floor others anchor to</s></div><div class="n">$1,075</div></div>
+              <div class="row pen"><div class="l">Surplus eval penalty<s>Master Sol. Part I &para;3(b)</s></div><div class="n">+ $200</div></div>
+              <div class="row quote"><div class="l">Recommended quote &middot; 3&times; last award</div><div class="n">$3,565</div></div>
+            </div></div>
+          <div class="sec"><h3>The corner <span class="i" title="Why this is a durable sole-source position.">i</span></h3>
+            <div class="thesis"><b>13 awards for 80 units</b> in under 5 years, no forecast on file. Availability is <b>thin</b> and the market prices off the wrong number. Buy the shelf and become the <span class="hl">sole source</span>.</div>
+            <div class="ils"><div class="u"><div class="q">2</div><div class="n2">Quality Aviation</div></div><div class="u"><div class="q">8</div><div class="n2">OLY Aero</div></div></div></div>
+          <div class="sec"><h3>Sourcing confidence <span class="i" title="Where the material is, and at what price.">i</span></h3>
+            <div class="srce"><div class="ok"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><div class="t"><b>Verified at OLY Aero</b><s>8 units &middot; ready to PO</s></div><div class="pr">$1,021.50<br><span style="font-size:9px;color:var(--faint)">/unit</span></div></div></div>
+          <div class="acts"><div class="btn">Add to pursuit</div><div class="btn pri">Build quote packet</div></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ SALES HUB ============ -->
+    <section class="view" id="v-sales">
+      <div class="top">
+        <div class="h">
+          <h1>Sales Hub <i class="i" title="Your CRM pipeline. Slide a deal from opportunity to revenue.">i</i></h1>
+          <div class="meta">Slide a deal through the stages &middot; <b>$4.24M</b> in flight &middot; <b>$312K</b> won this month</div>
+        </div>
+        <button class="primary" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New deal</button>
+      </div>
+      <div class="hunterbar">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2l2 5 5 .5-3.8 3.4 1.2 5.1L12 18l-4.6 2 1.2-5.1L4.8 11.5 10 11z"/></svg></div>
+        <div><div class="ht"><span class="hpip"></span>Hunter Mode</div><div class="hs">AI outreach engine is working the pipeline &middot; <b>12</b> sequences running &middot; <b>4</b> replies today &middot; <b>2</b> booked calls</div></div>
+        <div class="toggle"><span class="tglbl">Active</span><div class="tg" id="tg" onclick="this.classList.toggle('off');this.previousElementSibling.textContent=this.classList.contains('off')?'Paused':'Active'"></div></div>
+      </div>
+      <div class="pipe">
+        <div class="col">
+          <div class="colh"><span class="cdot" style="background:var(--brass)"></span><span class="cn">Opportunities</span><span class="cc">213</span><span class="cv">$4.24M</span></div>
+          <div class="colb">
+            <div class="pcard"><div class="pt">Moog manifold corner<span class="rr">94</span></div><div class="pd">NSN 1650-01-059-8221 &middot; +$18.2K</div><div class="pm"><span class="av">AI</span>Surfaced 2h ago<span class="stg new">NEW</span></div><div class="bar"><div class="mini go">Start outreach &rarr;</div></div></div>
+            <div class="pcard"><div class="pt">Filter element gouge<span class="rr">91</span></div><div class="pd">NSN 2910-00-766-2036 &middot; +$41.0K</div><div class="pm"><span class="av">AI</span>Surfaced today<span class="stg new">NEW</span></div><div class="bar"><div class="mini go">Start outreach &rarr;</div></div></div>
+            <div class="pcard"><div class="pt">Rexnord inversion<span class="rr">74</span></div><div class="pd">14 NSNs &middot; predictive</div><div class="pm"><span class="av">AI</span>Watchlist<span class="stg new">WATCH</span></div></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="colh"><span class="cdot" style="background:var(--brass-2)"></span><span class="cn">Leads</span><span class="cc">74</span><span class="cv">$1.61M</span></div>
+          <div class="colb">
+            <div class="pcard"><div class="pt">OLY Aero &middot; source<span class="rr">88</span></div><div class="pd">Surplus supplier &middot; 8 units held</div><div class="pm"><span class="av">DH</span>Outreach sent<span class="stg hot">REPLIED</span></div></div>
+            <div class="pcard"><div class="pt">Western Airparts<span class="rr">86</span></div><div class="pd">Affiliate shelf &middot; 200 units</div><div class="pm"><span class="av">AI</span>Sequence 2 of 4<span class="stg act">WORKING</span></div></div>
+            <div class="pcard"><div class="pt">Piedmont Mfg</div><div class="pd">Make-side match &middot; gasket</div><div class="pm"><span class="av">AI</span>Called + emailed<span class="stg act">WORKING</span></div></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="colh"><span class="cdot" style="background:var(--olive)"></span><span class="cn">Quoting</span><span class="cc">38</span><span class="cv">$0.92M</span></div>
+          <div class="colb">
+            <div class="pcard"><div class="pt">Valve, angle award<span class="rr">88</span></div><div class="pd">Quote $1,729 &middot; sweeps today</div><div class="pm"><span class="av">DH</span>Packet ready<span class="stg hot">CLOSING</span></div><div class="bar"><div class="mini go">Submit quote &rarr;</div></div></div>
+            <div class="pcard"><div class="pt">Coupling, C-130<span class="rr">86</span></div><div class="pd">Quote $38,237 &middot; 200 in stock</div><div class="pm"><span class="av">DG</span>PO drafting<span class="stg act">IN PROGRESS</span></div></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="colh"><span class="cdot" style="background:var(--steel)"></span><span class="cn">Customers</span><span class="cc">9</span><span class="cv">active</span></div>
+          <div class="colb">
+            <div class="pcard"><div class="pt">DLA Aviation<span class="rr" style="color:var(--steel);border-color:#456663">GOV</span></div><div class="pd">7 open awards &middot; repeat buyer</div><div class="pm"><span class="av">DH</span>Account<span class="stg new">ACTIVE</span></div></div>
+            <div class="pcard"><div class="pt">DLA Land &amp; Maritime<span class="rr" style="color:var(--steel);border-color:#456663">GOV</span></div><div class="pd">3 open awards</div><div class="pm"><span class="av">DG</span>Account<span class="stg new">ACTIVE</span></div></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="colh"><span class="cdot" style="background:#8a7bbf"></span><span class="cn">Won &amp; revenue</span><span class="cc">14</span><span class="cv" style="color:var(--brass)">$312K</span></div>
+          <div class="colb">
+            <div class="pcard" style="border-color:var(--brass-2)"><div class="pt">Bearing award<span class="rr">win</span></div><div class="pd">$4,210 &middot; delivered</div><div class="pm"><span class="av">DH</span>Paid<span class="stg" style="background:var(--brass-soft);color:var(--brass)">REVENUE</span></div></div>
+            <div class="pcard" style="border-color:var(--brass-2)"><div class="pt">Relay award<span class="rr">win</span></div><div class="pd">$2,980 &middot; delivered</div><div class="pm"><span class="av">DG</span>Paid<span class="stg" style="background:var(--brass-soft);color:var(--brass)">REVENUE</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MONOPOLY MAP ============ -->
+    <section class="view" id="v-monopoly">
+      <div class="top"><div class="h"><h1>Monopoly Map <i class="i" title="Forecasted demand crossed with dead approved sources and thin availability.">i</i></h1><div class="meta"><b>52,000</b> forecasted NSNs scanned &middot; <b>1,214</b> corner-able positions found</div></div></div>
+      <div class="body">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--line)"><h3 style="margin:0">Corner-ability map <span class="rt">forecasted demand &times; dead source &times; thin availability</span></h3></div>
+          <div style="display:grid;grid-template-columns:repeat(26,1fr);gap:3px;padding:18px" id="mmap"></div>
+          <div style="padding:0 18px 16px;display:flex;gap:18px;font-size:11px;color:var(--faint);align-items:center"><span>Fewer &rarr; more corner-able</span><span style="display:flex;gap:4px;align-items:center"><i style="width:12px;height:12px;border-radius:3px;background:rgba(203,171,108,.15);display:inline-block"></i>watch<i style="width:12px;height:12px;border-radius:3px;background:var(--brass);display:inline-block;margin-left:8px"></i>hot corner</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DOCUMENTS & POs ============ -->
+    <section class="view" id="v-documents">
+      <div class="top"><div class="h"><h1>Documents &amp; POs <i class="i" title="The real deliverables, generated from the blueprint: quote packets, POs, traceability.">i</i></h1><div class="meta">Generated from the opportunity &middot; the paperwork built before it is demanded</div></div>
+        <button class="primary" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Generate deliverable</button></div>
+      <div class="body">
+        <div class="plist">
+          <div class="doc"><div class="dic"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg></div><div><div class="dt">Quote packet &middot; Moog manifold</div><div class="dsub">NSN 1650-01-059-8221 &middot; $3,565</div><span class="dtag rdy">Ready to submit</span></div><div class="dgo">Open &rarr;</div></div>
+          <div class="doc"><div class="dic"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg></div><div><div class="dt">Purchase order &middot; OLY Aero</div><div class="dsub">8 units @ $1,021.50 &middot; $8,172</div><span class="dtag draft">Draft &middot; awaiting approval</span></div><div class="dgo">Open &rarr;</div></div>
+          <div class="doc"><div class="dic"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg></div><div><div class="dt">Traceability packet &middot; VALVE, ANGLE</div><div class="dsub">C04/L04 chain &middot; surplus certification</div><span class="dtag rdy">Ready to submit</span></div><div class="dgo">Open &rarr;</div></div>
+          <div class="doc"><div class="dic"><svg viewBox="0 0 24 24"><path d="M6 2h9l3 3v17H6z"/><path d="M9 12h6M9 16h6"/></svg></div><div><div class="dt">Counter-offer memo &middot; C-130 coupling</div><div class="dsub">NSN 1650-00-049-3862 &middot; $38,237</div><span class="dtag gen">Generate from blueprint</span></div><div class="dgo">Build &rarr;</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SUPPLIERS ============ -->
+    <section class="view" id="v-suppliers">
+      <div class="top"><div class="h"><h1>Suppliers &amp; manufacturers <i class="i" title="Who holds the shelf, and who could make what does not exist.">i</i></h1><div class="meta"><b>1,840</b> tracked &middot; sourced from competitor award trails and ILS</div></div></div>
+      <div class="body">
+        <div class="utable">
+          <div class="urow uhead"><span>Supplier</span><span>Type</span><span>Holdings</span><span>Relationship</span><span>Corners</span></div>
+          <div class="urow"><div class="uuser"><div class="av" style="border-radius:6px">OA</div><div><div class="un">OLY Aero</div><div class="ue">CAGE 3F2K9 &middot; surplus distributor</div></div></div><span class="mono" style="color:var(--dim)">surplus</span><span class="mono" style="color:var(--olive)">8 units held</span><span class="ust"><span class="d"></span>Verified</span><span class="mono" style="color:var(--brass)">3</span></div>
+          <div class="urow"><div class="uuser"><div class="av" style="border-radius:6px">WA</div><div><div class="un">Western Airparts</div><div class="ue">Affiliate &middot; shelf holding</div></div></div><span class="mono" style="color:var(--dim)">affiliate</span><span class="mono" style="color:var(--olive)">200 units</span><span class="ust"><span class="d"></span>Affiliate</span><span class="mono" style="color:var(--brass)">6</span></div>
+          <div class="urow"><div class="uuser"><div class="av" style="border-radius:6px">PM</div><div><div class="un">Piedmont Mfg</div><div class="ue">CAGE 71K05 &middot; can build gaskets</div></div></div><span class="mono" style="color:var(--dim)">make-side</span><span class="mono" style="color:var(--faint)">build to order</span><span class="ust" style="color:var(--amber)"><span class="d" style="background:var(--amber)"></span>Outreach</span><span class="mono" style="color:var(--dim)">1</span></div>
+          <div class="urow"><div class="uuser"><div class="av" style="border-radius:6px">RR</div><div><div class="un">Rural Route 2 (NSN Solutions)</div><div class="ue">CAGE 89YT2 &middot; competitor to reverse</div></div></div><span class="mono" style="color:var(--dim)">competitor</span><span class="mono" style="color:var(--faint)">$29M / 20mo</span><span class="ust" style="color:var(--steel)"><span class="d" style="background:var(--steel)"></span>Reverse</span><span class="mono" style="color:var(--dim)">&mdash;</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN & USERS ============ -->
+    <section class="view" id="v-admin">
+      <div class="top"><div class="h"><h1>Admin &amp; Users <i class="i" title="Manage the organization, users, roles and permissions.">i</i></h1><div class="meta">Organization <b>ONLYSOURCE</b> &middot; multi-user, tenant-ready</div></div>
+        <button class="primary" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 .01M19 8v6M22 11h-6"/></svg>Invite user</button></div>
+      <div class="body">
+        <div class="utable">
+          <div class="urow uhead"><span>User</span><span>Role</span><span>Title</span><span>Status</span><span>Actions</span></div>
+          <div class="urow"><div class="uuser"><div class="av">DH</div><div><div class="un">David Hitchman</div><div class="ue">dhitchman@onlysource.ai</div></div></div><span><span class="urole owner">Owner</span></span><span class="mono" style="color:var(--dim)">ProjectX</span><span class="ust"><span class="d"></span>Active</span><span style="color:var(--faint);font-size:11px">Manage</span></div>
+          <div class="urow"><div class="uuser"><div class="av">DG</div><div><div class="un">David Goodreau</div><div class="ue">dgoodreau@onlysource.ai</div></div></div><span><span class="urole admin">Admin</span></span><span class="mono" style="color:var(--dim)">ProjectX</span><span class="ust"><span class="d"></span>Active</span><span style="color:var(--faint);font-size:11px">Manage</span></div>
+        </div>
+        <div class="grid3" style="margin-top:16px">
+          <div class="card"><h3>Roles &amp; permissions</h3><div class="csub">Server-enforced, editable as data</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>Owner</span><span class="mono" style="color:var(--olive)">all permissions</span></div><div style="display:flex;justify-content:space-between"><span>Admin</span><span class="mono" style="color:var(--dim)">manage users, data, tools</span></div><div style="display:flex;justify-content:space-between"><span>Operator</span><span class="mono" style="color:var(--faint)">board, quote, pursue</span></div><div style="display:flex;justify-content:space-between"><span>Read-only</span><span class="mono" style="color:var(--faint)">view</span></div></div></div>
+          <div class="card"><h3>Organization</h3><div class="csub">Single-tenant deployment, tenant-ready</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>Org</span><span class="mono">ONLYSOURCE</span></div><div style="display:flex;justify-content:space-between"><span>Users</span><span class="mono" style="color:var(--olive)">2 active</span></div><div style="display:flex;justify-content:space-between"><span>Data boundary</span><span class="mono" style="color:var(--olive)">org-scoped, RLS-ready</span></div><div style="display:flex;justify-content:space-between"><span>Billing</span><span class="mono" style="color:var(--faint)">not enabled (seam)</span></div></div></div>
+          <div class="card"><h3>Connections vault</h3><div class="csub">Encrypted credentials for the data sources</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>DIBBS</span><span class="ust"><span class="d"></span>connected</span></div><div style="display:flex;justify-content:space-between"><span>SAM.gov</span><span class="ust"><span class="d"></span>connected</span></div><div style="display:flex;justify-content:space-between"><span>NSN-Now</span><span class="ust"><span class="d"></span>connected</span></div><div style="display:flex;justify-content:space-between"><span>ILS</span><span class="ust" style="color:var(--amber)"><span class="d" style="background:var(--amber)"></span>rotate</span></div></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="pv"><span class="b"></span>Design preview &middot; <b>illustrative data drawn from real DLA research examples</b> &middot; not a live connection</div>
+
+<script>
+  // view switching
+  var navs = document.querySelectorAll('#nav .nav');
+  function show(v){
+    document.querySelectorAll('.view').forEach(function(s){s.classList.toggle('on', s.id==='v-'+v)});
+    navs.forEach(function(n){n.classList.toggle('on', n.dataset.v===v && !n.classList.contains('hunter'))});
+    document.querySelector('.main').scrollTop=0;
+  }
+  navs.forEach(function(n){ n.addEventListener('click', function(){ show(n.dataset.v); }); });
+  // board row selection
+  document.querySelectorAll('#v-board tbody tr').forEach(function(r){
+    r.addEventListener('click', function(){ document.querySelectorAll('#v-board tbody tr').forEach(function(x){x.classList.remove('sel')}); r.classList.add('sel'); });
+  });
+  // monopoly heat grid
+  var mm=document.getElementById('mmap'); if(mm){ var seed=7; function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;} for(var i=0;i<234;i++){var v=rnd();var c=document.createElement('i');var hot=v>0.86;var warm=v>0.7;c.style.cssText='display:block;aspect-ratio:1;border-radius:3px;background:'+(hot?'var(--brass)':warm?'rgba(203,171,108,.4)':v>0.5?'rgba(203,171,108,.15)':'rgba(255,255,255,.04)');mm.appendChild(c);} }
+</script>
