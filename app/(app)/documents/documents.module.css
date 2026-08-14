@@ -1,0 +1,406 @@
+/*
+ * DOCUMENTS AND POs, LAYOUT ONLY. Owner: T5 DOCUMENTS.
+ *
+ * This file contains no colours of its own, no font sizes of its own and no pixel spacing. Every
+ * value resolves to one of T8's tokens, because a second palette is a second product. If you find a
+ * raw hex or a bare px here, it is a bug.
+ *
+ * WHAT IT IS ALLOWED TO DO: place things. Rows, columns, gaps and the narrow-viewport reflow. Status
+ * colour comes from <StatusChip>, provenance glyphs from <Provenance>, form control styling from
+ * T8's controls.module.css, and the empty state from <EmptyState>.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * THE THREE NARROW-VIEWPORT TRAPS THIS FILE IS WRITTEN AGAINST
+ * ---------------------------------------------------------------------------------------------
+ * T8 measured three defects that were invisible to typecheck, to the build and to a 1440
+ * screenshot. All three can happen on exactly the shapes this screen uses, so each one is guarded
+ * here deliberately rather than by luck:
+ *
+ *   1. A GRID TRACK BLOWOUT. A `1fr` track has a min-content floor, so one long unbreakable string
+ *      (a stock number, a solicitation number, a storage key) pushes the track wider than the
+ *      viewport and the whole page scrolls sideways. Every track below is `minmax(0, 1fr)` and every
+ *      grid and flex child that holds text carries `min-width: 0`. That pair is the actual fix; one
+ *      without the other still blows out.
+ *
+ *   2. A NOWRAP CHIP. A status chip beside a heading, in a flex row, with the heading unable to
+ *      shrink, forces the row wider than the page. The header row below is allowed to WRAP, so the
+ *      chip drops under the title at narrow widths instead of pushing the page.
+ *
+ *   3. A PRE BLOCK. A rendered federal document contains long lines by nature. `<pre>` does not wrap
+ *      by default, so it is the single most reliable way to make a page scroll sideways. The artifact
+ *      body uses `pre-wrap` plus `overflow-wrap: anywhere` and sits in its own scroll container, so
+ *      the document's own formatting survives while the PAGE never scrolls horizontally.
+ */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  /* The page itself never scrolls sideways. Wide content scrolls inside its own container. */
+  max-width: 100%;
+  min-width: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  margin: 0;
+}
+
+.lede {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+  margin: 0;
+  max-width: 68ch;
+}
+
+.hint {
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  color: var(--faint);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ the deliverable rows */
+
+.docList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.doc {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+/*
+ * TRAP 2. This row wraps. The chip is allowed to fall under the title rather than widen the page,
+ * and `min-width: 0` on the title lets it shrink instead of setting a floor for the row.
+ */
+.docHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.docTitle {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  margin: 0;
+  min-width: 0;
+}
+
+.docStatement {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docNext {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--ink);
+  margin: 0;
+  min-width: 0;
+}
+
+.missing {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  color: var(--dim);
+}
+
+/* ------------------------------------------------------------------ verdict rows */
+
+/*
+ * TRAP 1. `minmax(0, 1fr)` on both tracks, not `1fr`, so a long identifier cannot set a floor.
+ * Collapses to one column below the reflow point rather than compressing the label to nothing.
+ */
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-4);
+  min-width: 0;
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+}
+
+.rowKey {
+  color: var(--dim);
+  min-width: 0;
+}
+
+.rowVal {
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+  min-width: 0;
+}
+
+.reasons strong,
+.docNext strong {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.field {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+}
+
+/* ------------------------------------------------------------------ findings */
+
+.finding {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.findingHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+  min-width: 0;
+}
+
+/*
+ * A quoted regulation. Left rule and the mono face mark it as somebody else's words, which matters
+ * on a surface where our sentences and the rule's sentences sit next to each other.
+ */
+.quote {
+  margin: 0;
+  padding: var(--sp-3);
+  border-left: 2px solid var(--line-2);
+  background: var(--raised);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.quoteText {
+  margin: 0;
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.quoteCite {
+  display: block;
+  margin-top: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--faint);
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ the rendered artifact */
+
+/*
+ * TRAP 3. A federal document has long lines. `pre-wrap` keeps its own line breaks, `anywhere` stops
+ * an unbreakable identifier widening the page, and the scroll container is the last resort so any
+ * overflow that does happen stays inside this box and never reaches the page.
+ */
+.artifact {
+  margin: 0;
+  padding: var(--sp-4);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  line-height: var(--lh-200);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.provTable {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  min-width: 0;
+}
+
+.provHead {
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--sp-1);
+}
+
+.provCell {
+  color: var(--dim);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ the generator form */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--sp-4);
+  margin: 0;
+  min-width: 0;
+}
+
+.legend {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  padding: 0 var(--sp-2);
+}
+
+/* TRAP 1 again. Auto-fit with a minmax floor of 0 in the flexible half. */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--sp-3) var(--sp-4);
+  min-width: 0;
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.check input {
+  /* Meets the 24px target floor without a magic number of this file's own. */
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ reflow */
+
+/*
+ * The single reflow point. Below it the two-column verdict rows and the three-column provenance
+ * table become one column each. Chosen at 40rem rather than a device width because the trigger is
+ * the content's own comfortable minimum, and a rem-based query keeps honouring the reader's base
+ * font size, which a px query does not.
+ */
+@media (max-width: 40rem) {
+  .rows,
+  .provTable {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-1);
+  }
+
+  .rowKey {
+    font-size: var(--fs-100);
+  }
+
+  /* A header cell for a table that is no longer a table would read as a stray word. */
+  .provHead {
+    display: none;
+  }
+
+  .provCell:first-child {
+    color: var(--ink);
+    font-family: var(--font-mono);
+  }
+
+  .provCell + .provCell + .provCell {
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--line);
+  }
+}

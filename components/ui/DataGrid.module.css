@@ -1,0 +1,264 @@
+/*
+ * DataGrid. Owner: T8 DESIGN.
+ *
+ * The density argument: irregular rhythm is what makes a table hard to read, not small text.
+ * So the baseline grid, the column alignment and the vertical spacing scale do the work, and
+ * the type never goes below the R7 floor to buy another column. If a table needs more room,
+ * remove a column or use the density control.
+ */
+
+.wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+/*
+ * The grid scrolls INSIDE this box. The page never scrolls sideways.
+ *
+ * A data grid is two-dimensional content and is explicitly exempt from the 320px reflow
+ * floor (R6, WCAG 1.4.10). The PAGE is not exempt, so the exemption has to be contained
+ * here, which is what this element is for.
+ */
+.scroller {
+  overflow: auto;
+  min-inline-size: 0;
+  max-block-size: 70vh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* ------------------------------------------------------------------------------ header */
+
+.table thead th {
+  position: sticky;
+  inset-block-start: 0;
+  /* The named layer, never a raw z-index. Values come from the spec, not from guesswork. */
+  z-index: var(--z-header);
+  background: var(--panel-2);
+  text-align: start;
+  padding: var(--sp-2) var(--sp-3);
+  /* The floor, not smaller. Column headers are read constantly and they are the first thing
+   * to get shrunk when somebody wants another column. */
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  border-block-end: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.headCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.sortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  /* 24px minimum target, met through padding rather than by shrinking the hit area. */
+  min-block-size: var(--target-min);
+  padding-inline: var(--sp-1);
+  border-radius: var(--radius-sm);
+}
+
+.sortBtn:hover {
+  color: var(--ink);
+}
+
+/* The sort mark is a SHAPE and the state is also carried by aria-sort, so the direction is
+ * never colour-only and is announced rather than only drawn. */
+.sortMark {
+  color: var(--accent);
+  font-size: var(--fs-100);
+}
+
+/* -------------------------------------------------------------------------------- body */
+
+.table tbody td {
+  padding: var(--row-pad-y) var(--sp-3);
+  border-block-end: 1px solid var(--line);
+  vertical-align: middle;
+  font-size: var(--fs-300); /* 15px table body minimum. Never reduced to buy a column. */
+  color: var(--ink);
+  /*
+   * NEVER overflow:hidden on the ROW. Clip at the cell, expose the full value in the row
+   * expansion, and never in a title attribute (R3). A fixed-height row also fails WCAG
+   * 1.4.12 the moment a user applies a 1.5 line-height override, which is why the row
+   * height is computed from 1lh in tokens.css rather than fixed here.
+   */
+  min-block-size: var(--row-h);
+}
+
+.table tbody tr:hover td {
+  background: var(--panel-2);
+}
+
+.rowOpen td {
+  background: var(--panel-2);
+  border-block-end-color: var(--line-2);
+}
+
+/* Focus must be visible on the focused CELL, because the roving tabindex means the cell is
+ * what holds focus. Without this the operator loses their place entirely. */
+.table tbody td:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.cellValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+/* The one case where absence is the measured fact. Deliberately quiet and deliberately a
+ * WORD, so it can never be confused with a cell that failed to render. */
+.emptyCell {
+  color: var(--faint);
+  font-size: var(--fs-100);
+}
+
+.alignEnd {
+  text-align: end;
+}
+
+.alignEnd .cellValue {
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------------------- pinned column
+ * Sticky on the inline axis so the identifier stays visible while the operator scrolls
+ * sideways through history and pricing. Two-axis sticky is why the z-index layers are named.
+ */
+.pinned {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: var(--z-pinned);
+  background: var(--panel);
+}
+
+.table thead th.pinned {
+  z-index: var(--z-header-pinned);
+  background: var(--panel-2);
+}
+
+.rowOpen .pinned,
+.table tbody tr:hover .pinned {
+  background: var(--panel-2);
+}
+
+/* ----------------------------------------------------------------------- row expansion */
+
+.expansionRow td {
+  padding: 0;
+  background: var(--bg);
+}
+
+.expansion {
+  padding: var(--sp-4);
+  border-inline-start: 2px solid var(--accent);
+}
+
+.expansionHead {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  margin-block-end: var(--sp-3);
+}
+
+.expansionList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.expansionItem {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding-block: var(--sp-1);
+  border-block-end: 1px dashed var(--line);
+}
+
+.expansionItem dt {
+  color: var(--faint);
+  font-size: var(--fs-100);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * NEVER TRUNCATED. This is the raw record and the whole point is that the principal can read
+ * every character of it and copy it. `anywhere` rather than ellipsis, on purpose.
+ */
+.expansionItem dd {
+  color: var(--ink);
+  font-size: var(--fs-200);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+@media (max-width: 40rem) {
+  .expansionItem {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-1);
+  }
+}
+
+/* ------------------------------------------------------------------------ empty states */
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-5);
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.emptyTitle {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.emptyBody {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  max-inline-size: 60ch;
+}
+
+.emptyAction {
+  min-block-size: 2.25rem;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+}
+
+.footNote {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}

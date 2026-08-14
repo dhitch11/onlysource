@@ -59,7 +59,10 @@ const DESTINATIONS: NavDestination[] = [
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map', separatorBefore: true, permitted: false },
   { href: '/documents', label: 'Documents & POs', icon: 'documents' },
   { href: '/suppliers', label: 'Suppliers', icon: 'suppliers', permitted: false },
-  { href: '/admin', label: 'Admin & Users', icon: 'admin', permitted: false },
+  // @T7 flipped this the moment app/(app)/admin/page.tsx landed. T8's rule holds and is the
+  // reason it was false until now: a nav entry that 404s teaches an operator the product is
+  // broken and costs the same trust as a fabricated number.
+  { href: '/admin', label: 'Admin & Users', icon: 'admin' },
   // The design system reference. Internal, and it stays in the nav because it is how the
   // other seven lanes find the components without asking.
   { href: '/design', label: 'Design system', icon: 'design', separatorBefore: true },

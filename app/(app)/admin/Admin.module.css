@@ -1,0 +1,260 @@
+/*
+ * ADMIN & USERS layout. Owner: T7 ADMIN + API.
+ *
+ * SCOPE: LAYOUT ONLY, following the boundary @T6 stated on the Sales Hub. The page frame, the
+ * user table grid, and the three-card row. Every atom inside them is a T8 component (Button,
+ * StatusChip, ExplainButton, NotConnected). T8 does not yet ship a table primitive or a
+ * user-row, so this file owns those two frames and is written to be deleted the moment they do.
+ *
+ * The look is taken from the approved comp; the MARKUP is not, per the fleet ruling. The comp
+ * uses px font sizes below the 13px floor and `title=` plus `cursor:help` as its info
+ * affordance, both of which are banned. Sizes here are rem against the shell's base, and the
+ * affordance is T8's focusable ExplainButton.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.top {
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex: none;
+  flex-wrap: wrap;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.meta {
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+.meta b {
+  color: var(--olive);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.topAction {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+/* The reason a control is unavailable is VISIBLE TEXT, never a tooltip. An operator who cannot
+   use a button is owed the reason in the same glance, not on hover. */
+.blockedReason {
+  font-size: 0.8rem;
+  color: var(--faint);
+  max-width: 34ch;
+  text-align: right;
+}
+
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: 1.4rem 1.5rem 3.5rem;
+}
+
+/* ---------------- user table ---------------- */
+
+.table {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 2fr) minmax(7rem, 1fr) minmax(6rem, 1fr) minmax(7rem, 1fr) minmax(6rem, auto);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.head {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 700;
+  background: var(--panel-2);
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--olive);
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  flex: none;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.email {
+  font-size: 0.78rem;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mono {
+  font-family: var(--mono);
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+/* ---------------- cards ---------------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  padding: 1rem 1.1rem;
+}
+
+.cardTitle {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cardSub {
+  font-size: 0.8rem;
+  color: var(--faint);
+  margin: 0.25rem 0 0.9rem;
+}
+
+.pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+}
+
+.pair {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.pair dt {
+  color: var(--ink);
+}
+
+.pair dd {
+  font-family: var(--mono);
+  color: var(--dim);
+  text-align: right;
+  margin: 0;
+}
+
+.connections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* The two-line connection row: the state, then what it would unlock. The second line is the
+   whole point, because "not connected" without consequence tells an operator nothing. */
+.connection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.connection:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.connectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.connectionName {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.wouldAdd {
+  font-size: 0.8rem;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+@media (max-width: 60rem) {
+  .row {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 0.5rem;
+  }
+
+  .topAction {
+    margin-left: 0;
+    align-items: flex-start;
+  }
+
+  .blockedReason {
+    text-align: left;
+  }
+}

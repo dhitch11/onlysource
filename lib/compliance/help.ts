@@ -9,14 +9,18 @@
  * the explanation is the product rather than decoration around it.
  *
  * ---------------------------------------------------------------------------------------------
- * A GAP IN THE REGISTRY'S TYPE, REPORTED TO T8 AND WORKED AROUND HERE RATHER THAN IGNORED
+ * WHY THE FIFTH FIELD IS HERE, AND WHAT IT COST TO GET IT
  * ---------------------------------------------------------------------------------------------
- * `HelpRecord` carries four content fields: what, how, why, source. The Quality Bar's G2 and the
- * acceptance gate's R9.4 both require a FIFTH, `what_this_does_not_do`, present on every score, and
- * it is absent from the interface and from `validateHelp`. Rather than drop the content or silently
- * fold it into `why`, the fifth field lives below in `T5_WHAT_THIS_DOES_NOT_DO`, keyed by the same
- * ids, so it is written, reviewable and ready to move into the record the day T8 adds the field.
- * Filed to T8; not mine to change their type.
+ * `HelpRecord` had four content fields when this file was written: what, how, why, source. Quality
+ * Bar G2 requires all five including `what_this_does_not_do`, and acceptance gate R9.4 names that one
+ * explicitly as what the coverage lint must check, so R9.4 could not have passed and eight lanes were
+ * about to write content against a type that structurally could not hold it. Rather than drop the
+ * content or quietly fold it into `why`, it was written anyway and parked in a keyed map, which is
+ * what made the gap visible instead of absent. Reported to T8 rather than patched from this lane;
+ * they added `whatThisDoesNotDo` and `explainsAScore` the same day and the content moved across
+ * unchanged. `explainsAScore` is false on every entry here: these explain states and verdicts rather
+ * than figures somebody acts on financially, and claiming otherwise would make their gate fire on
+ * the wrong rows.
  */
 
 import type { HelpRecord } from '@/components/help/registry'
@@ -41,6 +45,11 @@ export const T5_ENTRIES: HelpRecord[] = [
       'Computed by deterministic code from the recorded material condition, the acquisition channel ' +
       'and the provenance documents on the lot. No language model touches it. The rule that decided ' +
       'it is quoted on the verdict with its identifier and effective date.',
+    whatThisDoesNotDo:
+      'It does not tell you whether the material is any good, whether the price is right, or ' +
+      'whether the offer will win. It answers one question: which document set this lot needs. It ' +
+      'also does not decide anything about used, reconditioned or remanufactured material, which is ' +
+      'a conversation with the product specialist rather than a classification.',
   },
   {
     id: 'compliance.provenance_rung',
@@ -59,6 +68,10 @@ export const T5_ENTRIES: HelpRecord[] = [
       'The four rungs are quoted from procurement note C04 at DLAD 11.390(a). Which rung is satisfied ' +
       'is computed from the documents attached to this lot, and an unconfirmed field does not satisfy ' +
       'a rung.',
+    whatThisDoesNotDo:
+      'It does not prove the Government owned this material. It reports which proof we currently ' +
+      'hold. It cannot tell you a contracting officer will accept that proof, and on rung 4 the ' +
+      'argument is only as good as the person who signed it.',
   },
   {
     id: 'packet.state',
@@ -76,6 +89,11 @@ export const T5_ENTRIES: HelpRecord[] = [
       'Computed at request time by resolving the required fields against what is captured, then ' +
       'attempting the assembly. Readiness requires an assembly that succeeded, never field presence ' +
       'alone. There is no control anywhere that lets a person mark a packet ready.',
+    whatThisDoesNotDo:
+      'Ready to submit does not mean the offer is compliant, competitive or wise. It means the ' +
+      'artifact exists, every figure in it traces to a stored value, and no compliance blocker is ' +
+      'open. It says nothing about price, quantity sufficiency against a specific requirement, or ' +
+      'whether a person has read it.',
   },
   {
     id: 'traceability.preflight',
@@ -94,6 +112,10 @@ export const T5_ENTRIES: HelpRecord[] = [
       'The exception list, the listing gates and the solicitation-type branch are quoted from the DLA ' +
       'Master Solicitation, Revision 81, read from the PDF rather than from a summary. Each finding ' +
       'names the paragraph it came from.',
+    whatThisDoesNotDo:
+      'It does not predict whether we win, and it does not check price. It checks only whether the ' +
+      'quote is qualified enough to be in the comparison. It also cannot see fields the ingestion ' +
+      'lane has not delivered, which is why it reports cannot assess rather than clear.',
   },
   {
     id: 'traceability.surplus_type_branch',
@@ -111,6 +133,9 @@ export const T5_ENTRIES: HelpRecord[] = [
       'The identical sentence appears in Part I 3(a)(1)(iii) as not an exception and in Part II 1(a) ' +
       'as one that disqualifies, and Part II applies when a U solicitation. Both paragraphs are ' +
       'registered separately, and the gate keys on the instrument type rather than on the wording.',
+    whatThisDoesNotDo:
+      'It does not decide whether to bid. It reports one hard gate. A T-type buy being open to ' +
+      'surplus says nothing about whether this lot is the right material or the right price.',
   },
   {
     id: 'compliance.figure_provenance',
@@ -128,40 +153,21 @@ export const T5_ENTRIES: HelpRecord[] = [
       'Resolved from deterministic columns at assembly time. A post-generation check re-reads the ' +
       'finished document and rejects any numeral that does not trace to a payload or to a citation the ' +
       'template declared in advance.',
+    whatThisDoesNotDo:
+      'It does not verify that a stored value is correct, only that the figure on the page came ' +
+      'from one and can be traced back to it. A wrong number captured at intake is still wrong ' +
+      'here, which is why identifiers read from a label need a human to confirm them before they ' +
+      'carry a verdict.',
   },
 ]
 
 /**
- * THE FIFTH HELP FIELD, held here until `HelpRecord` carries it.
+ * The fifth field is now IN the record above, as `whatThisDoesNotDo`.
  *
- * G2 and R9.4 require `what_this_does_not_do` on every score. Writing it separately keeps the
- * content real and reviewable instead of deferred, and makes the registry gap visible rather than
- * quietly absent. Keyed by help id.
+ * It lived in a separate map for a few hours because `HelpRecord` had no field for it, which was a
+ * real gap: Quality Bar G2 requires all five fields and acceptance gate R9.4 names this one as what
+ * the coverage lint must check, so R9.4 could not have passed. Reported to T8 rather than patched
+ * from this lane; they added `whatThisDoesNotDo` and `explainsAScore` the same day, and the content
+ * moved across unchanged. Recorded here because "write the content anyway and park it" is what made
+ * the gap visible instead of quietly absent.
  */
-export const T5_WHAT_THIS_DOES_NOT_DO: Readonly<Record<string, string>> = {
-  'compliance.path':
-    'It does not tell you whether the material is any good, whether the price is right, or whether ' +
-    'the offer will win. It answers one question: which document set this lot needs. It also does not ' +
-    'decide anything about used, reconditioned or remanufactured material, which is a conversation ' +
-    'with the product specialist rather than a classification.',
-  'compliance.provenance_rung':
-    'It does not prove the Government owned this material. It reports which proof we currently hold. ' +
-    'It cannot tell you a contracting officer will accept that proof, and on rung 4 the argument is ' +
-    'only as good as the person who signed it.',
-  'packet.state':
-    'Ready to submit does not mean the offer is compliant, competitive or wise. It means the artifact ' +
-    'exists, every figure in it traces to a stored value, and no compliance blocker is open. It says ' +
-    'nothing about price, quantity sufficiency against a specific requirement, or whether a person ' +
-    'has read it.',
-  'traceability.preflight':
-    'It does not predict whether we win, and it does not check price. It checks only whether the ' +
-    'quote is qualified enough to be in the comparison. It also cannot see fields the ingestion lane ' +
-    'has not delivered, which is why it reports cannot assess rather than clear.',
-  'traceability.surplus_type_branch':
-    'It does not decide whether to bid. It reports one hard gate. A T-type buy being open to surplus ' +
-    'says nothing about whether this lot is the right material or the right price.',
-  'compliance.figure_provenance':
-    'It does not verify that a stored value is correct, only that the figure on the page came from ' +
-    'one and can be traced back to it. A wrong number captured at intake is still wrong here, which ' +
-    'is why identifiers read from a label need a human to confirm them before they carry a verdict.',
-}
