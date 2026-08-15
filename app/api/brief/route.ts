@@ -6,6 +6,8 @@ import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
+import { groundBrief } from '@/lib/ai/grounding'
+import { log } from '@/lib/log'
 import { buildCornerDossier, type CornerDossier } from '@/lib/intelligence/brief/dossier'
 
 export const dynamic = 'force-dynamic'
@@ -77,7 +79,13 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'ai_failed', message: result.reason }, { status: 502 })
   }
 
-  return Response.json({ nsn: row.nsn, brief: result.text, dossier })
+  // The programmatic half of the promise: strip any sentence carrying a number the dossier does not
+  // contain, so "no number appears that this build did not measure" is enforced, not just requested.
+  const grounded = groundBrief(result.text, dossier)
+  if (grounded.stripped.length > 0) {
+    log.warn('brief.grounding.stripped', { nsn: row.nsn, count: grounded.stripped.length })
+  }
+  return Response.json({ nsn: row.nsn, brief: grounded.text, dossier, unverified: grounded.stripped })
 }
 
 const SYSTEM_PROMPT = `You are the analyst inside ONLYSOURCE, a defense-parts opportunity-intelligence platform that finds cornered DLA/DIBBS stock numbers: parts one approved company may make, that the government keeps buying, where that company has gone quiet on awards.

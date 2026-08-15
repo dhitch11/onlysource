@@ -108,6 +108,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     id: "source",
     header: "Approved source",
     width: "20ch",
+    helpId: "monopoly.award_silence",
     sortValue: (r) => (r.soleSource ? 0 : r.approvedSourceCount),
     cell: (r): Cell => {
       if (r.soleSource) {
@@ -132,6 +133,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
   {
     id: "legs",
     header: "Legs established",
+    helpId: "monopoly.legs_established",
     width: "13ch",
     align: "end",
     sortValue: (r) => r.legsEstablished,
@@ -176,6 +178,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
   {
     id: "availability",
     header: "Listed stock",
+    helpId: "monopoly.availability_unknown",
     width: "17ch",
     sortValue: (r) => r.award?.holders.length ?? -1,
     cell: (r): Cell => {

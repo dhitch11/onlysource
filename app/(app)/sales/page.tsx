@@ -131,7 +131,7 @@ export default async function SalesHubPage() {
         <NotConnected
           source="The deal store"
           wouldAdd="every opportunity, lead, quote and won award in the pipeline, with its stage, owner and value"
-          whoCanConnect="T1 Foundation, once the deal tables are migrated"
+          whoCanConnect="your team, once the pipeline is switched on"
         />
       ) : null}
 

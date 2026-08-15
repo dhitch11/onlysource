@@ -2,6 +2,7 @@ import { gateOrJson } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildPortfolio, buildPortfolioDossier } from '@/lib/intelligence/portfolio'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
+import { groundBrief } from '@/lib/ai/grounding'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,7 +43,9 @@ export async function POST() {
   if (!result.ok) {
     return Response.json({ error: 'ai_failed', message: result.reason }, { status: 502 })
   }
-  return Response.json({ brief: result.text })
+  // Enforce the measured-only promise: strip any sentence with a number not in the portfolio dossier.
+  const grounded = groundBrief(result.text, dossier)
+  return Response.json({ brief: grounded.text, unverified: grounded.stripped })
 }
 
 const SYSTEM_PROMPT = `You are the lead analyst inside ONLYSOURCE, a defense-parts opportunity-intelligence platform. You are briefing an operator on the whole candidate book for one feed day: cornered DLA stock numbers (one approved maker, the government still buying, that maker gone award-silent).

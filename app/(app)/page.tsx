@@ -120,8 +120,9 @@ export default async function WorkspacePage() {
         <section className="card">
           <div className="card__body">
             <p className="muted">
-              The data directory is not mounted in this environment, so the live metrics abstain rather
-              than showing a fabricated zero. They appear the moment the feed is present.
+              Today&rsquo;s government data hasn&rsquo;t loaded yet. Every number here is built straight
+              from the live DLA files, so nothing shows until the feed is in, no guesses and no
+              placeholders. It fills in the moment the data lands.
             </p>
           </div>
         </section>
