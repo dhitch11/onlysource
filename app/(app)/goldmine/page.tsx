@@ -25,9 +25,11 @@ type Enriched = {
   lastSoldPrice: number | null
   closeDate: string | null
   estValue: number
-  open: boolean
+  recent: boolean
   holders: Array<{ name: string; unitsAvailable: number | null; basePrice: number | null }>
 }
+
+const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000
 
 /**
  * THE NO-QUOTE GOLDMINE.
@@ -80,7 +82,7 @@ export default async function GoldminePage() {
       lastSoldPrice: r.lastSoldPrice,
       closeDate: r.closeDate,
       estValue: est,
-      open: Number.isFinite(closeMs) && closeMs >= nowMs,
+      recent: Number.isFinite(closeMs) && closeMs <= nowMs && closeMs >= nowMs - NINETY_DAYS,
       holders: r.holders,
     }
   }
@@ -89,13 +91,13 @@ export default async function GoldminePage() {
   const bySize = (a: Enriched, b: Enriched) => b.estValue - a.estValue
   const makeSide = all.filter((r) => r.holders.length === 0).sort(bySize)
   const sourcing = all.filter((r) => r.holders.length > 0).sort(bySize)
-  const openCount = all.filter((r) => r.open).length
+  const recentCount = all.filter((r) => r.recent).length
 
   const metrics = [
     { n: noQuote.summary.solicitations, label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false },
     { n: noQuote.summary.makeSideOnly, label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
     { n: noQuote.summary.withHolder, label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
-    { n: openCount, label: 'still open right now', hint: 'the close date has not passed', hot: openCount > 0 },
+    { n: recentCount, label: 'closed in the last 90 days', hint: 'the freshest lanes, most likely to come back soon', hot: recentCount > 0 },
   ]
 
   return (
@@ -105,8 +107,9 @@ export default async function GoldminePage() {
         <h1 className={styles.h1}>No-Quote Goldmine</h1>
         <p className={styles.sub}>
           Parts the government tried to buy and got <b>zero</b> quotes back on. No competition showed
-          up. When that happens the buyer has to ask again, so these are the lanes where you win by
-          default. Open any part for its full history.
+          up, so the buyer has to come back and ask again. These closed buys are the proof that the
+          lane is wide open, and the same order returns. Get in front of the next one. Open any part
+          for its full history.
         </p>
       </header>
 
@@ -203,7 +206,7 @@ function Section({
                   {r.closeDate ? (
                     <span className={styles.closeRow}>
                       <span className="mono">{r.closeDate}</span>
-                      {r.open ? <StatusChip tone="urgent">Open now</StatusChip> : null}
+                      {r.recent ? <StatusChip tone="verified">Recent</StatusChip> : null}
                     </span>
                   ) : (
                     '—'
