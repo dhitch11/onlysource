@@ -188,6 +188,14 @@
   color: var(--faint);
 }
 
+/* ---------- award price escalation ---------- */
+.escalation {
+  color: var(--amber);
+  font-size: var(--fs-100);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ---------- legs indicator ---------- */
 .legs {
   display: inline-flex;

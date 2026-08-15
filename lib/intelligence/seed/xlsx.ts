@@ -191,24 +191,24 @@ export type SeedTable = {
   declaredRowCount: number
 }
 
-export function readSeedWorkbook(path: string): SeedTable {
-  const buf = readFileSync(path)
-  const stat = statSync(path)
-  const entries = readZipEntries(buf)
+/** The parsed body of one worksheet, independent of which file it came from. */
+export type ParsedSheet = {
+  headers: string[]
+  rows: Array<Record<string, string | null>>
+  declaredRowCount: number
+}
 
-  const sharedEntry = entries.get('xl/sharedStrings.xml')
-  const shared = sharedEntry ? parseSharedStrings(readEntry(buf, sharedEntry)) : []
-
-  const sheetName = [...entries.keys()]
-    .filter((n) => n.startsWith('xl/worksheets/sheet'))
-    .sort()[0]
-  if (!sheetName) throw new Error(`xlsx: no worksheet found in ${path}`)
-  const sheetXml = readEntry(buf, entries.get(sheetName) as ZipEntry)
-
+/**
+ * Parse ONE worksheet's XML into header-keyed rows.
+ *
+ * Cells are keyed on their reference attribute (A1, B1, ...), never on document order, because
+ * Excel omits empty cells entirely and an order-based read silently shifts every value after a
+ * gap into the wrong column. The single most important property of this whole module.
+ */
+function parseSheetXml(sheetXml: string, shared: string[]): ParsedSheet {
   const dim = /<dimension ref="[A-Z]+\d+:([A-Z]+)(\d+)"/.exec(sheetXml)
   const declaredRowCount = dim ? Number(dim[2]) : 0
 
-  // Row by row, cell by cell, keyed on the reference attribute rather than on order.
   const rowRe = /<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g
   const cellRe = /<c r="([A-Z]+\d+)"([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g
 
@@ -261,19 +261,97 @@ export function readSeedWorkbook(path: string): SeedTable {
     if (any) rows.push(record)
   }
 
+  return { headers, rows, declaredRowCount }
+}
+
+function buildProvenance(path: string, buf: Buffer, stat: { mtime: Date }): SeedProvenance {
   return {
-    provenance: {
-      path,
-      sha256: createHash('sha256').update(buf).digest('hex'),
-      bytes: buf.length,
-      fileModifiedAt: stat.mtime.toISOString(),
-      retrievedAtBasis: 'origin_file_mtime',
-      role: 'candidate_input_only',
-    },
-    headers,
-    rows,
-    declaredRowCount,
+    path,
+    sha256: createHash('sha256').update(buf).digest('hex'),
+    bytes: buf.length,
+    fileModifiedAt: stat.mtime.toISOString(),
+    retrievedAtBasis: 'origin_file_mtime',
+    role: 'candidate_input_only',
   }
+}
+
+export function readSeedWorkbook(path: string): SeedTable {
+  const buf = readFileSync(path)
+  const stat = statSync(path)
+  const entries = readZipEntries(buf)
+
+  const sharedEntry = entries.get('xl/sharedStrings.xml')
+  const shared = sharedEntry ? parseSharedStrings(readEntry(buf, sharedEntry)) : []
+
+  const sheetName = [...entries.keys()]
+    .filter((n) => n.startsWith('xl/worksheets/sheet'))
+    .sort()[0]
+  if (!sheetName) throw new Error(`xlsx: no worksheet found in ${path}`)
+  const parsed = parseSheetXml(readEntry(buf, entries.get(sheetName) as ZipEntry), shared)
+
+  return { provenance: buildProvenance(path, buf, stat), ...parsed }
+}
+
+export type WorkbookSheets = {
+  provenance: SeedProvenance
+  /** Keyed by the human sheet NAME from workbook.xml (e.g. "Procurement"), not sheetN.xml. */
+  sheets: Map<string, ParsedSheet>
+}
+
+/**
+ * Read a multi-sheet workbook, resolving the human sheet names.
+ *
+ * The NSN-Now Batch Export ships five named sheets (MCRL, Procurement, Availability, RFQ,
+ * Tech Info) and the whole value is in reading the RIGHT one by name. The name lives in
+ * xl/workbook.xml as `<sheet name=".." r:id="rIdN">`; the rId maps to a worksheet file through
+ * xl/_rels/workbook.xml.rels. Resolving by that chain, never by sheet order, because a report
+ * that reorders or drops a sheet must fail to find "Procurement" loudly rather than silently
+ * read "Availability" in its place.
+ */
+export function readWorkbookSheets(path: string): WorkbookSheets {
+  const buf = readFileSync(path)
+  const stat = statSync(path)
+  const entries = readZipEntries(buf)
+
+  const sharedEntry = entries.get('xl/sharedStrings.xml')
+  const shared = sharedEntry ? parseSharedStrings(readEntry(buf, sharedEntry)) : []
+
+  const workbookEntry = entries.get('xl/workbook.xml')
+  const relsEntry = entries.get('xl/_rels/workbook.xml.rels')
+  if (!workbookEntry || !relsEntry) {
+    throw new Error(`xlsx: ${path} is missing workbook.xml or its rels; cannot resolve sheet names`)
+  }
+  const workbookXml = readEntry(buf, workbookEntry)
+  const relsXml = readEntry(buf, relsEntry)
+
+  // rId -> worksheet file path (normalised to xl/worksheets/sheetN.xml)
+  const ridToTarget = new Map<string, string>()
+  const relRe = /<Relationship\b[^>]*\/>/g
+  let rel: RegExpExecArray | null
+  while ((rel = relRe.exec(relsXml)) !== null) {
+    const tag = rel[0]
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1]
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1]
+    if (id && target && /worksheets\//.test(target)) {
+      ridToTarget.set(id, target.replace(/^\/?(xl\/)?/, 'xl/'))
+    }
+  }
+
+  const sheets = new Map<string, ParsedSheet>()
+  const sheetRe = /<sheet\b[^>]*\/?>/g
+  let sh: RegExpExecArray | null
+  while ((sh = sheetRe.exec(workbookXml)) !== null) {
+    const tag = sh[0]
+    const name = /\bname="([^"]+)"/.exec(tag)?.[1]
+    const rid = /\br:id="([^"]+)"/.exec(tag)?.[1]
+    if (!name || !rid) continue
+    const target = ridToTarget.get(rid)
+    const entry = target ? entries.get(target) : undefined
+    if (!entry) continue
+    sheets.set(name, parseSheetXml(readEntry(buf, entry), shared))
+  }
+
+  return { provenance: buildProvenance(path, buf, stat), sheets }
 }
 
 /** `AA` sorts after `Z`, which a plain string comparison gets wrong. */

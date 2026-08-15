@@ -4,9 +4,16 @@ import { useMemo, useState } from "react";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import type { CornerRow } from "@/lib/intelligence/corner";
+import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 import styles from "./monopoly.module.css";
 
+/** A corner row with its NSN-Now award history joined in, where we have it. */
+export type CornerRowWithAward = CornerRow & { award: NsnAwardSummary | null };
+
 type Filter = "candidate" | "sole" | "all";
+
+const usd = (n: number): string =>
+  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * The candidate grid. Every cell is one of three states, so a leg we did not read renders as
@@ -14,7 +21,7 @@ type Filter = "candidate" | "sole" | "all";
  * unknown by design: it is the unread third leg, and showing it as a stated gap on every row
  * is the honest shape of the product until the locator feed is connected.
  */
-const columns: GridColumn<CornerRow>[] = [
+const columns: GridColumn<CornerRowWithAward>[] = [
   {
     id: "nsn",
     header: "Stock number",
@@ -104,29 +111,67 @@ const columns: GridColumn<CornerRow>[] = [
   },
   {
     id: "availability",
-    header: "On a shelf?",
-    width: "16ch",
-    cell: (): Cell => ({
-      state: "unknown",
-      reason: "not read — no availability feed connected",
-    }),
+    header: "Listed stock",
+    width: "17ch",
+    sortValue: (r) => r.award?.holders.length ?? -1,
+    cell: (r): Cell => {
+      const holders = r.award?.holders ?? [];
+      if (!r.award) {
+        return { state: "unknown", reason: "not read — no availability feed connected" };
+      }
+      if (holders.length === 0) {
+        // We DID look (this NSN is in the export) and no holder is listed. Still not proof of
+        // "none anywhere" — NSN-Now availability is self-reported — so it stays an honest empty.
+        return { state: "empty" };
+      }
+      const units = holders.reduce((s, h) => s + (h.quantity ?? 0), 0);
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <StatusChip tone="idle">
+            {holders.length} listed{units > 0 ? ` · ${units.toLocaleString()} ea` : ""}
+          </StatusChip>
+        ),
+      };
+    },
   },
   {
     id: "price",
-    header: "Award price",
+    header: "Last award",
     align: "end",
-    width: "15ch",
-    cell: (): Cell => ({
-      state: "unknown",
-      reason: "award history not yet ingested",
-    }),
+    mono: true,
+    width: "16ch",
+    sortValue: (r) => r.award?.latest?.unitPrice ?? -1,
+    cell: (r): Cell => {
+      const latest = r.award?.latest;
+      if (!latest || latest.unitPrice == null) {
+        return { state: "unknown", reason: "award history not yet ingested for this NSN" };
+      }
+      const first = r.award?.firstUnitPrice;
+      const rising = first != null && latest.unitPrice > first;
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <span>
+            {usd(latest.unitPrice)}
+            {rising ? (
+              <span className={styles.escalation} title={`up from ${usd(first)}`}>
+                {" "}↑ {Math.round(((latest.unitPrice - first) / first) * 100)}%
+              </span>
+            ) : null}
+          </span>
+        ),
+      };
+    },
   },
 ];
 
-export function MonopolyGrid({ rows }: { rows: CornerRow[] }) {
+export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
   const [filter, setFilter] = useState<Filter>("candidate");
 
-  const isCandidate = (r: CornerRow) => r.soleSource && r.silentSourceCount > 0;
+  const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
 
   const shown = useMemo(() => {
     switch (filter) {
@@ -199,8 +244,36 @@ export function MonopolyGrid({ rows }: { rows: CornerRow[] }) {
               )
               .join(" · "),
           },
-          { field: "Availability", value: "not read — no locator credential connected" },
-          { field: "Award price", value: "award history not yet ingested" },
+          ...(r.award && r.award.awards.length
+            ? [
+                {
+                  field: "Award history",
+                  value: `${r.award.awards.length} awards, ${r.award.distinctAwardees} distinct awardee${r.award.distinctAwardees === 1 ? " (sole-awarded every time)" : "s"}${
+                    r.award.firstUnitPrice != null && r.award.lastUnitPrice != null
+                      ? `; ${usd(r.award.firstUnitPrice)} → ${usd(r.award.lastUnitPrice)}`
+                      : ""
+                  }`,
+                },
+                ...r.award.awards
+                  .slice()
+                  .reverse()
+                  .slice(0, 10)
+                  .map((a, i) => ({
+                    field: i === 0 ? "Awards (recent first)" : "",
+                    value: `${a.awardDateIso ?? "(no date)"} · ${a.unitPrice != null ? usd(a.unitPrice) : "(no price)"} · qty ${a.quantity ?? "?"} · CAGE ${a.cage ?? "?"} ${a.company ?? ""}`.trim(),
+                  })),
+              ]
+            : [{ field: "Award price", value: "award history not yet ingested for this NSN" }]),
+          {
+            field: "Listed stock",
+            value: r.award
+              ? r.award.holders.length
+                ? r.award.holders
+                    .map((h) => `${h.company ?? "?"} (CAGE ${h.cage ?? "?"}): ${h.quantity ?? "?"}`)
+                    .join(" · ") + " — NSN-Now listing, self-reported, not ILS-confirmed"
+                : "no holder listed in the NSN-Now export (self-reported; not proof none exists)"
+              : "not read — no availability feed connected",
+          },
           ...r.gaps.map((g, i) => ({ field: i === 0 ? "What is not established" : "", value: g })),
         ]}
       />

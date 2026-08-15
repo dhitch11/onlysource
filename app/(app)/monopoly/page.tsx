@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildAllDatasets } from "@/lib/intelligence/datasets";
+import { buildNsnAwardIndex } from "@/lib/intelligence/awards/nsn-now";
 import { resolveDataRoot } from "@/lib/data-root";
 import { MonopolyGrid } from "./MonopolyGrid";
 import styles from "./monopoly.module.css";
@@ -49,6 +50,17 @@ export default async function MonopolyPage() {
 
   const { cornerMap } = buildAllDatasets();
   const { summary, rows, provenance } = cornerMap;
+
+  // Join real award history + availability from the NSN-Now export, where we have it. Most rows
+  // will not have it until the full export lands; those render the honest unread state. A row
+  // that DOES have it shows the government's actual paid price, not an abstention.
+  const awardIndex = buildNsnAwardIndex();
+  const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null;
+  const enriched = rows.map((r) => ({
+    ...r,
+    award: awardByNsn?.get(r.nsn.replace(/[^0-9]/g, "")) ?? null,
+  }));
+  const pricedCount = enriched.filter((r) => r.award?.latest?.unitPrice != null).length;
 
   // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
   // to the widest step so the narrowing reads at a glance without exaggeration.
@@ -165,10 +177,15 @@ export default async function MonopolyPage() {
             · source status inferred from public award silence, which federal reporting does not
             require below the micro-purchase threshold, so it is a signal and not a death notice.
           </p>
+          <p className={styles.truthProv}>
+            {awardByNsn
+              ? `Award history is joined from the NSN-Now export where present: ${pricedCount.toLocaleString()} of these positions now carry a real paid price and its ten-year trend. The rest await the full export and say so per row.`
+              : "No NSN-Now export is loaded yet, so award price reads as unread on every row rather than as an estimate."}
+          </p>
         </div>
       </div>
 
-      <MonopolyGrid rows={rows} />
+      <MonopolyGrid rows={enriched} />
     </main>
   );
 }
