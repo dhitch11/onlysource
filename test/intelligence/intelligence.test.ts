@@ -27,6 +27,7 @@ import { adjudicate, compareValues, parseValue, validateExplanation, decideVerdi
 import { evaluateMonopoly, summarizeMap, evaluateCross, invertManufacturer, type SourceStatusReading, type ApprovedSourceRow, type DemandReading } from '@/lib/intelligence/monopoly'
 import { assessDistress, describeDistress, type SupplierSignals } from '@/lib/intelligence/distressed'
 import { readSeedWorkbook, excelSerialToIso, usDateToIso } from '@/lib/intelligence/seed/xlsx'
+import { seedPath } from '@/lib/data-root'
 
 const AS_OF = '2026-08-13T00:00:00.000Z'
 
@@ -596,8 +597,8 @@ describe('distressed supplier: a tier, never a flag', () => {
 
 /* =================================================================================== */
 describe('seed workbooks: read the real operator files, or skip loudly', () => {
-  const NO_QUOTE_MATCHES = '/Users/user/Downloads/no_quote_matches.xlsx'
-  const NO_QUOTES = '/Users/user/Downloads/NO QUOTES.xlsx'
+  const NO_QUOTE_MATCHES = seedPath('no_quote_matches.xlsx')
+  const NO_QUOTES = seedPath('NO QUOTES.xlsx')
   const present = existsSync(NO_QUOTE_MATCHES) && existsSync(NO_QUOTES)
 
   it('converts both real date encodings without inventing a date', () => {

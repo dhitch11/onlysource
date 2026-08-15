@@ -24,6 +24,7 @@ import { parseNsn } from './niin'
 import { readApprovedSourceFile, readDailyIndex, type ApprovedSourceIndex, type DailyIndex } from './seed/feed'
 import { readSeedWorkbook, readDate, type SeedProvenance } from './seed/xlsx'
 import { buildCornerMap, type CornerMap } from './corner'
+import { archivePath, seedPath } from '@/lib/data-root'
 
 /* ------------------------------------------------------------------------------------ */
 /* WHERE THE REAL FILES LIVE                                                              */
@@ -57,17 +58,27 @@ export const DERIVED_SHA256 = {
   quoting: 'be5a1104a538d96966f5693106ed28b1a98246e5c1dd54285b60bf897d086d3e',
 } as const
 
+/**
+ * All paths resolve through lib/data-root at call time, never from a hardcoded home directory.
+ *
+ * This is what makes the product deployable: the data directory is gitignored (this repo is
+ * public) and shipped out of band, so the code must ask WHERE it is at runtime rather than
+ * assume a developer's Downloads folder. The archive subtree keeps its exact retrieval shape
+ * because SOURCE_ARCHIVE cites it; the seed workbooks moved from a loose Downloads folder into
+ * data/seed/ under the resolved root, byte-identical (hashes verified on relocation 2026-08-14).
+ *
+ * The capture directory 20260812T225616Z is still PINNED, not "newest": a later capture of the
+ * same day is a 141-byte truncation-test fixture, and taking the newest timestamp silently loads
+ * it. The board's build guard refuses a short file, but the honest fix is to name the real one.
+ */
 export const DATA_PATHS = {
   feedDay: '2026-08-11',
-  // Stabilised by T2 out of volatile /tmp. Read here, cited as SOURCE_ARCHIVE above.
-  approvedSource:
-    '/Users/user/onlysource-data/archive/derived/dibbs-rfq-daily/2026-08-11/as260811.txt',
-  index:
-    '/Users/user/onlysource-data/archive/dibbs-rfq-daily/2026-08-11/20260812T225616Z/in260811.txt',
-  awardSilence: '/Users/user/Downloads/no awards in past 2 years (1).xlsx',
-  awardSilenceEnriched: '/Users/user/Downloads/no awards in past 2 years.xlsx',
-  noQuotes: '/Users/user/Downloads/NO QUOTES.xlsx',
-  noQuoteMatches: '/Users/user/Downloads/no_quote_matches.xlsx',
+  approvedSource: archivePath('derived', 'dibbs-rfq-daily', '2026-08-11', 'as260811.txt'),
+  index: archivePath('dibbs-rfq-daily', '2026-08-11', '20260812T225616Z', 'in260811.txt'),
+  awardSilence: seedPath('no awards in past 2 years (1).xlsx'),
+  awardSilenceEnriched: seedPath('no awards in past 2 years.xlsx'),
+  noQuotes: seedPath('NO QUOTES.xlsx'),
+  noQuoteMatches: seedPath('no_quote_matches.xlsx'),
 } as const
 
 export type DatasetAvailability = { path: string; present: boolean }
@@ -378,7 +389,25 @@ export type IntelligenceDatasets = {
   index: DailyIndex
 }
 
+/**
+ * Memoized per resolved input set. The feed-day files are static within a deployment, and both
+ * the nav (for its candidate-corner count) and the Monopoly page call this on the same request;
+ * rebuilding twice would read six files twice for no new information. Keyed on the paths object
+ * so a test passing custom paths, or a future second feed day, gets its own entry rather than a
+ * stale hit. Cleared implicitly on process restart, which is when new data is deployed.
+ */
+const datasetCache = new Map<string, IntelligenceDatasets>()
+
 export function buildAllDatasets(paths = DATA_PATHS): IntelligenceDatasets {
+  const cacheKey = `${paths.approvedSource}|${paths.index}|${paths.awardSilence}|${paths.noQuotes}`
+  const hit = datasetCache.get(cacheKey)
+  if (hit) return hit
+  const built = buildAllDatasetsUncached(paths)
+  datasetCache.set(cacheKey, built)
+  return built
+}
+
+function buildAllDatasetsUncached(paths: typeof DATA_PATHS): IntelligenceDatasets {
   const approved = readApprovedSourceFile(paths.approvedSource)
   const index = readDailyIndex(paths.index)
   const distressed = buildDistressed(paths)

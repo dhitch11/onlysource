@@ -35,6 +35,32 @@ export function gateCookieName(secureContext: boolean): string {
   return secureContext ? GATE_COOKIE_PROD : GATE_COOKIE_DEV
 }
 
+/**
+ * EVERY READER MUST TRY BOTH NAMES, IN THIS ORDER.
+ *
+ * The writer chooses the cookie NAME from one rule and a reader that chooses it from a
+ * different rule locks the person out permanently: the door sets a cookie the guard is not
+ * looking for, so the guard bounces them back to the door, forever.
+ *
+ * That is not hypothetical. It shipped. `app/(auth)/enter/actions.ts` named the cookie from
+ * `isProduction()` while `proxy.ts` named it from `request.nextUrl.protocol === 'https:'`.
+ * Those two agree on a developer's laptop and disagree in the two places that matter:
+ *   - a production build served over http (`next start` locally), and
+ *   - PRODUCTION BEHIND A TLS-TERMINATING REVERSE PROXY, which is this product's deploy
+ *     target. The proxy speaks https to the world and plain http to the Node process, so the
+ *     middleware sees `http:` and looks for `os_gate` while the door set `__Host-os_gate`.
+ *     Every user would have been met with an infinite redirect on the live site.
+ *
+ * The cookie name is NOT a security boundary. The HMAC signature on the token is. Accepting
+ * either name therefore gives up nothing and removes the entire class of lockout, including
+ * the case where the deployment's notion of "secure" changes between the write and the read.
+ */
+export function readGateCookie(
+  jar: { get(name: string): { value: string } | undefined },
+): string | undefined {
+  return jar.get(GATE_COOKIE_PROD)?.value ?? jar.get(GATE_COOKIE_DEV)?.value
+}
+
 const encoder = new TextEncoder()
 
 function base64UrlEncode(bytes: Uint8Array): string {

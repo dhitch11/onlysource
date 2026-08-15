@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { gateCookieName, verifyGateToken } from '@/lib/session/pre-release-gate'
+import { readGateCookie, verifyGateToken } from '@/lib/session/pre-release-gate'
 import { systemClock } from '@/lib/time/clock'
 
 /**
@@ -37,8 +37,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers: forward } })
   }
 
-  const secure = request.nextUrl.protocol === 'https:'
-  const token = request.cookies.get(gateCookieName(secure))?.value
+  // Both names, always. The writer's notion of "secure" and this one must never be
+  // able to disagree, because when they do the person is locked out permanently.
+  const token = readGateCookie(request.cookies)
   const verdict = await verifyGateToken(
     token,
     process.env.PREVIEW_GATE_SECRET,

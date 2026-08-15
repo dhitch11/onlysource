@@ -19,8 +19,9 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { SOLICITATION_CANARY, SOLICITATION_CANARY_LOOSE } from '../../lib/ingest/parse/dibbs'
+import { archivePath } from '../../lib/data-root'
 
-const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? '/Users/user/onlysource-data/archive'
+const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? archivePath()
 
 function archived(fragment: string): string {
   const manifestPath = join(ARCHIVE, 'MANIFEST.jsonl')

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDibbsIndex } from '@/lib/ingest/parse/dibbs'
+import { archivePath } from '@/lib/data-root'
 
 /**
  * HANDED OVER FROM @T7 TO @T2, WHO OWN IT FROM HERE.
@@ -38,8 +39,7 @@ import { parseDibbsIndex } from '@/lib/ingest/parse/dibbs'
  * ─────────────────────────────────────────────────────────────────────────────────────────
  */
 
-const REAL_INDEX =
-  '/Users/user/onlysource-data/archive/dibbs-rfq-daily/2026-08-11/20260812T225616Z/in260811.txt'
+const REAL_INDEX = archivePath('dibbs-rfq-daily', '2026-08-11', '20260812T225616Z', 'in260811.txt')
 const BANNER = join(process.cwd(), 'test/fixtures/dibbs/consent-banner-in.html')
 
 // A cold start: no prior loads, which is the state the re-fetch runs in.

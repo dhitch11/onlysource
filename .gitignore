@@ -58,3 +58,24 @@ npm-debug.log*
 _intel/
 HANDOFFS/
 .terminal-claims.md
+
+# ---------------------------------------------------------------------------
+# THE DATA DIRECTORY. NEVER COMMITTED, AND THIS REPO IS PUBLIC.
+#
+# `data/` holds the government feed files and the four seed workbooks. Two of those
+# workbooks carry the name, city, state, PHONE NUMBER and EMAIL of 3,471 real companies,
+# and all four together are the entire analytical edge of this product.
+#
+# github.com/dhitch11/onlysource is a PUBLIC repository. Verified 2026-08-14 against the
+# GitHub API, which answered 200 to an unauthenticated request. Anything committed here is
+# world-readable forever and is not recoverable by deleting the commit.
+#
+# The app therefore NEVER reads data from a tracked path. It resolves the root at runtime
+# through lib/data-root.ts, and when the directory is absent every surface renders its
+# stated empty state rather than a blank or a zero. Deployments ship this directory as an
+# included file, out of band, never through git.
+# ---------------------------------------------------------------------------
+/data/
+
+# Conductor scratch: probes, NSN lists, one-off verification scripts. Never committed.
+/.probe/

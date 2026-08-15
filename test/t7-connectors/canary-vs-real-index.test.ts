@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DIBBS_INDEX_SHAPE } from '@/lib/connectors/dibbs/classify'
+import { archivePath } from '@/lib/data-root'
 
 /**
  * THE REGRESSION THAT WOULD HAVE CAUGHT BOTH WRONG CANARIES.
@@ -16,7 +17,7 @@ import { DIBBS_INDEX_SHAPE } from '@/lib/connectors/dibbs/classify'
  * caught two real defects would be worse than no instrument, and "cannot verify" is a result
  * that deserves to be loud.
  */
-const INDEX = '/Users/user/onlysource-data/archive/dibbs-rfq-daily/2026-08-11/20260812T225616Z/in260811.txt'
+const INDEX = archivePath('dibbs-rfq-daily', '2026-08-11', '20260812T225616Z', 'in260811.txt')
 const BANNER = join(process.cwd(), 'test/fixtures/dibbs/consent-banner-in.html')
 
 describe('the canary, measured against the real archived feed day', () => {

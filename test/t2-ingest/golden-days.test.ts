@@ -25,8 +25,9 @@ import { parseApprovedSource, parseDibbsIndex, parseQuoteFile } from '../../lib/
 import { assertZipIntegrity, readZipMembers } from '../../lib/ingest/parse/zip'
 import { assertContentLength, blockingFailures, landedFailures } from '../../lib/ingest/assert'
 import type { AssertionResult } from '../../lib/ingest/types'
+import { archivePath } from '../../lib/data-root'
 
-const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? '/Users/user/onlysource-data/archive'
+const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? archivePath()
 const DAY = '2026-08-11'
 const CTX = {
   sourceKey: 'dibbs-rfq-daily',

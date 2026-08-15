@@ -318,6 +318,16 @@
     overflow-x: auto;
     /* Momentum scrolling without a visible bar eating a row of pixels. */
     scrollbar-width: thin;
+    /*
+     * `overflow-x: auto` already clips the max-content `ul` correctly and this box's own
+     * bounding size is already correct at every width — confirmed with getBoundingClientRect.
+     * But without `contain: layout`, the ul's intrinsic width still leaks into
+     * `document.documentElement.scrollWidth` (the same root-scrollable-overflow quirk the
+     * DataGrid `.scroller` carries this comment for). This does not change the nav's own
+     * horizontal scroll — it only stops it from being counted by an ancestor's size/overflow
+     * computation.
+     */
+    contain: layout;
   }
 
   .nav ul {

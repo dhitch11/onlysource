@@ -28,6 +28,19 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--panel);
+  /*
+   * `overflow: auto` correctly clips the wide auto-layout TABLE inside this box and correctly
+   * bounds every ancestor's OWN scrollWidth, up through <body> — verified. What it does not do
+   * is stop the table's intrinsic width from being counted into
+   * `document.documentElement.scrollWidth` (a Chromium root-scrollable-overflow quirk that
+   * bypasses normal overflow clipping for the viewport specifically). `contain: layout` closes
+   * that gap: it changes no paint, no visual behaviour, and the scroller still scrolls
+   * horizontally exactly as before — it only stops this box's internal layout from being
+   * reachable by an ancestor's (here, the root's) size/overflow computation. ExplainButton's
+   * panel is unaffected: it renders via popover="auto" in the top layer, which already escapes
+   * every ancestor's overflow and containment.
+   */
+  contain: layout;
 }
 
 .table {

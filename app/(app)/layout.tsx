@@ -2,6 +2,8 @@ import { env } from '@/lib/env'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavDestination } from '@/components/shell/AppShell'
+import { buildAllDatasets } from '@/lib/intelligence/datasets'
+import { resolveDataRoot } from '@/lib/data-root'
 
 /**
  * The authenticated shell.
@@ -45,7 +47,7 @@ import { AppShell, type NavDestination } from '@/components/shell/AppShell'
  */
 const DESTINATIONS: NavDestination[] = [
   { href: '/', label: 'Dashboard', icon: 'dashboard' },
-  { href: '/board', label: 'The Board', icon: 'board', permitted: false },
+  { href: '/board', label: 'The Board', icon: 'board' },
   { href: '/sales', label: 'Sales Hub', icon: 'sales', tag: 'CRM' },
   // Hunter Mode is its own emphasised module and routes into the Sales Hub engine, per the
   // BUILD-DIRECTIVE and the approved console. It is not a separate destination.
@@ -56,7 +58,10 @@ const DESTINATIONS: NavDestination[] = [
   // and never from a constant. T6's own Sales Hub already does the honest version of this
   // and shows "Not configured".
   { href: '/sales', label: 'Hunter Mode', icon: 'hunter', emphasised: true },
-  { href: '/monopoly', label: 'Monopoly Map', icon: 'map', separatorBefore: true, permitted: false },
+  // Landed 2026-08-14. The count is the candidate-corner tally, computed below from the real
+  // corner map, not a constant. It is passed only when the data directory is actually present,
+  // so an environment with no data shows the nav item with no badge rather than a fabricated 0.
+  { href: '/monopoly', label: 'Monopoly Map', icon: 'map', separatorBefore: true },
   { href: '/documents', label: 'Documents & POs', icon: 'documents' },
   { href: '/suppliers', label: 'Suppliers', icon: 'suppliers', permitted: false },
   // @T7 flipped this the moment app/(app)/admin/page.tsx landed. T8's rule holds and is the
@@ -75,11 +80,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const environment = e.APP_ENV ?? e.NODE_ENV
   const commit = e.GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
 
+  // A REAL nav count for the Monopoly Map, or none. Computed only when the data directory is
+  // present, because a badge is a claim about how much work is waiting and a fabricated one is
+  // the same trust cost as a fabricated number. buildAllDatasets is memoized, so this shares
+  // the build with the Monopoly page on the same request rather than reading the files twice.
+  const destinations = DESTINATIONS.map((d) => {
+    if (d.href !== '/monopoly') return d
+    if (!resolveDataRoot().present) return d
+    return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
+  })
+
   return (
     <AppShell
       user={{ name: 'David Hitchman', role: 'Owner', title: 'ProjectX' }}
       org={{ name: 'ONLYSOURCE' }}
-      destinations={DESTINATIONS}
+      destinations={destinations}
       meta={
         <>
           <span className="pill pill--attention">{environment}</span>

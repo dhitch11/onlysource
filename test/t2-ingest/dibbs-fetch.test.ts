@@ -20,8 +20,9 @@ import {
   type ConsentedClientProvider,
   type ConsentedResponse,
 } from '../../lib/ingest/sources/dibbs-fetch'
+import { archivePath } from '../../lib/data-root'
 
-const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? '/Users/user/onlysource-data/archive'
+const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? archivePath()
 const FIXED_NOW = '2026-08-13T12:00:00.000Z'
 const now = (): string => FIXED_NOW
 

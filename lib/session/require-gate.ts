@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { env, isProduction } from '@/lib/env'
 import { log } from '@/lib/log'
 import { systemClock } from '@/lib/time/clock'
-import { gateCookieName, verifyGateToken, type GateVerdict } from './pre-release-gate'
+import { readGateCookie, verifyGateToken, type GateVerdict } from './pre-release-gate'
 
 /**
  * Server-side enforcement of the pre-release gate.
@@ -16,9 +16,8 @@ import { gateCookieName, verifyGateToken, type GateVerdict } from './pre-release
  */
 
 export async function readGateVerdict(): Promise<GateVerdict> {
-  const secure = isProduction()
   const jar = await cookies()
-  const token = jar.get(gateCookieName(secure))?.value
+  const token = readGateCookie(jar)
   return verifyGateToken(token, env().PREVIEW_GATE_SECRET, systemClock.now())
 }
 
