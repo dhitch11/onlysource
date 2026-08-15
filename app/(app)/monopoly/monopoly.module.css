@@ -349,6 +349,100 @@
   color: var(--accent);
 }
 
+/* ---------- secondary filter toolbar ---------- */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: calc(-1 * var(--sp-2));
+}
+.chipRow {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+.chip {
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--dim);
+  font: inherit;
+  font-size: var(--fs-100);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.chip:hover {
+  color: var(--ink);
+}
+.chip:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+}
+.chipOn {
+  background: var(--accent-soft);
+  border-color: var(--accent-2);
+  color: var(--accent);
+  font-weight: 600;
+}
+.chainLabel {
+  display: inline-flex;
+  align-items: center;
+}
+.chainSelect {
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-100);
+  cursor: pointer;
+  max-width: 22ch;
+}
+.chainSelect:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+}
+.toolbarRight {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: none;
+}
+.resultCount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  white-space: nowrap;
+}
+.clearBtn {
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-100);
+  cursor: pointer;
+}
+.clearBtn:hover {
+  text-decoration: underline;
+}
+.clearBtn:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+}
+
 /* ---------- unavailable ---------- */
 .unavailable {
   border: 1px dashed var(--line-control);

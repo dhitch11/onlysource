@@ -32,6 +32,7 @@ const DISPOSITION_LABEL: Record<string, string> = {
 };
 
 type Filter = "candidate" | "sole" | "all";
+type ToggleKey = "onForecast" | "machine" | "rising" | "priced";
 
 const usd = (n: number): string =>
   `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -272,26 +273,68 @@ function priceSeriesOf(r: CornerRowWithAward): number[] {
 
 export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
   const [filter, setFilter] = useState<Filter>("candidate");
+  // Secondary filters that AND with the active tab. Each is a real, measured property of the row,
+  // so a filtered view is always an honest subset, never a re-scored one.
+  const [toggles, setToggles] = useState<Record<ToggleKey, boolean>>({
+    onForecast: false,
+    machine: false,
+    rising: false,
+    priced: false,
+  });
+  const [chain, setChain] = useState<string>("all");
 
   const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
+  const isRising = (r: CornerRowWithAward) =>
+    r.award?.firstUnitPrice != null &&
+    r.award?.lastUnitPrice != null &&
+    r.award.lastUnitPrice > r.award.firstUnitPrice;
+
+  // Every supply chain present in the data, for the select. Real values only.
+  const chains = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) for (const c of r.forecast?.supplyChains ?? []) if (c.trim()) s.add(c.trim());
+    return [...s].sort();
+  }, [rows]);
+
+  const matches = (r: CornerRowWithAward): boolean => {
+    if (filter === "candidate" && !isCandidate(r)) return false;
+    if (filter === "sole" && !r.soleSource) return false;
+    if (toggles.onForecast && !r.forecast?.onForecast) return false;
+    if (toggles.machine && r.automatedSolicitation !== true) return false;
+    if (toggles.rising && !isRising(r)) return false;
+    if (toggles.priced && r.award?.latest?.unitPrice == null) return false;
+    if (chain !== "all" && !(r.forecast?.supplyChains ?? []).map((c) => c.trim()).includes(chain))
+      return false;
+    return true;
+  };
 
   const shown = useMemo(() => {
-    const base =
-      filter === "candidate"
-        ? rows.filter(isCandidate)
-        : filter === "sole"
-          ? rows.filter((r) => r.soleSource)
-          : rows;
     // Rank by the CornerScore, the methodology's spine. The grid header can re-sort any column;
     // this is the default the operator sees first.
-    return [...base].sort((a, b) => b.score.scoreV0 - a.score.scoreV0);
-  }, [rows, filter]);
+    return rows.filter(matches).sort((a, b) => b.score.scoreV0 - a.score.scoreV0);
+    // matches closes over filter/toggles/chain, all in the dep list below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, filter, toggles, chain]);
+
+  const clearAll = () => {
+    setFilter("all");
+    setToggles({ onForecast: false, machine: false, rising: false, priced: false });
+    setChain("all");
+  };
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
     { id: "candidate", label: "Candidate corners", n: rows.filter(isCandidate).length },
     { id: "sole", label: "Sole source", n: rows.filter((r) => r.soleSource).length },
     { id: "all", label: "All with demand + source", n: rows.length },
   ];
+
+  const chips: Array<{ id: ToggleKey; label: string }> = [
+    { id: "onForecast", label: "On forecast" },
+    { id: "machine", label: "Machine award" },
+    { id: "rising", label: "Rising price" },
+    { id: "priced", label: "Has award price" },
+  ];
+  const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all";
 
   return (
     <>
@@ -310,6 +353,51 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
         ))}
       </div>
 
+      {/* Secondary filters. Each toggle is a measured property; they AND with the tab and each other,
+          so the result is always an honest subset. The count is the live size of that subset. */}
+      <div className={styles.toolbar}>
+        <div className={styles.chipRow} role="group" aria-label="Refine by measured signal">
+          {chips.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={toggles[c.id]}
+              className={`${styles.chip} ${toggles[c.id] ? styles.chipOn : ""}`}
+              onClick={() => setToggles((t) => ({ ...t, [c.id]: !t[c.id] }))}
+            >
+              {c.label}
+            </button>
+          ))}
+          {chains.length > 0 ? (
+            <label className={styles.chainLabel}>
+              <span className="vh">Supply chain</span>
+              <select
+                className={styles.chainSelect}
+                value={chain}
+                onChange={(e) => setChain(e.target.value)}
+              >
+                <option value="all">All supply chains</option>
+                {chains.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
+        <div className={styles.toolbarRight}>
+          <span className={styles.resultCount} aria-live="polite">
+            {shown.length.toLocaleString()} shown
+          </span>
+          {anyToggle ? (
+            <button type="button" className={styles.clearBtn} onClick={clearAll}>
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       <DataGrid
         rows={shown}
         columns={columns}
@@ -320,7 +408,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
           cause: "filtered",
           message:
             "No position on this feed day matches this filter. The feed loaded correctly; this combination simply did not occur.",
-          onClearFilters: () => setFilter("all"),
+          onClearFilters: clearAll,
         }}
         expansion={(r) => [
           {
