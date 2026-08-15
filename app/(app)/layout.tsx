@@ -65,6 +65,9 @@ const DESTINATIONS: NavDestination[] = [
   // Landed 2026-08-15: the intelligence dashboard — AI portfolio brief + real charts over the
   // whole candidate book. It leads the intelligence group.
   { href: '/intelligence', label: 'Intelligence', icon: 'intelligence', separatorBefore: true },
+  // Landed 2026-08-15: the No-Quote Goldmine — government buys that drew zero quotes. The
+  // highest-intent revenue surface, and buildNoQuoteGoldmine() already computes it.
+  { href: '/goldmine', label: 'No-Quote Goldmine', icon: 'goldmine' },
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
   { href: '/documents', label: 'Documents & POs', icon: 'documents' },
   // Landed 2026-08-15: the enriched distressed-supplier book of business (3,471 firms, verified

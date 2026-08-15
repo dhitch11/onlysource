@@ -24,6 +24,7 @@ export type NavIconName =
   | "suppliers"
   | "admin"
   | "intelligence"
+  | "goldmine"
   | "design";
 
 const PATHS: Record<NavIconName, React.ReactNode> = {
@@ -66,6 +67,13 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  // The no-quote goldmine: a cut gem, the uncontested win.
+  goldmine: (
+    <>
+      <path d="M6 3h12l3 5-9 13L3 8z" />
+      <path d="M3 8h18M9 3 7.5 8 12 21M15 3l1.5 5L12 21" />
     </>
   ),
   // The intelligence dashboard: ascending bars, a chart read at a glance.

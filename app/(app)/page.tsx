@@ -44,6 +44,7 @@ export default async function WorkspacePage() {
   // absent every figure abstains rather than showing a fabricated zero.
   const present = resolveDataRoot().present
   const cm = present ? buildAllDatasets().cornerMap.summary : null
+  const nq = present ? buildAllDatasets().noQuote.summary : null
   const awardIx = present ? buildNsnAwardIndex() : null
   const fcIx = present ? buildForecastIndex() : null
   const supIx = present ? buildDistressedSuppliers() : null
@@ -71,6 +72,7 @@ export default async function WorkspacePage() {
   const metrics: Array<{ n: string; label: string; hint: string; href: string; hot?: boolean }> = present
     ? [
         { n: (cm?.candidateCorners ?? 0).toLocaleString(), label: 'candidate corners', hint: 'sole source, award-silent, under demand', href: '/monopoly', hot: true },
+        { n: (nq?.makeSideOnly ?? 0).toLocaleString(), label: 'no-quote make-side wins', hint: 'government buys nobody quoted, nobody can source', href: '/goldmine', hot: true },
         { n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(), label: 'NSNs on the DLA Forecast', hint: 'the government will buy these again', href: '/monopoly' },
         { n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(), label: 'NSNs with award history', hint: 'real prices and ten-year trends', href: '/monopoly' },
         { n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(), label: 'Tier A distressed suppliers', hint: 'dead inventory, verified contacts', href: '/suppliers', hot: true },
