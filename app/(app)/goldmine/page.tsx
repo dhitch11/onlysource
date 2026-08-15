@@ -91,13 +91,13 @@ export default async function GoldminePage() {
   const bySize = (a: Enriched, b: Enriched) => b.estValue - a.estValue
   const makeSide = all.filter((r) => r.holders.length === 0).sort(bySize)
   const sourcing = all.filter((r) => r.holders.length > 0).sort(bySize)
-  const recentCount = all.filter((r) => r.recent).length
+  const makeSideValue = makeSide.reduce((s, r) => s + r.estValue, 0)
 
-  const metrics = [
-    { n: noQuote.summary.solicitations, label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false },
-    { n: noQuote.summary.makeSideOnly, label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
-    { n: noQuote.summary.withHolder, label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
-    { n: recentCount, label: 'closed in the last 90 days', hint: 'the freshest lanes, most likely to come back soon', hot: recentCount > 0 },
+  const metrics: Array<{ display: string; label: string; hint: string; hot: boolean }> = [
+    { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false },
+    { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
+    { display: noQuote.summary.withHolder.toLocaleString(), label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
+    { display: makeSideValue > 0 ? usd0(makeSideValue) : '—', label: 'make-side size of buy', hint: 'last price times quantity, every make-side buy added up', hot: true },
   ]
 
   return (
@@ -116,7 +116,7 @@ export default async function GoldminePage() {
       <section className={styles.metricStrip} aria-label="Goldmine totals">
         {metrics.map((m) => (
           <div key={m.label} className={`${styles.metric} ${m.hot ? styles.metricHot : ''}`}>
-            <span className={styles.metricN}>{m.n.toLocaleString()}</span>
+            <span className={styles.metricN}>{m.display}</span>
             <span className={styles.metricLabel}>{m.label}</span>
             <span className={styles.metricHint}>{m.hint}</span>
           </div>
