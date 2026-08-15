@@ -322,8 +322,23 @@ export function DataGrid<T>({
                 <>
                   <tr
                     key={key}
-                    className={isOpen ? styles.rowOpen : undefined}
+                    className={
+                      [isOpen ? styles.rowOpen : "", expansion ? styles.rowClickable : ""]
+                        .filter(Boolean)
+                        .join(" ") || undefined
+                    }
                     aria-rowindex={ri + 2}
+                    aria-expanded={expansion ? isOpen : undefined}
+                    onClick={
+                      expansion
+                        ? (e) => {
+                            // A cell may hold a link or button (e.g. the stock-number link).
+                            // Let those act; a click anywhere else on the row opens its records.
+                            if ((e.target as HTMLElement).closest("a, button")) return;
+                            setExpanded((cur) => (cur === key ? null : key));
+                          }
+                        : undefined
+                    }
                   >
                     {row.getVisibleCells().map((cell, ci) => {
                       const col = columns[ci]!;
@@ -378,7 +393,7 @@ export function DataGrid<T>({
 
       <p className={styles.footNote}>
         <span className="mono">{rows.length.toLocaleString()}</span> rows.
-        {expansion ? " Press Enter on a row to see its source records." : ""}
+        {expansion ? " Click any row (or press Enter) to see its exact source records." : ""}
       </p>
     </div>
   );

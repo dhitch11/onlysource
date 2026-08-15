@@ -118,13 +118,44 @@
   min-block-size: var(--row-h);
 }
 
-.table tbody tr:hover td {
-  background: var(--panel-2);
+/* A row highlights on hover ONLY when it actually does something on click. A blanket
+ * hover on a non-interactive row is a false promise of clickability (the exact inverse of
+ * the requirement), so the highlight is scoped to expandable rows. */
+.rowClickable {
+  cursor: pointer;
+}
+.rowClickable:hover td {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel-2));
+}
+
+/* The obvious affordance: a caret at the start of every expandable row that rotates down
+ * when the row is open. This is what tells a mouse operator the row opens. */
+.rowClickable td:first-child {
+  position: relative;
+  padding-inline-start: 26px;
+}
+.rowClickable td:first-child::before {
+  content: "›";
+  position: absolute;
+  inset-inline-start: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 1.15em;
+  line-height: 1;
+  transition: transform 160ms ease, color 160ms ease;
+}
+.rowClickable:hover td:first-child::before {
+  color: var(--accent);
 }
 
 .rowOpen td {
   background: var(--panel-2);
   border-block-end-color: var(--line-2);
+}
+.rowOpen td:first-child::before {
+  transform: translateY(-50%) rotate(90deg);
+  color: var(--accent);
 }
 
 /* Focus must be visible on the focused CELL, because the roving tabindex means the cell is
@@ -172,9 +203,11 @@
   background: var(--panel-2);
 }
 
-.rowOpen .pinned,
-.table tbody tr:hover .pinned {
+.rowOpen .pinned {
   background: var(--panel-2);
+}
+.rowClickable:hover .pinned {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel-2));
 }
 
 /* ----------------------------------------------------------------------- row expansion */
