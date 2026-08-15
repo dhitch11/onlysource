@@ -79,3 +79,6 @@ HANDOFFS/
 
 # Conductor scratch: probes, NSN lists, one-off verification scripts. Never committed.
 /.probe/
+
+# Server-side app state (alert settings, etc.) — never in the repo
+.state/

@@ -2,6 +2,7 @@ import { env } from '@/lib/env'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavDestination } from '@/components/shell/AppShell'
+import { NotificationCenter } from '@/components/shell/NotificationCenter'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -46,40 +47,33 @@ import { resolveDataRoot } from '@/lib/data-root'
  * is no ingest yet. A badge saying 213 when nothing has been ingested tells an operator
  * there are 213 rows to clear before 3:00 PM. Pass a real number or pass none.
  */
+/**
+ * NAV ORDER: most important to least, with settings and internal tools at the bottom
+ * (David 2026-08-15). The dashboard is the flagship and leads. Then the money surfaces in the
+ * order an operator works them: the analytics breakdown, the highest-intent no-quote list, the
+ * monopoly map, the supplier book. Then the working tools. Then, below a separator, the admin,
+ * settings, and internal design reference.
+ */
 const DESTINATIONS: NavDestination[] = [
+  // ---- the flagship + the money surfaces ----
   { href: '/', label: 'Dashboard', icon: 'dashboard' },
-  { href: '/board', label: 'The Board', icon: 'board' },
-  { href: '/sales', label: 'Sales Hub', icon: 'sales', tag: 'CRM' },
-  // Hunter Mode is its own emphasised module and routes into the Sales Hub engine, per the
-  // BUILD-DIRECTIVE and the approved console. It is not a separate destination.
-  //
-  // NOTE ON ITS STATE: the approved console renders an amber "ON" tag here. That is a REAL
-  // state (is the outreach engine running) and there is no engine wired yet, so no state is
-  // rendered. @T6-AUTOMATION owns it; when the engine reports, pass `tag` from that reading
-  // and never from a constant. T6's own Sales Hub already does the honest version of this
-  // and shows "Not configured".
-  { href: '/sales', label: 'Hunter Mode', icon: 'hunter', emphasised: true },
-  // Landed 2026-08-14. The count is the candidate-corner tally, computed below from the real
-  // corner map, not a constant. It is passed only when the data directory is actually present,
-  // so an environment with no data shows the nav item with no badge rather than a fabricated 0.
-  // Landed 2026-08-15: the intelligence dashboard — AI portfolio brief + real charts over the
-  // whole candidate book. It leads the intelligence group.
-  { href: '/intelligence', label: 'Intelligence', icon: 'intelligence', separatorBefore: true },
-  // Landed 2026-08-15: the No-Quote Goldmine — government buys that drew zero quotes. The
-  // highest-intent revenue surface, and buildNoQuoteGoldmine() already computes it.
+  { href: '/intelligence', label: 'Intelligence', icon: 'intelligence' },
+  // The No-Quote Goldmine — government buys that drew zero quotes. Highest-intent revenue.
   { href: '/goldmine', label: 'No-Quote Goldmine', icon: 'goldmine' },
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
-  { href: '/documents', label: 'Documents & POs', icon: 'documents' },
-  // Landed 2026-08-15: the enriched distressed-supplier book of business (3,471 firms, verified
-  // contacts). Count is the Tier-A prospect tally, computed below only when data is present.
+  // The enriched distressed-supplier book of business (count = Tier-A tally, computed below).
   { href: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
-  // @T7 flipped this the moment app/(app)/admin/page.tsx landed. T8's rule holds and is the
-  // reason it was false until now: a nav entry that 404s teaches an operator the product is
-  // broken and costs the same trust as a fabricated number.
-  { href: '/admin', label: 'Admin & Users', icon: 'admin' },
-  // The design system reference. Internal, and it stays in the nav because it is how the
-  // other seven lanes find the components without asking.
-  { href: '/design', label: 'Design system', icon: 'design', separatorBefore: true },
+  // ---- the working tools ----
+  { href: '/board', label: 'The Board', icon: 'board', separatorBefore: true },
+  { href: '/sales', label: 'Sales Hub', icon: 'sales', tag: 'CRM' },
+  // Hunter Mode routes into the Sales Hub engine; no live tag until the engine reports (honest).
+  { href: '/sales', label: 'Hunter Mode', icon: 'hunter', emphasised: true },
+  { href: '/documents', label: 'Documents & POs', icon: 'documents' },
+  // ---- admin, settings, internal (the bottom) ----
+  { href: '/admin', label: 'Admin & Users', icon: 'admin', separatorBefore: true },
+  { href: '/settings', label: 'Settings', icon: 'settings' },
+  // The design system reference. Internal.
+  { href: '/design', label: 'Design system', icon: 'design' },
 ]
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -127,6 +121,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* The compat spacer, not an inline style. No raw values in components is a rule
               this lane wrote, so it applies to this lane first. */}
           <span className="shell__spacer" />
+          <NotificationCenter />
           <form action={leaveAction}>
             <button className="button button--quiet" type="submit">
               Leave

@@ -25,6 +25,7 @@ export type NavIconName =
   | "admin"
   | "intelligence"
   | "goldmine"
+  | "settings"
   | "design";
 
 const PATHS: Record<NavIconName, React.ReactNode> = {
@@ -83,6 +84,13 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
       <rect x="5" y="12" width="3.5" height="7" />
       <rect x="10.5" y="8" width="3.5" height="11" />
       <rect x="16" y="4" width="3.5" height="15" />
+    </>
+  ),
+  // Settings: a gear.
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" />
     </>
   ),
   design: (
