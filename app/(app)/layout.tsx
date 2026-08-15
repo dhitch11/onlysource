@@ -62,7 +62,10 @@ const DESTINATIONS: NavDestination[] = [
   // Landed 2026-08-14. The count is the candidate-corner tally, computed below from the real
   // corner map, not a constant. It is passed only when the data directory is actually present,
   // so an environment with no data shows the nav item with no badge rather than a fabricated 0.
-  { href: '/monopoly', label: 'Monopoly Map', icon: 'map', separatorBefore: true },
+  // Landed 2026-08-15: the intelligence dashboard — AI portfolio brief + real charts over the
+  // whole candidate book. It leads the intelligence group.
+  { href: '/intelligence', label: 'Intelligence', icon: 'intelligence', separatorBefore: true },
+  { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
   { href: '/documents', label: 'Documents & POs', icon: 'documents' },
   // Landed 2026-08-15: the enriched distressed-supplier book of business (3,471 firms, verified
   // contacts). Count is the Tier-A prospect tally, computed below only when data is present.

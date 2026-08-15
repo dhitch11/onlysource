@@ -23,6 +23,7 @@ export type NavIconName =
   | "documents"
   | "suppliers"
   | "admin"
+  | "intelligence"
   | "design";
 
 const PATHS: Record<NavIconName, React.ReactNode> = {
@@ -65,6 +66,15 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  // The intelligence dashboard: ascending bars, a chart read at a glance.
+  intelligence: (
+    <>
+      <path d="M3 21h18" />
+      <rect x="5" y="12" width="3.5" height="7" />
+      <rect x="10.5" y="8" width="3.5" height="11" />
+      <rect x="16" y="4" width="3.5" height="15" />
     </>
   ),
   design: (
