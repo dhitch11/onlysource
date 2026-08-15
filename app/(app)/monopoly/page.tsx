@@ -62,6 +62,9 @@ export default async function MonopolyPage() {
     return { ...r, award, score: scoreCorner(r, award) };
   });
   const pricedCount = enriched.filter((r) => r.award?.latest?.unitPrice != null).length;
+  const availCount = enriched.filter(
+    (r) => r.soleSource && r.silentSourceCount > 0 && (r.award?.holders.length ?? 0) > 0,
+  ).length;
 
   // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
   // to the widest step so the narrowing reads at a glance without exaggeration.
@@ -163,11 +166,19 @@ export default async function MonopolyPage() {
         <div>
           <p>
             A corner is three things at once: <b>DLA is buying it</b>, <b>one company may make
-            it</b>, and <b>nobody has it on a shelf</b>. Two of those three are read from the
-            government files here. The third — whether stock exists anywhere — is{" "}
-            <b>not read yet</b>, because no availability feed is connected. So every row below
-            abstains on availability, and the confirmed count stays at zero by construction until
-            that feed lands. Nothing here is estimated to fill the gap.
+            it</b>, and <b>nobody has it on a shelf</b>. The first two are read from the government
+            files here. For the third, the NSN-Now export lists who <b>self-reports</b> stock:{" "}
+            {awardByNsn ? (
+              <>
+                <b>{availCount.toLocaleString()}</b> of these candidate corners show a listing and
+                the rest are marked absent.
+              </>
+            ) : (
+              "no listing is loaded yet."
+            )}{" "}
+            A self-reported listing is not an independent shelf check, so the confirmed count stays
+            at <b>zero</b> until a verified availability feed is connected. Nothing here is estimated
+            to fill a gap.
           </p>
           <p className={styles.truthProv}>
             Counted from{" "}
