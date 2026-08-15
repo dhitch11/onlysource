@@ -5,6 +5,55 @@
   padding-bottom: var(--sp-7);
 }
 
+/* ============================================================== CINEMATIC ENTRANCE
+ * A staged reveal on load: the header, then the funnel bars growing from their origin,
+ * then the stat cards, then the truth strip and the grid. Transform/opacity only, so it is
+ * GPU-composited and fast on any device. Fully disabled under reduced-motion — the page then
+ * renders instantly at its final state with zero animation, never stuck at opacity 0.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes os-fade-up {
+    from { opacity: 0; transform: translate3d(0, 14px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes os-bar-grow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  @keyframes os-count-in {
+    from { opacity: 0; transform: translate3d(0, 6px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .head { animation: os-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .funnel { animation: os-fade-up 0.55s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .funnelBar {
+    transform-origin: left center;
+    animation: os-bar-grow 0.75s cubic-bezier(0.22, 0.7, 0.2, 1) both;
+    will-change: transform;
+  }
+  .funnelRow:nth-child(1) .funnelBar { animation-delay: 0.22s; }
+  .funnelRow:nth-child(2) .funnelBar { animation-delay: 0.36s; }
+  .funnelRow:nth-child(3) .funnelBar { animation-delay: 0.5s; }
+  .funnelRow:nth-child(1) .funnelN { animation: os-count-in 0.5s 0.28s both; }
+  .funnelRow:nth-child(2) .funnelN { animation: os-count-in 0.5s 0.42s both; }
+  .funnelRow:nth-child(3) .funnelN { animation: os-count-in 0.5s 0.56s both; }
+
+  .stat { animation: os-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .stats .stat:nth-child(1) { animation-delay: 0.18s; }
+  .stats .stat:nth-child(2) { animation-delay: 0.26s; }
+  .stats .stat:nth-child(3) { animation-delay: 0.34s; }
+  .stats .stat:nth-child(4) { animation-delay: 0.42s; }
+
+  .truth { animation: os-fade-up 0.5s 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .filters { animation: os-fade-up 0.5s 0.48s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+  /* Micro-interaction: the stat cards lift on hover, the accent one glows. Cheap, premium. */
+  .stat { transition: transform 180ms ease, border-color 180ms ease, box-shadow 220ms ease; }
+  .stat:hover { transform: translateY(-2px); }
+  .statHot:hover { box-shadow: 0 0 0 1px var(--accent-2), 0 8px 30px -12px var(--accent); }
+}
+
 .head {
   display: flex;
   flex-direction: column;
