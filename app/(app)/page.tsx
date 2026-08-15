@@ -64,7 +64,7 @@ export default async function WorkspacePage() {
       const s = scoreCorner(r, award, forecast)
       if (s.scoreV0 > best) {
         best = s.scoreV0
-        topCorner = { nsn: r.nsn, item: r.nomenclature.trim(), score: s.scoreV0, onForecast: !!forecast?.onForecast, price: award?.latest?.unitPrice ?? null }
+        topCorner = { nsn: r.nsn, item: r.nomenclature.trim(), score: s.scoreV0, onForecast: !!forecast?.onForecast, price: award?.latest?.effectiveUnitPrice ?? null }
       }
     }
   }

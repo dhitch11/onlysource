@@ -88,7 +88,7 @@ function enrich(
     escalationPct,
     awardCount: award?.awards.length ?? 0,
     priceSeries: (award?.awards ?? [])
-      .map((a) => a.unitPrice)
+      .map((a) => a.effectiveUnitPrice)
       .filter((v): v is number => typeof v === 'number' && Number.isFinite(v)),
     supplyChains: forecast?.supplyChains ?? [],
     endItems: forecast?.endItems ?? [],

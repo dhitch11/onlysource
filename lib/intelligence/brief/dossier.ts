@@ -64,7 +64,9 @@ export type CornerDossier = {
 function toPoint(a: AwardRecord): PricePoint {
   return {
     dateIso: a.awardDateIso,
-    unitPrice: a.unitPrice,
+    // The reliable per-unit price (corrects $1.00 placeholders), so the table, the sparkline, and
+    // the escalation all agree.
+    unitPrice: a.effectiveUnitPrice,
     finalPrice: a.finalPrice,
     quantity: a.quantity,
     cage: a.cage,

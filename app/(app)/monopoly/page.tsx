@@ -66,7 +66,7 @@ export default async function MonopolyPage() {
     const forecast = forecastByNsn?.get(key) ?? null;
     return { ...r, award, forecast, score: scoreCorner(r, award, forecast) };
   });
-  const pricedCount = enriched.filter((r) => r.award?.latest?.unitPrice != null).length;
+  const pricedCount = enriched.filter((r) => r.award?.latest?.effectiveUnitPrice != null).length;
   const forecastCount = enriched.filter(
     (r) => r.soleSource && r.silentSourceCount > 0 && r.forecast?.onForecast,
   ).length;

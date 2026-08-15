@@ -37,8 +37,16 @@ export type AwardRecord = {
   unitPrice: number | null
   company: string | null
   cage: string | null
-  /** Post-modification price where the export carries one; else null. */
+  /** Post-modification price where the export carries one; else null. This is the EXTENDED total. */
   finalPrice: number | null
+  /**
+   * The reliable per-unit price. The DIBBS export sometimes carries a $1.00 (or sub-dollar)
+   * placeholder in Unit Price while the real money is in the extended Final Price, which produced
+   * absurd escalations like $1.00 -> $6,678 (+667,700%) when the true trajectory was ~$5,394 ->
+   * $6,678. So the effective unit price is Final Price / quantity whenever both are present, which
+   * equals Unit Price when the row is clean and corrects it when Unit Price is a placeholder.
+   */
+  effectiveUnitPrice: number | null
 }
 
 export type AvailabilityRecord = {
@@ -138,15 +146,23 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
     for (const r of proc?.rows ?? []) {
       const nsn = nsn13(r['NSN Number'])
       if (!nsn) continue
+      const quantity = num(r['Total Quantity'])
+      const unitPrice = num(r['Unit Price'])
+      const finalPrice = num(r['Final Price'])
+      const effectiveUnitPrice =
+        finalPrice != null && quantity != null && quantity > 0
+          ? Math.round((finalPrice / quantity) * 100) / 100
+          : unitPrice
       const rec: AwardRecord = {
         nsn,
         contractNo: r['Contract No'] ?? null,
         awardDateIso: usDateToIso(r['Award Date'] ?? '') ?? null,
-        quantity: num(r['Total Quantity']),
-        unitPrice: num(r['Unit Price']),
+        quantity,
+        unitPrice,
         company: r['Company'] ?? null,
         cage: r['Cage'] ?? null,
-        finalPrice: num(r['Final Price']),
+        finalPrice,
+        effectiveUnitPrice,
       }
       const key = `${nsn}|${rec.contractNo}|${rec.awardDateIso}|${rec.unitPrice}|${rec.cage}`
       if (seenAward.has(key)) continue
@@ -182,15 +198,17 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
     // Sort chronologically; rows without a date sink to the front so they never masquerade as latest.
     const sorted = [...awards].sort((a, b) => (a.awardDateIso ?? '').localeCompare(b.awardDateIso ?? ''))
     const dated = sorted.filter((a) => a.awardDateIso)
-    const priced = sorted.filter((a) => a.unitPrice != null)
+    // Price the series on the RELIABLE per-unit figure, not the raw Unit Price (which can be a
+    // $1.00 placeholder). first/last drive every escalation number in the product.
+    const priced = sorted.filter((a) => a.effectiveUnitPrice != null)
     const distinctAwardees = new Set(awards.map((a) => a.cage).filter(Boolean)).size
     byNsn.set(nsn, {
       nsn,
       awards: sorted,
       latest: dated.length ? (dated[dated.length - 1] as AwardRecord) : null,
       distinctAwardees,
-      firstUnitPrice: priced.length ? (priced[0] as AwardRecord).unitPrice : null,
-      lastUnitPrice: priced.length ? (priced[priced.length - 1] as AwardRecord).unitPrice : null,
+      firstUnitPrice: priced.length ? (priced[0] as AwardRecord).effectiveUnitPrice : null,
+      lastUnitPrice: priced.length ? (priced[priced.length - 1] as AwardRecord).effectiveUnitPrice : null,
       holders: holdersByNsn.get(nsn) ?? [],
     })
   }

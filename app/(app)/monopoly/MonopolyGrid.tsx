@@ -206,23 +206,24 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     align: "end",
     mono: true,
     width: "16ch",
-    sortValue: (r) => r.award?.latest?.unitPrice ?? -1,
+    sortValue: (r) => r.award?.latest?.effectiveUnitPrice ?? -1,
     cell: (r): Cell => {
       const latest = r.award?.latest;
-      if (!latest || latest.unitPrice == null) {
+      const latestPrice = latest?.effectiveUnitPrice ?? null;
+      if (!latest || latestPrice == null) {
         return { state: "unknown", reason: "award history not yet ingested for this NSN" };
       }
       const first = r.award?.firstUnitPrice;
-      const rising = first != null && latest.unitPrice > first;
+      const rising = first != null && latestPrice > first;
       return {
         state: "known",
         provenance: "measured",
         value: (
           <span>
-            {usd(latest.unitPrice)}
+            {usd(latestPrice)}
             {rising ? (
               <span className={styles.escalation} title={`up from ${usd(first)}`}>
-                {" "}↑ {Math.round(((latest.unitPrice - first) / first) * 100)}%
+                {" "}↑ {Math.round(((latestPrice - first) / first) * 100)}%
               </span>
             ) : null}
           </span>
@@ -267,7 +268,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
 /** The chronological priced-award series for one corner, only real unit prices. */
 function priceSeriesOf(r: CornerRowWithAward): number[] {
   return (r.award?.awards ?? [])
-    .map((a) => a.unitPrice)
+    .map((a) => a.effectiveUnitPrice)
     .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 }
 
@@ -302,7 +303,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
     if (toggles.onForecast && !r.forecast?.onForecast) return false;
     if (toggles.machine && r.automatedSolicitation !== true) return false;
     if (toggles.rising && !isRising(r)) return false;
-    if (toggles.priced && r.award?.latest?.unitPrice == null) return false;
+    if (toggles.priced && r.award?.latest?.effectiveUnitPrice == null) return false;
     if (chain !== "all" && !(r.forecast?.supplyChains ?? []).map((c) => c.trim()).includes(chain))
       return false;
     return true;
@@ -459,7 +460,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
                   .slice(0, 10)
                   .map((a, i) => ({
                     field: i === 0 ? "Awards (recent first)" : "",
-                    value: `${a.awardDateIso ?? "(no date)"} · ${a.unitPrice != null ? usd(a.unitPrice) : "(no price)"} · qty ${a.quantity ?? "?"} · CAGE ${a.cage ?? "?"} ${a.company ?? ""}`.trim(),
+                    value: `${a.awardDateIso ?? "(no date)"} · ${a.effectiveUnitPrice != null ? usd(a.effectiveUnitPrice) : "(no price)"} · qty ${a.quantity ?? "?"} · CAGE ${a.cage ?? "?"} ${a.company ?? ""}`.trim(),
                   })),
               ]
             : [{ field: "Award price", value: "award history not yet ingested for this NSN" }]),

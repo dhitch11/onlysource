@@ -126,8 +126,8 @@ export function scoreCorner(
 
   // ---- PRICE ANCHOR (m): MEASURED where we have award history; the rent signal is escalation. ----
   let priceAnchor: Leg<number>;
-  if (award?.latest?.unitPrice != null) {
-    const last = award.latest.unitPrice;
+  if (award?.latest?.effectiveUnitPrice != null) {
+    const last = award.latest.effectiveUnitPrice;
     const first = award.firstUnitPrice;
     priceAnchor = measured(last, 0.8, `last award ${fmt(last)}`);
     if (first != null && last > first) {

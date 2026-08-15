@@ -33,11 +33,11 @@ const baseRow = (over: Partial<CornerRow> = {}): CornerRow => ({
 const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
   nsn: "5325015619853",
   awards: [
-    { nsn: "5325015619853", contractNo: "C1", awardDateIso: "2016-01-01", quantity: 300, unitPrice: 1.48, company: "ACME", cage: "58794", finalPrice: 444 },
-    { nsn: "5325015619853", contractNo: "C1b", awardDateIso: "2020-01-01", quantity: 200, unitPrice: 2.0, company: "ACME", cage: "58794", finalPrice: 400 },
-    { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254 },
+    { nsn: "5325015619853", contractNo: "C1", awardDateIso: "2016-01-01", quantity: 300, unitPrice: 1.48, company: "ACME", cage: "58794", finalPrice: 444, effectiveUnitPrice: 1.48 },
+    { nsn: "5325015619853", contractNo: "C1b", awardDateIso: "2020-01-01", quantity: 200, unitPrice: 2.0, company: "ACME", cage: "58794", finalPrice: 400, effectiveUnitPrice: 2.0 },
+    { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254, effectiveUnitPrice: 2.54 },
   ],
-  latest: { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254 },
+  latest: { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254, effectiveUnitPrice: 2.54 },
   distinctAwardees: 1,
   firstUnitPrice: 1.48,
   lastUnitPrice: 2.54,
