@@ -1,7 +1,14 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { configReport } from '@/lib/env'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
+import { resolveDataRoot } from '@/lib/data-root'
+import { buildAllDatasets } from '@/lib/intelligence/datasets'
+import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
+import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
+import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
+import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import {
   AWARD_CLOCK,
   AWARD_CLOCK_PROVENANCE,
@@ -33,17 +40,90 @@ export default async function WorkspacePage() {
   const fire = nextDailyFireFrom(systemClock)
   const disclosure = deadlineDisclosure(fire.instantMs)
 
+  // Live command-center metrics. Computed from the real data on disk; when the data directory is
+  // absent every figure abstains rather than showing a fabricated zero.
+  const present = resolveDataRoot().present
+  const cm = present ? buildAllDatasets().cornerMap.summary : null
+  const awardIx = present ? buildNsnAwardIndex() : null
+  const fcIx = present ? buildForecastIndex() : null
+  const supIx = present ? buildDistressedSuppliers() : null
+
+  // The single strongest opportunity right now: highest-scored candidate corner.
+  let topCorner: { nsn: string; item: string; score: number; onForecast: boolean; price: number | null } | null = null
+  if (present) {
+    const ds = buildAllDatasets()
+    const awardBy = awardIx?.ok ? awardIx.byNsn : null
+    const fcBy = fcIx?.ok ? fcIx.byNsn : null
+    let best = -1
+    for (const r of ds.cornerMap.rows) {
+      if (!(r.soleSource && r.silentSourceCount > 0)) continue
+      const key = r.nsn.replace(/[^0-9]/g, '')
+      const award = awardBy?.get(key) ?? null
+      const forecast = fcBy?.get(key) ?? null
+      const s = scoreCorner(r, award, forecast)
+      if (s.scoreV0 > best) {
+        best = s.scoreV0
+        topCorner = { nsn: r.nsn, item: r.nomenclature.trim(), score: s.scoreV0, onForecast: !!forecast?.onForecast, price: award?.latest?.unitPrice ?? null }
+      }
+    }
+  }
+
+  const metrics: Array<{ n: string; label: string; hint: string; href: string; hot?: boolean }> = present
+    ? [
+        { n: (cm?.candidateCorners ?? 0).toLocaleString(), label: 'candidate corners', hint: 'sole source, award-silent, under demand', href: '/monopoly', hot: true },
+        { n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(), label: 'NSNs on the DLA Forecast', hint: 'the government will buy these again', href: '/monopoly' },
+        { n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(), label: 'NSNs with award history', hint: 'real prices and ten-year trends', href: '/monopoly' },
+        { n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(), label: 'Tier A distressed suppliers', hint: 'dead inventory, verified contacts', href: '/suppliers', hot: true },
+      ]
+    : []
+
   return (
     <div className="stack">
       <section className="stack--tight" style={{ display: 'flex', flexDirection: 'column' }}>
-        <h1 className="h1">The foundation is up. There is nothing in it yet.</h1>
+        <p className="eyebrow">Operator command center</p>
+        <h1 className="h1">The market, mapped and ranked by money.</h1>
         <p className="lede">
-          This shell exists so the other seven lanes have somewhere to build. It holds no
-          requirements, no parts, no documents and no accounts, because none of those are wired
-          yet. When they are, they appear here as real records or as a named empty state, never
-          as a sample.
+          Live on the real DLA feed. Every number here is measured from a government file, and every
+          position carries its own evidence and gaps. Start with the strongest corner, or work the
+          book of business.
         </p>
       </section>
+
+      {present ? (
+        <>
+          <section className="metricGrid" aria-label="Live metrics">
+            {metrics.map((m) => (
+              <Link key={m.label} href={m.href as never} className={`metricCard${m.hot ? ' metricCard--hot' : ''}`}>
+                <span className="metricN">{m.n}</span>
+                <span className="metricLabel">{m.label}</span>
+                <span className="metricHint">{m.hint}</span>
+              </Link>
+            ))}
+          </section>
+
+          {topCorner ? (
+            <Link href={'/monopoly' as never} className="topCorner">
+              <span className="topCorner__eyebrow">Strongest position right now</span>
+              <span className="topCorner__nsn mono">{topCorner.nsn}</span>
+              <span className="topCorner__item">{topCorner.item}</span>
+              <span className="topCorner__meta">
+                CornerScore <b>{topCorner.score}</b>
+                {topCorner.onForecast ? ' · on the DLA Forecast' : ''}
+                {topCorner.price != null ? ` · last award $${topCorner.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+              </span>
+            </Link>
+          ) : null}
+        </>
+      ) : (
+        <section className="card">
+          <div className="card__body">
+            <p className="muted">
+              The data directory is not mounted in this environment, so the live metrics abstain rather
+              than showing a fabricated zero. They appear the moment the feed is present.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* --------------------------------------------------------- the clock */}
       <section className="card">
@@ -178,36 +258,6 @@ export default async function WorkspacePage() {
         </div>
       </section>
 
-      {/* ------------------------------------------------- what is not built */}
-      <section className="card">
-        <div className="card__head">
-          <h2 className="card__title">What is not built yet</h2>
-        </div>
-        <div className="card__body stack stack--tight">
-          <p className="muted">
-            Listed so nobody has to guess, and so nothing here is quietly implied to exist. Each
-            line is owned by another lane.
-          </p>
-          <dl className="rows">
-            {[
-              ['Identity and accounts', 'Sign-up, sign-in, invitations, roles, MFA. T1, next.'],
-              ['Tenancy', 'The database, row level security, the audit spine. T1, next.'],
-              ['The daily requirement feed', 'Ingestion, the catalog, enrichment. T2.'],
-              ['Scoring and the board', 'The engine and its explanations. T3.'],
-              ['Monopoly map and capability match', 'Intelligence surfaces. T4.'],
-              ['Document packets and compliance', 'Assembly and traceability. T5.'],
-              ['Automation and supplier pursuit', 'Workflows, email, alerts. T6.'],
-              ['Admin console and the public API', 'Support tooling and integrations. T7.'],
-              ['The design system', 'Components, information affordances, onboarding. T8.'],
-            ].map(([name, detail]) => (
-              <div className="row" key={name}>
-                <dt className="row__key">{name}</dt>
-                <dd className="row__val muted">{detail}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
     </div>
   )
 }

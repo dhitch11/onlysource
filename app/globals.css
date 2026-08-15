@@ -489,3 +489,106 @@ a {
 .bullets li {
   margin-block-end: 2px;
 }
+
+/* ============================================================== OPERATOR COMMAND CENTER (dashboard) */
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+.metricCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: var(--sp-4);
+  background: var(--panel);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 220ms ease;
+}
+.metricCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-control);
+}
+.metricCard--hot {
+  border-color: var(--accent-2);
+  background: var(--accent-soft);
+}
+.metricCard--hot:hover {
+  box-shadow: 0 8px 30px -14px var(--accent);
+}
+.metricN {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-700);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.metricCard--hot .metricN {
+  color: var(--accent);
+}
+.metricLabel {
+  font-size: var(--fs-300);
+  color: var(--ink);
+  margin-top: var(--sp-2);
+  font-weight: 550;
+}
+.metricHint {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+.topCorner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--accent-2);
+  border-radius: 14px;
+  padding: var(--sp-4) var(--sp-5);
+  background: linear-gradient(180deg, var(--accent-soft), transparent);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 180ms ease, box-shadow 220ms ease;
+}
+.topCorner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 34px -16px var(--accent);
+}
+.topCorner__eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.topCorner__nsn {
+  font-size: var(--fs-600);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2px;
+}
+.topCorner__item {
+  font-size: var(--fs-400);
+  color: var(--ink);
+}
+.topCorner__meta {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  margin-top: var(--sp-1);
+}
+.topCorner__meta b {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes cc-fade-up { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
+  .metricCard { animation: cc-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .metricGrid .metricCard:nth-child(1) { animation-delay: 0.06s; }
+  .metricGrid .metricCard:nth-child(2) { animation-delay: 0.14s; }
+  .metricGrid .metricCard:nth-child(3) { animation-delay: 0.22s; }
+  .metricGrid .metricCard:nth-child(4) { animation-delay: 0.3s; }
+  .topCorner { animation: cc-fade-up 0.55s 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+}
