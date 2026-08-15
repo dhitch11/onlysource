@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AiLoader } from '@/components/ui/AiLoader'
 import styles from './intelligence.module.css'
 
 /**
@@ -83,12 +84,16 @@ export function PortfolioBrief({ configured }: { configured: boolean }) {
       ) : null}
 
       {state === 'loading' ? (
-        <div className={styles.briefLoading} aria-live="polite">
-          <span className={styles.briefDot} />
-          <span className={styles.briefDot} />
-          <span className={styles.briefDot} />
-          <span className={styles.briefLoadingText}>Reading supply chains, dispositions, and the top corners…</span>
-        </div>
+        <AiLoader
+          title="Writing today's top plays"
+          stages={[
+            'Counting the whole book of corners',
+            'Grouping demand by supply chain',
+            'Ranking the strongest positions',
+            'Writing the strategy in plain English',
+          ]}
+          note="This takes a few seconds because a real analyst is reading the entire live book, not a summary. Every number matches the charts below."
+        />
       ) : null}
 
       {state === 'error' ? (

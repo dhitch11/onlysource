@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AiLoader } from '@/components/ui/AiLoader'
 import styles from './corner.module.css'
 
 /**
@@ -99,12 +100,16 @@ export function AiBrief({ nsn, configured }: { nsn: string; configured: boolean 
       ) : null}
 
       {state === 'loading' ? (
-        <div className={styles.briefLoading} aria-live="polite">
-          <span className={styles.briefDot} />
-          <span className={styles.briefDot} />
-          <span className={styles.briefDot} />
-          <span className={styles.briefLoadingText}>Reading the award history, forecast, and score…</span>
-        </div>
+        <AiLoader
+          title="Writing your opportunity brief"
+          stages={[
+            'Reading every award for this part',
+            'Checking the DLA Forecast for future buys',
+            'Scoring the corner across five evidence checks',
+            'Writing it up in plain English',
+          ]}
+          note="This takes a few seconds because a real analyst is reading real government data for this exact part, not guessing. Every number in the brief is one we measured."
+        />
       ) : null}
 
       {state === 'error' ? (
