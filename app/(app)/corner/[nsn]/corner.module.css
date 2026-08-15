@@ -477,10 +477,16 @@
   .priceRow {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* Full-width row on mobile, but it MUST wrap: the disposition chip (e.g. "INSUFFICIENT_DATA · D")
+   * is a nowrap token that cannot shrink, so without flex-wrap it forces the header past the
+   * viewport. Wrapping drops the chip to its own line instead of overflowing the page. */
   .scoreBox {
     align-self: stretch;
     flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
+    gap: var(--sp-2) var(--sp-3);
   }
 }
 
