@@ -23,6 +23,9 @@ function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true
   if (pathname.startsWith('/_next/')) return true
   if (pathname === '/favicon.ico' || pathname === '/robots.txt') return true
+  // Branded app icon (Next serves app/icon.svg here). A favicon carries no data and the browser
+  // requests it even on the sign-in page, so it is public. This proxy is a redirect, not the gate.
+  if (pathname === '/icon.svg') return true
   return false
 }
 
@@ -59,5 +62,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)'],
 }

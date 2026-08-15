@@ -1,0 +1,9 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#0a0d0b"/>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="6.5" stroke="#cbab6c" stroke-opacity="0.22"/>
+  <!-- The corner brackets: a position captured from two sides. -->
+  <path d="M8 12V9a1 1 0 0 1 1-1h3" stroke="#cbab6c" stroke-width="2" stroke-linecap="round"/>
+  <path d="M24 20v3a1 1 0 0 1-1 1h-3" stroke="#cbab6c" stroke-width="2" stroke-linecap="round"/>
+  <!-- The single source: one node, held. -->
+  <circle cx="16" cy="16" r="4.2" fill="#cbab6c"/>
+</svg>
