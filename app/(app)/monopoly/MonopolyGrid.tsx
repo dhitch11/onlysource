@@ -5,10 +5,27 @@ import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
+import type { CornerScoreResult } from "@/lib/intelligence/scoring/cornerscore";
 import styles from "./monopoly.module.css";
 
-/** A corner row with its NSN-Now award history joined in, where we have it. */
-export type CornerRowWithAward = CornerRow & { award: NsnAwardSummary | null };
+/** A corner row with its NSN-Now award history and its CornerScore joined in. */
+export type CornerRowWithAward = CornerRow & {
+  award: NsnAwardSummary | null;
+  score: CornerScoreResult;
+};
+
+const DISPOSITION_TONE: Record<string, "verified" | "urgent" | "idle"> = {
+  FLAG: "verified",
+  WATCHLIST: "urgent",
+  INSUFFICIENT_DATA: "idle",
+  SKIP: "idle",
+};
+const DISPOSITION_LABEL: Record<string, string> = {
+  FLAG: "Flag",
+  WATCHLIST: "Watchlist",
+  INSUFFICIENT_DATA: "Needs data",
+  SKIP: "Skip",
+};
 
 type Filter = "candidate" | "sole" | "all";
 
@@ -30,6 +47,25 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     pinned: true,
     sortValue: (r) => r.nsn,
     cell: (r): Cell => ({ state: "known", value: r.nsn, provenance: "measured" }),
+  },
+  {
+    id: "score",
+    header: "CornerScore",
+    width: "17ch",
+    align: "end",
+    sortValue: (r) => r.score.scoreV0,
+    cell: (r): Cell => ({
+      state: "known",
+      provenance: "measured",
+      value: (
+        <span className={styles.scoreCell}>
+          <span className={`mono ${styles.scoreN}`}>{r.score.scoreV0}</span>
+          <StatusChip tone={DISPOSITION_TONE[r.score.disposition] ?? "idle"}>
+            {DISPOSITION_LABEL[r.score.disposition] ?? r.score.disposition} · {r.score.grade}
+          </StatusChip>
+        </span>
+      ),
+    }),
   },
   {
     id: "nomenclature",
@@ -174,14 +210,15 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
   const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
 
   const shown = useMemo(() => {
-    switch (filter) {
-      case "candidate":
-        return rows.filter(isCandidate);
-      case "sole":
-        return rows.filter((r) => r.soleSource);
-      default:
-        return rows;
-    }
+    const base =
+      filter === "candidate"
+        ? rows.filter(isCandidate)
+        : filter === "sole"
+          ? rows.filter((r) => r.soleSource)
+          : rows;
+    // Rank by the CornerScore, the methodology's spine. The grid header can re-sort any column;
+    // this is the default the operator sees first.
+    return [...base].sort((a, b) => b.score.scoreV0 - a.score.scoreV0);
   }, [rows, filter]);
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
@@ -220,6 +257,14 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
           onClearFilters: () => setFilter("all"),
         }}
         expansion={(r) => [
+          {
+            field: "CornerScore",
+            value: `${r.score.scoreV0}/100 · ${DISPOSITION_LABEL[r.score.disposition] ?? r.score.disposition} · confidence ${r.score.grade} — an ordinal watchlist rank, not a probability`,
+          },
+          ...r.score.reasons.map((rc, i) => ({
+            field: i === 0 ? "Why this score" : "",
+            value: `${rc.points > 0 ? `+${rc.points} ` : ""}[${rc.calibration}] ${rc.plain}`,
+          })),
           { field: "Stock number", value: r.nsn },
           { field: "NIIN", value: r.niin },
           { field: "Item", value: r.nomenclature.trim() || "(not published)" },

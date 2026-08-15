@@ -188,6 +188,20 @@
   color: var(--faint);
 }
 
+/* ---------- CornerScore cell ---------- */
+.scoreCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+.scoreN {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-500);
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* ---------- award price escalation ---------- */
 .escalation {
   color: var(--amber);

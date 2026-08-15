@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildAllDatasets } from "@/lib/intelligence/datasets";
 import { buildNsnAwardIndex } from "@/lib/intelligence/awards/nsn-now";
+import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
 import { resolveDataRoot } from "@/lib/data-root";
 import { MonopolyGrid } from "./MonopolyGrid";
 import styles from "./monopoly.module.css";
@@ -56,10 +57,10 @@ export default async function MonopolyPage() {
   // that DOES have it shows the government's actual paid price, not an abstention.
   const awardIndex = buildNsnAwardIndex();
   const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null;
-  const enriched = rows.map((r) => ({
-    ...r,
-    award: awardByNsn?.get(r.nsn.replace(/[^0-9]/g, "")) ?? null,
-  }));
+  const enriched = rows.map((r) => {
+    const award = awardByNsn?.get(r.nsn.replace(/[^0-9]/g, "")) ?? null;
+    return { ...r, award, score: scoreCorner(r, award) };
+  });
   const pricedCount = enriched.filter((r) => r.award?.latest?.unitPrice != null).length;
 
   // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
