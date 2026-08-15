@@ -17,7 +17,10 @@ import { systemClock } from '@/lib/time/clock'
  * It also assigns the request id that every log line for this request carries.
  */
 
-const PUBLIC_PATHS = new Set(['/enter', '/api/health'])
+// /api/alerts/send is machine-reachable so the scheduler (which has no browser session) can hit it.
+// It is NOT ungated: the route itself refuses anything without the ALERT_CRON_TOKEN or a valid gate
+// session, so the token is the control and this only stops the redirect from swallowing the request.
+const PUBLIC_PATHS = new Set(['/enter', '/api/health', '/api/alerts/send'])
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true
