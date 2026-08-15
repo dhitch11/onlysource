@@ -58,8 +58,12 @@ export default async function GoldminePage() {
     )
   }
 
-  const { noQuote } = buildAllDatasets()
+  const { noQuote, cornerMap } = buildAllDatasets()
   const nowMs = systemClock.now()
+  // Only link a stock number into the dossier when a dossier actually exists for it. Many no-quote
+  // solicitations are not in the approved-source corner map, and a dossier for those 404s. Those
+  // render as plain text so no row ever links to a dead page.
+  const cornerDigits = new Set(cornerMap.rows.map((r) => r.nsn.replace(/[^0-9]/g, '')))
 
   const enrich = (r: (typeof noQuote.rows)[number]): Enriched => {
     const est =
@@ -121,6 +125,7 @@ export default async function GoldminePage() {
         title="Make-side — nobody holds it anywhere"
         blurb="No supplier shows any material for these. The only way to fill the order is to make the part, which means whoever can make it faces no one. This is the set a person cannot work by hand, sorted by the size of the buy."
         rows={makeSide}
+        linkable={cornerDigits}
       />
 
       {/* ---------------------------------------------------------- sourcing: someone holds */}
@@ -128,6 +133,7 @@ export default async function GoldminePage() {
         title="Sourcing — someone already holds material"
         blurb="A supplier shows stock against these, so the job is finding and moving material, not making it. Faster to win, smaller edge. Sorted by the size of the buy."
         rows={sourcing}
+        linkable={cornerDigits}
         showHolders
       />
     </main>
@@ -138,11 +144,13 @@ function Section({
   title,
   blurb,
   rows,
+  linkable,
   showHolders = false,
 }: {
   title: string
   blurb: string
   rows: Enriched[]
+  linkable: Set<string>
   showHolders?: boolean
 }) {
   if (rows.length === 0) {
@@ -175,9 +183,13 @@ function Section({
             {shown.map((r) => (
               <tr key={`${r.digits}:${r.solicitation}`}>
                 <td className="mono">
-                  <Link href={`/corner/${r.digits}` as never} className={styles.nsnLink}>
-                    {r.nsn}
-                  </Link>
+                  {linkable.has(r.digits) ? (
+                    <Link href={`/corner/${r.digits}` as never} className={styles.nsnLink}>
+                      {r.nsn}
+                    </Link>
+                  ) : (
+                    <span className={styles.nsnPlain}>{r.nsn}</span>
+                  )}
                 </td>
                 <td className={styles.partCell} title={r.description}>
                   {r.description}
