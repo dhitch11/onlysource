@@ -56,8 +56,15 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.05;
   color: var(--accent);
+  /* The size-of-buy figure can be eight digits; let it shrink rather than push the tile wider. */
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .metricN {
+    font-size: var(--fs-500);
+  }
 }
 .metricLabel {
   font-size: var(--fs-200);
