@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
+import { PriceSparkline } from "@/components/ui/PriceSparkline";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
@@ -45,10 +47,20 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     id: "nsn",
     header: "Stock number",
     mono: true,
-    width: "15ch",
+    width: "16ch",
     pinned: true,
     sortValue: (r) => r.nsn,
-    cell: (r): Cell => ({ state: "known", value: r.nsn, provenance: "measured" }),
+    // The stock number is the way in. Every corner opens its full dossier: the price trajectory,
+    // the whole award history, the score legs, and the AI brief — all from the same measured data.
+    cell: (r): Cell => ({
+      state: "known",
+      provenance: "measured",
+      value: (
+        <Link href={`/corner/${r.nsn.replace(/[^0-9]/g, "")}` as never} className={styles.nsnLink}>
+          {r.nsn}
+        </Link>
+      ),
+    }),
   },
   {
     id: "score",
@@ -217,7 +229,46 @@ const columns: GridColumn<CornerRowWithAward>[] = [
       };
     },
   },
+  {
+    id: "trend",
+    header: "Price trend",
+    width: "14ch",
+    // A sparkline of the real award unit prices in order. Two or more priced awards draw the
+    // trajectory; fewer than two has no trend to draw, so the cell abstains rather than inventing a
+    // line. The monopoly forming is visible at a glance, and it is measured, not modeled.
+    sortValue: (r) => {
+      const s = priceSeriesOf(r);
+      return s.length >= 2 ? (s[s.length - 1] as number) - (s[0] as number) : -Infinity;
+    },
+    cell: (r): Cell => {
+      const s = priceSeriesOf(r);
+      if (s.length < 2) {
+        return { state: "unknown", reason: "fewer than two priced awards to trend" };
+      }
+      const firstV = s[0] as number;
+      const lastV = s[s.length - 1] as number;
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <PriceSparkline
+            points={s}
+            width={92}
+            height={26}
+            ariaLabel={`Award unit price across ${s.length} awards, ${usd(firstV)} to ${usd(lastV)}`}
+          />
+        ),
+      };
+    },
+  },
 ];
+
+/** The chronological priced-award series for one corner, only real unit prices. */
+function priceSeriesOf(r: CornerRowWithAward): number[] {
+  return (r.award?.awards ?? [])
+    .map((a) => a.unitPrice)
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+}
 
 export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
   const [filter, setFilter] = useState<Filter>("candidate");

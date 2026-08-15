@@ -259,9 +259,28 @@
   color: var(--ink);
 }
 
-/* ---------- award price escalation ---------- */
+/* ---------- stock-number link into the corner dossier ---------- */
+.nsnLink {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-control);
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.nsnLink:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.nsnLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---------- award price escalation ----------
+ * Brass, NOT amber. Amber and red are reserved for the award clock alone (tokens.css); a rising
+ * price is pricing power on a cornered part, so it wears the accent, matching the trend sparkline. */
 .escalation {
-  color: var(--amber);
+  color: var(--accent);
   font-size: var(--fs-100);
   font-weight: 600;
   white-space: nowrap;

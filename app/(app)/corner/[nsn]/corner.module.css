@@ -1,0 +1,489 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-bottom: var(--sp-7);
+}
+
+.back {
+  align-self: flex-start;
+  font-size: var(--fs-200);
+  color: var(--dim);
+  text-decoration: none;
+  padding: var(--sp-1) 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.back:hover {
+  color: var(--ink);
+}
+.back:focus-visible {
+  outline: var(--focus, 2px solid var(--accent));
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------- header */
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+}
+.headMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.nsn {
+  font-size: var(--fs-700);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  line-height: 1.1;
+  word-break: break-word;
+}
+.item {
+  font-size: var(--fs-500);
+  color: var(--dim);
+}
+.chips {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-1);
+}
+
+.scoreBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  flex: none;
+}
+.scoreN {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+.scoreCaption {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------- card grid */
+.cards {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: var(--sp-4);
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.cardTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.cardSub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+.chartFrame {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  padding: var(--sp-4);
+  overflow-x: auto;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  min-width: 260px;
+}
+
+.priceRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+}
+.priceRow > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.priceRow dt {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+.priceRow dd {
+  font-size: var(--fs-500);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.factRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.factRows > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-block: var(--sp-1);
+  border-bottom: 1px solid var(--line);
+}
+.factRows dt {
+  font-size: var(--fs-200);
+  color: var(--dim);
+}
+.factRows dd {
+  font-size: var(--fs-300);
+  color: var(--ink);
+  text-align: right;
+}
+.empty {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+}
+
+.endItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.endItemsLabel {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+.endItemChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.endItemChip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--dim);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-pill);
+  padding: 2px var(--sp-2);
+}
+
+/* -------------------------------------------------------------- award table */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-300);
+  min-width: 520px;
+}
+.table thead th {
+  text-align: left;
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+  padding: var(--sp-3) var(--sp-3);
+  border-bottom: 1px solid var(--line-control);
+  background: var(--panel-2);
+  position: sticky;
+  top: 0;
+}
+.table tbody td {
+  padding: var(--sp-3) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: top;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.numCol {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cage {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------------- legs */
+.legGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-3);
+}
+.legRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel-2);
+}
+.legHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.legName {
+  font-size: var(--fs-300);
+  font-weight: 600;
+  color: var(--ink);
+}
+.legPlain {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------- gaps */
+.gaps {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--olive);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.gapsTitle {
+  font-size: var(--fs-300);
+  font-weight: 650;
+  color: var(--ink);
+}
+.gapList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-left: var(--sp-4);
+  list-style: disc;
+}
+.gapList li {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------- AI brief */
+.brief {
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--accent-soft), transparent);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.briefHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+.briefTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.briefSub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+  max-width: 62ch;
+  margin-top: 2px;
+}
+.briefBtn {
+  min-height: 44px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font: inherit;
+  font-size: var(--fs-300);
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+  transition: transform 140ms ease, box-shadow 200ms ease;
+}
+.briefBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px -14px var(--accent);
+}
+.briefBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.briefBtn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+.briefEmpty {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+}
+
+.briefLoading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.briefDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.4;
+}
+.briefLoadingText {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  margin-left: var(--sp-2);
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes brief-pulse {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-3px); }
+  }
+  .briefDot {
+    animation: brief-pulse 1.1s ease-in-out infinite;
+  }
+  .briefDot:nth-child(2) { animation-delay: 0.15s; }
+  .briefDot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes brief-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  .briefSection { animation: brief-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .briefSection:nth-child(2) { animation-delay: 0.05s; }
+  .briefSection:nth-child(3) { animation-delay: 0.1s; }
+  .briefSection:nth-child(4) { animation-delay: 0.15s; }
+}
+.briefError {
+  font-size: var(--fs-200);
+  color: var(--ink);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--panel);
+}
+.briefBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.briefSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.briefLabel {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--accent);
+}
+.briefText {
+  font-size: var(--fs-300);
+  color: var(--ink);
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+/* -------------------------------------------------------------- fallback */
+.unavailable {
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 70ch;
+}
+.unavailableTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.unavailable p {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+}
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 860px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .priceRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .scoreBox {
+    align-self: stretch;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes corner-fade-up {
+    from { opacity: 0; transform: translate3d(0, 12px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  .head { animation: corner-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .cards { animation: corner-fade-up 0.5s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .brief { animation: corner-fade-up 0.5s 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+}
