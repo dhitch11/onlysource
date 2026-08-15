@@ -477,11 +477,15 @@
   .priceRow {
     grid-template-columns: repeat(2, 1fr);
   }
-  /* Full-width row on mobile, but it MUST wrap: the disposition chip (e.g. "INSUFFICIENT_DATA · D")
-   * is a nowrap token that cannot shrink, so without flex-wrap it forces the header past the
-   * viewport. Wrapping drops the chip to its own line instead of overflowing the page. */
+  /* Full-width row on mobile, but it MUST be shrinkable AND wrap. The base rule is `flex: none`,
+   * so the box sizes to its widest content: the disposition chip (e.g. "INSUFFICIENT_DATA · D") is
+   * a nowrap token, so the box grew to ~429px and pushed the header past the viewport. `flex: 1 1
+   * 100%` + `min-width: 0` makes the box take the row and shrink to it; flex-wrap then drops the
+   * chip to its own line instead of overflowing. (align-self:stretch does nothing here: the header
+   * is row-direction, so its cross axis is vertical.) */
   .scoreBox {
-    align-self: stretch;
+    flex: 1 1 100%;
+    min-width: 0;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
