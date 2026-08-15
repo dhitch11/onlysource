@@ -3,6 +3,7 @@ import { requireGateSession } from '@/lib/session/require-gate'
 import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavDestination } from '@/components/shell/AppShell'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
+import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { resolveDataRoot } from '@/lib/data-root'
 
 /**
@@ -63,7 +64,9 @@ const DESTINATIONS: NavDestination[] = [
   // so an environment with no data shows the nav item with no badge rather than a fabricated 0.
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map', separatorBefore: true },
   { href: '/documents', label: 'Documents & POs', icon: 'documents' },
-  { href: '/suppliers', label: 'Suppliers', icon: 'suppliers', permitted: false },
+  // Landed 2026-08-15: the enriched distressed-supplier book of business (3,471 firms, verified
+  // contacts). Count is the Tier-A prospect tally, computed below only when data is present.
+  { href: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
   // @T7 flipped this the moment app/(app)/admin/page.tsx landed. T8's rule holds and is the
   // reason it was false until now: a nav entry that 404s teaches an operator the product is
   // broken and costs the same trust as a fabricated number.
@@ -84,10 +87,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // present, because a badge is a claim about how much work is waiting and a fabricated one is
   // the same trust cost as a fabricated number. buildAllDatasets is memoized, so this shares
   // the build with the Monopoly page on the same request rather than reading the files twice.
+  const dataPresent = resolveDataRoot().present
   const destinations = DESTINATIONS.map((d) => {
-    if (d.href !== '/monopoly') return d
-    if (!resolveDataRoot().present) return d
-    return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
+    if (!dataPresent) return d
+    if (d.href === '/monopoly') return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
+    if (d.href === '/suppliers') {
+      const sup = buildDistressedSuppliers()
+      return sup.ok ? { ...d, count: sup.counts.tierA } : d
+    }
+    return d
   })
 
   return (
