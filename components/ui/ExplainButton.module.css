@@ -20,16 +20,11 @@
   transition: color var(--dur-fast) var(--ease);
 }
 
-.trigger > span {
-  display: grid;
-  place-items: center;
-  inline-size: 15px;
-  block-size: 15px;
-  border: 1px solid var(--line-control);
-  border-radius: var(--radius-pill);
-  font-size: var(--fs-100);
-  font-style: normal;
-  line-height: 1;
+/* The eye-in-circle mark. The SVG carries its own circle, so no border here. It inherits the
+ * trigger's colour so the same hover/focus colour change applies to the whole mark. */
+.eye {
+  inline-size: 17px;
+  block-size: 17px;
 }
 
 .trigger:hover {

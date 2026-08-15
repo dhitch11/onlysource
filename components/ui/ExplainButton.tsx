@@ -116,7 +116,18 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
         style={{ anchorName } as React.CSSProperties}
         onClick={() => setOpen((v) => !v)}
       >
-        <span aria-hidden="true">i</span>
+        {/* An eye inside a circle: the owner's chosen mark for "here is a plain explanation."
+            It reads as "look here to understand this," on every metric, tool and behaviour. */}
+        <svg className={styles.eye} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeWidth="1.3" />
+          <path
+            d="M5 10c1.4-2.1 3.1-3.2 5-3.2s3.6 1.1 5 3.2c-1.4 2.1-3.1 3.2-5 3.2s-3.6-1.1-5-3.2Z"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+          />
+          <circle cx="10" cy="10" r="1.7" fill="currentColor" />
+        </svg>
       </button>
 
       <div
