@@ -19,6 +19,7 @@
  */
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
+import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
 import {
   measured,
   prior,
@@ -63,7 +64,11 @@ export type CornerScoreResult = {
  * Score one corner. Pure: (row, its award history) -> result. No I/O, so it is trivially testable
  * and the surface can call it per row.
  */
-export function scoreCorner(row: CornerRow, award: NsnAwardSummary | null): CornerScoreResult {
+export function scoreCorner(
+  row: CornerRow,
+  award: NsnAwardSummary | null,
+  forecast: ForecastSummary | null = null,
+): CornerScoreResult {
   const reasons: ReasonCode[] = [];
   const dataGaps: string[] = [];
   let points = 0;
@@ -152,12 +157,46 @@ export function scoreCorner(row: CornerRow, award: NsnAwardSummary | null): Corn
     dataGaps.push("award price not ingested for this NSN — pricing leg abstains");
   }
 
-  // ---- FORWARD DEMAND (ρ_forward): PRIOR at launch. Needs the DLA Forecast file (Phase 2). ----
-  const forwardDemand = prior(
-    0.5,
-    "forward demand is a prior until the DLA Forecast file is wired",
-  );
-  dataGaps.push("DLA Forecast not wired — forward-demand leg is a prior, not a measurement");
+  // ---- FORWARD DEMAND (ρ_forward): MEASURED when the NSN is on the government's own DLA Forecast.
+  // A sole-source, award-silent part that the buyer has SAID it will purchase again is the
+  // strongest signal on this page: demand is not inferred, it is stated. Off the forecast, the
+  // leg is a prior (absence from the forecast is not proof of no future demand).
+  let forwardDemand: Leg<number>;
+  if (forecast?.onForecast) {
+    forwardDemand = measured(
+      1,
+      0.9,
+      `on the DLA Forecast${forecast.totalForecastQty > 0 ? `, ${forecast.totalForecastQty.toLocaleString()} units` : ""}${forecast.supplyChains.length ? ` (${forecast.supplyChains.join(", ")})` : ""}`,
+    );
+    add(15);
+    reasons.push({
+      leg: "forwardDemand",
+      plain: `the government's own DLA Forecast lists this part for a future buy${forecast.totalForecastQty > 0 ? ` of ${forecast.totalForecastQty.toLocaleString()} units` : ""}`,
+      points: 15,
+      calibration: "measured",
+    });
+  } else if (forecast) {
+    forwardDemand = measured(0, 0.5, "not on the current DLA Forecast");
+    reasons.push({
+      leg: "forwardDemand",
+      plain: "not on the current DLA Forecast (a checked absence, not a gap)",
+      points: 0,
+      calibration: "measured",
+    });
+  } else {
+    forwardDemand = prior(0.5, "forward demand is a prior until the DLA Forecast is loaded");
+    dataGaps.push("DLA Forecast not loaded — forward-demand leg is a prior, not a measurement");
+  }
+  // Solicitation recurrence, a supporting signal: a part re-solicited many times is re-bought often.
+  if (forecast && forecast.solicitationCount >= 5) {
+    add(5);
+    reasons.push({
+      leg: "forwardDemand",
+      plain: `re-solicited ${forecast.solicitationCount} times — a recurring buy`,
+      points: 5,
+      calibration: "measured",
+    });
+  }
 
   // ---- FEASIBILITY (φ): the unread leg. NSN-Now availability where present, else UNAVAILABLE. --
   let feasibility: Leg<number>;

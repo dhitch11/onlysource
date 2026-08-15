@@ -5,12 +5,14 @@ import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
+import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
 import type { CornerScoreResult } from "@/lib/intelligence/scoring/cornerscore";
 import styles from "./monopoly.module.css";
 
-/** A corner row with its NSN-Now award history and its CornerScore joined in. */
+/** A corner row with its NSN-Now award history, DLA Forecast, and CornerScore joined in. */
 export type CornerRowWithAward = CornerRow & {
   award: NsnAwardSummary | null;
+  forecast: ForecastSummary | null;
   score: CornerScoreResult;
 };
 
@@ -71,10 +73,23 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     id: "nomenclature",
     header: "Item",
     sortValue: (r) => r.nomenclature,
-    cell: (r): Cell =>
-      r.nomenclature.trim() === ""
-        ? { state: "unknown", reason: "not published on this line" }
-        : { state: "known", value: r.nomenclature.trim(), provenance: "measured" },
+    cell: (r): Cell => {
+      if (r.nomenclature.trim() === "") return { state: "unknown", reason: "not published on this line" };
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <span className={styles.itemCell}>
+            <span>{r.nomenclature.trim()}</span>
+            {r.forecast?.onForecast ? (
+              <StatusChip tone="verified">
+                On forecast{r.forecast.totalForecastQty > 0 ? ` · ${r.forecast.totalForecastQty.toLocaleString()}` : ""}
+              </StatusChip>
+            ) : null}
+          </span>
+        ),
+      };
+    },
   },
   {
     id: "source",
@@ -309,6 +324,20 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
                   })),
               ]
             : [{ field: "Award price", value: "award history not yet ingested for this NSN" }]),
+          {
+            field: "DLA Forecast",
+            value: r.forecast
+              ? r.forecast.onForecast
+                ? `on the government's forward-buy list${r.forecast.totalForecastQty > 0 ? `, ${r.forecast.totalForecastQty.toLocaleString()} units` : ""}${r.forecast.supplyChains.length ? ` (${r.forecast.supplyChains.join(", ")})` : ""}`
+                : "not on the current DLA Forecast (a checked absence)"
+              : "DLA Forecast not loaded",
+          },
+          ...(r.forecast && r.forecast.solicitationCount > 0
+            ? [{ field: "Solicitation history", value: `re-solicited ${r.forecast.solicitationCount} times${r.forecast.lastSolicitation ? `, last ${r.forecast.lastSolicitation}` : ""}` }]
+            : []),
+          ...(r.forecast && r.forecast.endItems.length
+            ? [{ field: "Goes on", value: r.forecast.endItems.slice(0, 4).join(" · ") }]
+            : []),
           {
             field: "Listed stock",
             value: r.award

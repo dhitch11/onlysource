@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildAllDatasets } from "@/lib/intelligence/datasets";
 import { buildNsnAwardIndex } from "@/lib/intelligence/awards/nsn-now";
+import { buildForecastIndex } from "@/lib/intelligence/forecast/dla-forecast";
 import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
 import { resolveDataRoot } from "@/lib/data-root";
 import { MonopolyGrid } from "./MonopolyGrid";
@@ -57,11 +58,18 @@ export default async function MonopolyPage() {
   // that DOES have it shows the government's actual paid price, not an abstention.
   const awardIndex = buildNsnAwardIndex();
   const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null;
+  const forecastIndex = buildForecastIndex();
+  const forecastByNsn = forecastIndex.ok ? forecastIndex.byNsn : null;
   const enriched = rows.map((r) => {
-    const award = awardByNsn?.get(r.nsn.replace(/[^0-9]/g, "")) ?? null;
-    return { ...r, award, score: scoreCorner(r, award) };
+    const key = r.nsn.replace(/[^0-9]/g, "");
+    const award = awardByNsn?.get(key) ?? null;
+    const forecast = forecastByNsn?.get(key) ?? null;
+    return { ...r, award, forecast, score: scoreCorner(r, award, forecast) };
   });
   const pricedCount = enriched.filter((r) => r.award?.latest?.unitPrice != null).length;
+  const forecastCount = enriched.filter(
+    (r) => r.soleSource && r.silentSourceCount > 0 && r.forecast?.onForecast,
+  ).length;
   const availCount = enriched.filter(
     (r) => r.soleSource && r.silentSourceCount > 0 && (r.award?.holders.length ?? 0) > 0,
   ).length;
@@ -194,6 +202,15 @@ export default async function MonopolyPage() {
               ? `Award history is joined from the NSN-Now export where present: ${pricedCount.toLocaleString()} of these positions now carry a real paid price and its ten-year trend. The rest await the full export and say so per row.`
               : "No NSN-Now export is loaded yet, so award price reads as unread on every row rather than as an estimate."}
           </p>
+          {forecastByNsn ? (
+            <p className={styles.truthProv}>
+              <b>Forward demand is now measured, not inferred.</b>{" "}
+              <b>{forecastCount.toLocaleString()}</b> of these candidate corners appear on the
+              government's own <b>DLA Forecast</b> of parts it plans to buy again. A sole-source,
+              award-silent part the buyer has said it will re-purchase is the strongest position on
+              this page, and those rows carry it.
+            </p>
+          ) : null}
         </div>
       </div>
 

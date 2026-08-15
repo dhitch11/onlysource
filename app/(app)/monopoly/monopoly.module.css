@@ -237,6 +237,14 @@
   color: var(--faint);
 }
 
+/* ---------- item cell with forecast chip ---------- */
+.itemCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
 /* ---------- CornerScore cell ---------- */
 .scoreCell {
   display: inline-flex;
