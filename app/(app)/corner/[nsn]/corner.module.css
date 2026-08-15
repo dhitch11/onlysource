@@ -123,6 +123,9 @@
   background: var(--panel-2);
   padding: var(--sp-4);
   overflow-x: auto;
+  /* Flex item inside .card: without this it keeps min-width:auto (content width) and its
+   * overflow-x never engages, leaking width onto the page. */
+  min-width: 0;
 }
 .chart {
   width: 100%;
@@ -211,6 +214,9 @@
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  /* Same flexbox trap as .chartFrame: min-width:0 lets the 520px table scroll inside this
+   * wrapper instead of pushing horizontal scroll onto the whole page at narrow widths. */
+  min-width: 0;
 }
 .table {
   width: 100%;
