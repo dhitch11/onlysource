@@ -26,6 +26,7 @@ export type NavIconName =
   | "intelligence"
   | "goldmine"
   | "competitor"
+  | "hubzone"
   | "settings"
   | "design";
 
@@ -92,6 +93,13 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
     <>
       <path d="M5 3v18" />
       <path d="M5 4h11l-2 3 2 3H5" />
+    </>
+  ),
+  // HUBZone set-asides: a zone pin.
+  hubzone: (
+    <>
+      <path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10Z" />
+      <circle cx="12" cy="11" r="2.2" />
     </>
   ),
   // Settings: a gear.

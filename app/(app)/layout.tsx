@@ -60,6 +60,8 @@ const DESTINATIONS: NavDestination[] = [
   { href: '/intelligence', label: 'Intelligence', icon: 'intelligence' },
   // The No-Quote Goldmine — government buys that drew zero quotes. Highest-intent revenue.
   { href: '/goldmine', label: 'No-Quote Goldmine', icon: 'goldmine' },
+  // HUBZone set-aside solicitations (a distinct, eligibility-gated opportunity class).
+  { href: '/hubzone', label: 'HUBZone set-asides', icon: 'hubzone' },
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
   // The enriched distressed-supplier book of business (count = Tier-A tally, computed below).
   { href: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
