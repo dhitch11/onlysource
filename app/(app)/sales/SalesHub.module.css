@@ -262,3 +262,133 @@
     transition: border-color var(--dur-fast) var(--ease);
   }
 }
+
+/* ---------- pipeline board controls (operator-maintained deal store) ---------- */
+.boardBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3, 0.75rem);
+  flex-wrap: wrap;
+}
+.addBtn {
+  min-height: 40px;
+  padding: 0 var(--sp-4, 1rem);
+  border-radius: var(--radius, 8px);
+  border: none;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font: inherit;
+  font-size: var(--fs-300, 0.9375rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+.addBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.boardCount {
+  font-size: var(--fs-200, 0.875rem);
+  color: var(--faint);
+}
+.addForm {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr 1.2fr 1.2fr 1.4fr auto;
+  gap: var(--sp-2, 0.5rem);
+  align-items: center;
+  padding: var(--sp-3, 0.75rem);
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-lg, 11px);
+  background: var(--accent-soft);
+}
+.input {
+  min-height: 40px;
+  padding: 0 var(--sp-3, 0.75rem);
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200, 0.875rem);
+  min-width: 0;
+}
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.saveBtn {
+  min-height: 40px;
+  padding: 0 var(--sp-3, 0.75rem);
+  border-radius: var(--radius, 8px);
+  border: none;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font: inherit;
+  font-size: var(--fs-200, 0.875rem);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.cardRef {
+  font-size: var(--fs-100, 0.8125rem);
+  color: var(--faint);
+  margin-top: 2px;
+}
+.cardValue {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+.cardNext {
+  font-size: var(--fs-100, 0.8125rem);
+  color: var(--dim);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.cardControls {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--sp-2, 0.5rem);
+}
+.moveBtn,
+.delBtn {
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line-control);
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  cursor: pointer;
+}
+.moveBtn:hover:not(:disabled),
+.delBtn:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--accent-2);
+}
+.moveBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.delBtn {
+  margin-inline-start: auto;
+}
+.delBtn:hover:not(:disabled) {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+}
+.moveBtn:focus-visible,
+.delBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .addForm {
+    grid-template-columns: 1fr 1fr;
+  }
+}
