@@ -1,5 +1,6 @@
 import type { CornerRow } from '@/lib/intelligence/corner'
-import type { NsnAwardSummary, AwardRecord } from '@/lib/intelligence/awards/nsn-now'
+import { readQuoteSignals, type QuoteSignal } from '../scoring/quote-signals'
+import type { FeedWindow, NsnAwardSummary, AwardRecord } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
 import type { CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
 
@@ -57,6 +58,15 @@ export type CornerDossier = {
     legs: Array<{ leg: string; state: string; value: number | null }>
     reasons: Array<{ leg: string; plain: string; points: number; calibration: string }>
   }
+  /**
+   * The operator's own quote checklist, computed. See `scoring/quote-signals.ts`.
+   *
+   * It lives on the DOSSIER rather than on the page because the dossier is the single object
+   * that feeds both the on-page evidence panels and the AI brief, which is what stops the prose
+   * and the panel from ever disagreeing. A signal the brief can quote is a signal the operator
+   * can see the working for.
+   */
+  quoteSignals: QuoteSignal[]
   /** Named, never empty by omission: what a full read is still waiting on. */
   openGaps: string[]
 }
@@ -79,6 +89,9 @@ export function buildCornerDossier(
   award: NsnAwardSummary | null,
   forecast: ForecastSummary | null,
   score: CornerScoreResult,
+  /* The span of the award feed. Required for any dormancy reading to be honest: a gap of nine
+     years means something different in an eleven year feed than in a forty year one. */
+  window: FeedWindow = { firstAwardIso: null, lastAwardIso: null, years: null },
 ): CornerDossier {
   const first = award?.firstUnitPrice ?? null
   const last = award?.lastUnitPrice ?? null
@@ -132,6 +145,9 @@ export function buildCornerDossier(
         calibration: r.calibration,
       })),
     },
+    // Computed from the award summary when there is one. With no award rows there is nothing to
+    // read, and an empty list is the honest answer rather than nine "unknown" rows.
+    quoteSignals: award ? readQuoteSignals(award, window) : [],
     openGaps: score.dataGaps,
   }
 }

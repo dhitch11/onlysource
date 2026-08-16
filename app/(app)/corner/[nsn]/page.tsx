@@ -96,7 +96,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast)
-  const dossier = buildCornerDossier(row, award, forecast, score)
+  const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
   const series = priceSeries(dossier)
 
   return (
@@ -186,6 +186,44 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
             </p>
           )}
         </div>
+
+        {/*
+          THE QUOTE CHECKLIST, COMPUTED. Every row is an indicator the operator who taught this
+          business wrote down himself while deciding whether to quote a real requirement. Two of
+          them are deliberately WITHHELD rather than shown, because the export column that would
+          carry them is measurably contaminated, and the row says so in the operator's own view
+          rather than in a comment nobody reads.
+        */}
+        {dossier.quoteSignals.length > 0 ? (
+          <div className={`${styles.card} ${styles.signalsCard}`}>
+            <h2 className={styles.cardTitle}>Quote signals</h2>
+            <p className={styles.signalsIntro}>
+              The indicators a trader checks before quoting, read from the government files on disk.
+              Each one says what it is, and where the files cannot answer it says that instead.
+            </p>
+            <ul className={styles.signals}>
+              {dossier.quoteSignals.map((s) => (
+                <li key={s.id} className={styles.signal} data-state={s.leg.state} data-direction={s.direction}>
+                  <div className={styles.signalHead}>
+                    <span className={styles.signalDot} aria-hidden="true" />
+                    <span className={styles.signalLabel}>{s.label}</span>
+                    <StatusChip tone={s.leg.state === 'MEASURED' ? 'verified' : 'idle'}>
+                      {s.leg.state === 'MEASURED'
+                        ? s.direction === 'favourable'
+                          ? 'in favour'
+                          : s.direction === 'unfavourable'
+                            ? 'against'
+                            : 'measured'
+                        : 'not read'}
+                    </StatusChip>
+                  </div>
+                  <p className={styles.signalReading}>{s.reading}</p>
+                  {s.limitation ? <p className={styles.signalLimit}>{s.limitation}</p> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Forward demand</h2>

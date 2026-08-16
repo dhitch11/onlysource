@@ -503,3 +503,96 @@
   .cards { animation: corner-fade-up 0.5s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .brief { animation: corner-fade-up 0.5s 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 }
+
+/* ---------------- quote signals ----------------
+   The operator's own checklist, computed. A signal that could not be read looks DIFFERENT from
+   one that was read and came back unfavourable, because those are different facts and a reader
+   who cannot tell them apart is being misled by the layout rather than by the words. */
+
+.signalsCard {
+  grid-column: 1 / -1;
+}
+
+.signalsIntro {
+  font-size: 0.83rem;
+  color: var(--faint);
+  line-height: 1.5;
+  margin-bottom: 0.9rem;
+  max-width: 76ch;
+}
+
+.signals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 0.7rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.signal {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--panel-2, var(--panel));
+  min-width: 0;
+}
+
+/* Brass marks a signal that is real AND points toward quoting. Amber and red are reserved
+   fleet wide for the award clock, so an unfavourable signal is carried by the WORD "against"
+   in its chip and by a quieter border, never by a warning hue. */
+.signal[data-direction='favourable'][data-state='MEASURED'] {
+  border-left-color: var(--accent);
+}
+
+.signal[data-direction='unfavourable'][data-state='MEASURED'] {
+  border-left-color: var(--dim);
+}
+
+.signal[data-state='UNAVAILABLE'] {
+  border-left-style: dashed;
+  border-left-color: var(--line-2);
+}
+
+.signalHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.signalDot {
+  display: none;
+}
+
+.signalLabel {
+  font-weight: 600;
+  font-size: 0.86rem;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.signalReading {
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* The bound on a reading, always rendered. A dormancy figure without its window is a number
+   pretending to be a fact. */
+.signalLimit {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--faint);
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 40rem) {
+  .signals {
+    grid-template-columns: 1fr;
+  }
+}

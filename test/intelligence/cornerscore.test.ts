@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
-import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
+import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 
 /**
  * These tests exist to lock the ONE property the whole methodology rests on: a missing leg
@@ -30,18 +30,58 @@ const baseRow = (over: Partial<CornerRow> = {}): CornerRow => ({
   ...over,
 });
 
+/**
+ * An award row with every field the record carries.
+ *
+ * The Batch Export columns the parser reads grew on 2026-08-16 (acquisition codes, offers,
+ * delivery days, set-aside, first article, LTC expiry, surplus), so a fixture that spells out
+ * one award literal per row would have to be edited every time a real column is wired in. This
+ * helper defaults the new fields to null, which is exactly what an export row that omits them
+ * produces, and lets each test override only the field it is actually about.
+ */
+const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord => ({
+  nsn: "5325015619853",
+  awardDateIso: null,
+  quantity: null,
+  unitPrice: null,
+  company: "ACME",
+  cage: "58794",
+  finalPrice: null,
+  effectiveUnitPrice: null,
+  amc: null,
+  amsc: null,
+  offers: null,
+  deliveryDays: null,
+  setAside: null,
+  firstArticle: null,
+  ltcExpirationIso: null,
+  surplus: null,
+  solicitation: null,
+  closeDateIso: null,
+  ...over,
+});
+
 const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
   nsn: "5325015619853",
   awards: [
-    { nsn: "5325015619853", contractNo: "C1", awardDateIso: "2016-01-01", quantity: 300, unitPrice: 1.48, company: "ACME", cage: "58794", finalPrice: 444, effectiveUnitPrice: 1.48 },
-    { nsn: "5325015619853", contractNo: "C1b", awardDateIso: "2020-01-01", quantity: 200, unitPrice: 2.0, company: "ACME", cage: "58794", finalPrice: 400, effectiveUnitPrice: 2.0 },
-    { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254, effectiveUnitPrice: 2.54 },
+    award({ contractNo: "C1", awardDateIso: "2016-01-01", quantity: 300, unitPrice: 1.48, finalPrice: 444, effectiveUnitPrice: 1.48 }),
+    award({ contractNo: "C1b", awardDateIso: "2020-01-01", quantity: 200, unitPrice: 2.0, finalPrice: 400, effectiveUnitPrice: 2.0 }),
+    award({ contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, finalPrice: 254, effectiveUnitPrice: 2.54 }),
   ],
-  latest: { nsn: "5325015619853", contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, company: "ACME", cage: "58794", finalPrice: 254, effectiveUnitPrice: 2.54 },
+  latest: award({ contractNo: "C2", awardDateIso: "2025-01-01", quantity: 100, unitPrice: 2.54, finalPrice: 254, effectiveUnitPrice: 2.54 }),
   distinctAwardees: 1,
   firstUnitPrice: 1.48,
   lastUnitPrice: 2.54,
   holders: [{ nsn: "5325015619853", company: "HOLDER", cage: "0AMA0", quantity: 3333 }],
+  amc: null,
+  amsc: null,
+  latestOffers: null,
+  minOffers: null,
+  latestDeliveryDays: null,
+  longestDemandGapYears: null,
+  yearsSinceLastAward: null,
+  approvedSources: [],
+  ltcExpirationIso: null,
   ...over,
 });
 

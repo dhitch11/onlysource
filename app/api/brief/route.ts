@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast)
 
-  const dossier: CornerDossier = buildCornerDossier(row, award, forecast, score)
+  const dossier: CornerDossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
 
   const result = await generate(SYSTEM_PROMPT, renderDossier(dossier), 1100)
   if (!result.ok) {
