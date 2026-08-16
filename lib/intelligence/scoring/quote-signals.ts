@@ -89,37 +89,50 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
       : 'The span of the award feed is unknown, so this reading is not bounded.'
 
   /* ---------------------------------------------------------------------------------- */
-  /* COMPETITION. WITHHELD. The sharpest signal in the export, and the one it gets wrong. */
+  /* COMPETITION. The operator's first indicator, and the sharpest thing in the export.   */
   /* ---------------------------------------------------------------------------------- */
   /*
-   * This is the operator's FIRST indicator and it is the one thing here we cannot honestly
-   * show. Rendering it read "9114 bidders on the last award", which prompted the count: the
-   * export's `Offers` column carries a value outside any plausible bid count on 15,013 of
-   * 59,990 rows, exactly 25.0%, and the stray values are the same family of numbers that
-   * contaminate `LTC Expiration`. That is a column shift inside the source file, confirmed by
-   * reading the raw sheet XML cell by cell and getting the same wrong value from the same cell.
+   * This signal was WITHHELD for part of 2026-08-16 on a contamination measurement that turned
+   * out to be measuring our own parser rather than the export. With the self-closing-cell defect
+   * in `seed/xlsx.ts` fixed, `Offers` is numeric on every populated row and its distribution is a
+   * clean decaying bid-count curve. One sentinel value (29) is discarded at parse time; see the
+   * COLUMN INTEGRITY block in `awards/nsn-now.ts` for the counts behind that.
    *
-   * A bid count that is a stray one time in four is not a signal, it is a coin flip wearing a
-   * number. So it is WITHHELD rather than shown, and the reason is rendered where the reading
-   * would have been. An operator who can see that we know the column is broken can weigh it.
-   * An operator shown "2 bidders" cannot.
+   * Keeping the history in this comment deliberately. The lesson is not "the column was fine", it
+   * is that a check written the same way as the code it checks will confirm the code's own bug.
    */
-  signals.push({
-    id: 'competition',
-    label: 'Bids on the last award',
-    leg: unavailable(
-      hasAwards
-        ? 'the export column that would carry this is contaminated on 25.0% of rows (15,013 of 59,990 measured), so no bid count from it can be trusted'
-        : NO_AWARDS,
-    ),
-    reading:
-      hasAwards && summary.latestOffers != null
-        ? `Withheld. The export records a value here, but the column carrying it is wrong on a quarter of all rows, so this build will not put a bid count in front of a bid decision. Confirming it needs a clean export or a second source.`
-        : 'The number of bids on the last award cannot be read from this export.',
-    direction: 'neutral',
-    limitation:
-      'Measured 2026-08-16 across every procurement row in the export. The field is parsed and range checked, so this becomes a live signal the moment a clean export or an independent source confirms it.',
-  })
+  if (summary.latestOffers != null && summary.latestOffers > 0) {
+    const n = summary.latestOffers
+    signals.push({
+      id: 'competition',
+      label: 'Bids on the last award',
+      // Evidence weight rises as the count falls, because the informative case is the thin one.
+      // One bidder on a real requirement is the strongest competition reading the data can give.
+      leg: measured(n, n === 1 ? 0.9 : n <= 3 ? 0.6 : 0.35, `the export records ${n} offer${n === 1 ? '' : 's'} on the most recent award`),
+      reading:
+        n === 1
+          ? 'One bidder took the last award. Nobody else priced it, which is what thin available inventory looks like from the outside.'
+          : n <= 3
+            ? `${n} bidders on the last award. Competition is light.`
+            : `${n} bidders on the last award. This one is contested.`,
+      direction: n <= 3 ? 'favourable' : 'unfavourable',
+      limitation:
+        'Offers counts bids received, not bidders capable of supplying. A low count can also mean a short solicitation window. One sentinel value is discarded at parse time, so a genuine 29-bid award reads as unavailable rather than as 29.',
+    })
+  } else {
+    signals.push({
+      id: 'competition',
+      label: 'Bids on the last award',
+      leg: unavailable(
+        hasAwards
+          ? 'the most recent award row carries no usable offer count'
+          : NO_AWARDS,
+      ),
+      reading: 'The number of bids on the last award is not recorded, so competition cannot be read.',
+      direction: 'neutral',
+      limitation: null,
+    })
+  }
 
   /* ---------------------------------------------------------------------------------- */
   /* DEALER ELIGIBILITY. Decoded by the codebook, which owns the meaning of these codes.  */
@@ -256,26 +269,30 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
   /* LONG TERM CONTRACT EXPIRY. A corner opens the day an LTC lapses.                     */
   /* ---------------------------------------------------------------------------------- */
   /*
-   * WITHHELD for the same measured reason as the bid count. `LTC Expiration` fails to parse as a
-   * date on 19,947 of 56,637 populated rows, 35.2%, and the stray values are the same numbers that
-   * contaminate `Offers`. A date that is wrong a third of the time would send an operator to
-   * position for a contract lapse that is not happening.
+   * Also withheld earlier today on the same mistaken measurement, and also restored. After the
+   * self-closing-cell fix, every one of the 39,172 populated `LTC Expiration` values parses as a
+   * date and none does not. The 35.2% "contamination" was entirely our own parser.
    */
-  signals.push({
-    id: 'ltc_expiry',
-    label: 'Long term contract',
-    leg: unavailable(
-      hasAwards
-        ? 'the export column that would carry this is contaminated on 35.2% of populated rows (19,947 of 56,637 measured), so no expiry date from it can be trusted'
-        : NO_AWARDS,
-    ),
-    reading: summary.ltcExpirationIso
-      ? 'Withheld. A date is present but the column carrying it is wrong on a third of its rows, and positioning for a contract lapse that is not happening costs real money.'
-      : 'No long term contract expiry can be read from this export.',
-    direction: 'neutral',
-    limitation:
-      'Measured 2026-08-16. Values that do not parse as a date are already discarded at parse time; the problem is that a stray can also LOOK like a date.',
-  })
+  if (summary.ltcExpirationIso) {
+    signals.push({
+      id: 'ltc_expiry',
+      label: 'Long term contract',
+      leg: measured(summary.ltcExpirationIso, 0.6, `an award records a long term contract expiring ${summary.ltcExpirationIso}`),
+      reading: `A long term contract on this stock number is recorded as expiring ${summary.ltcExpirationIso}. When one lapses the buy reopens to whoever is positioned.`,
+      direction: 'favourable',
+      limitation:
+        'The expiry is as recorded on the award row. It does not say whether the contract was extended, and this build does not track extensions.',
+    })
+  } else {
+    signals.push({
+      id: 'ltc_expiry',
+      label: 'Long term contract',
+      leg: unavailable(hasAwards ? 'no award row records a long term contract expiry' : NO_AWARDS),
+      reading: 'No long term contract expiry is recorded against this stock number.',
+      direction: 'neutral',
+      limitation: null,
+    })
+  }
 
   /* ---------------------------------------------------------------------------------- */
   /* BARRIERS. First Article and set-asides both decide whether a quote is even possible. */

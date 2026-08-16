@@ -208,32 +208,46 @@ const num = (v: string | null | undefined): number | null => {
 
 /*
  * ==============================================================================================
- * COLUMN INTEGRITY. Measured on 2026-08-16 across all 59,990 procurement rows in the exports.
+ * COLUMN INTEGRITY, AND A CORRECTION I GOT WRONG THE FIRST TIME. Measured 2026-08-16.
  * ==============================================================================================
- * Several columns of the Batch Export are CONTAMINATED: they carry values that cannot be what the
- * header says. This was found by rendering them and disbelieving the result ("9114 bidders on the
- * last award", "the government allowed 1 days"), then counting.
+ * Rendering these columns produced "9114 bidders on the last award" and "the government allowed
+ * 1 days", so I counted. The first count said `Offers` was contaminated on 25.0% of rows and
+ * `LTC Expiration` on 35.2%, and I withheld both signals on that basis.
  *
- *     column            clean    dirty   dirty%   examples of dirty values
- *     AMC              59,834      156     0.3%   13190, 13809, 16897, 21528
- *     AMSC             59,834        0     0.0%   (clean)
- *     Offers           44,977   15,013    25.0%   437, 88, 90, 11050, 11063
- *     Delivery Days    57,956      445     0.8%   0, -17, -84, 1170, 1321
- *     LTC Expiration   36,690   19,947    35.2%   437, 88, 727, 2214, 12022
- *     Set Aside         2,507        0     0.0%   (clean)
- *     First Article       779        0     0.0%   (clean)
+ * THAT COUNT WAS MEASURING OUR OWN PARSER. `lib/intelligence/seed/xlsx.ts` had a greedy regex that
+ * mis-parsed every self-closing (empty) cell, assigning it a LATER cell's value and dropping the
+ * cells in between. An empty AMSC cell ate the Award Date, which is why 156 rows carried a date
+ * serial in the AMC column.
  *
- * The dirty values in `Offers` and `LTC Expiration` are the SAME family of numbers, which is what a
- * column shift inside the source export looks like. It is NOT this reader: a raw cell-by-cell read
- * of the sheet XML, bypassing this module entirely, returns the identical value from the identical
- * cell reference. The export is wrong, and it is wrong on a quarter to a third of its rows.
+ * The worst part of the first investigation: I "verified" the contamination against the raw sheet
+ * XML with a hand-written regex that had THE SAME DEFECT, because I wrote it the same way. An
+ * independent check that reproduces the bug it is checking for is not an independent check. The
+ * proof that finally settled it ran both regexes over a synthetic cell sequence with a known
+ * answer (`.probe/selfclose-proof.mts`), where the old one returns B2="42" and loses C2 entirely.
  *
- * THE CONSEQUENCE, AND IT IS NOT NEGOTIABLE: a number that is a stray one time in four cannot be
- * put in front of somebody deciding what to bid. So the parse validates ranges here, and the
- * SIGNALS built on `Offers` and `LTC Expiration` abstain outright in `scoring/quote-signals.ts`
- * with the contamination rate stated, rather than showing a plausible-looking figure that is wrong
- * a quarter of the time. The fields stay parsed so the day a clean export arrives, the signal is a
- * one-line change rather than a rebuild.
+ * AFTER THE PARSER FIX, re-measured over all 59,990 procurement rows:
+ *
+ *     column            valid   invalid   empty    note
+ *     AMC              59,834         0     156    clean
+ *     AMSC             59,834         0     156    clean
+ *     LTC Expiration   39,172         0  20,818    clean, every populated value parses as a date
+ *     Delivery Days    57,956       445   1,589    445 are zero or negative or over 1,095 days
+ *     Offers           56,637         0   3,353    numeric throughout, range 0 to 122
+ *     Set Aside         2,507         0  57,483    clean
+ *     Surplus             318         0  59,672    clean (was 17 before the fix: 301 were eaten)
+ *     First Article       779         0  59,211    clean
+ *
+ * SO ONLY ONE REAL ARTIFACT SURVIVES, and it is in `Offers`. Its distribution is a clean decaying
+ * bid-count curve with a single impossible spike:
+ *
+ *     1:14,618   2:11,018   3:6,197   4:3,743   6:4,139   7:1,700   8:476   ...
+ *     26:4   27:3   28:3   >>> 29:11,273 <<<   30:1   31:2   ...   111:96   122:1
+ *
+ * A value whose immediate neighbours occur 3 and 1 times cannot itself occur 11,273 times. 29 is a
+ * sentinel, not a count, so it is discarded. Zero is discarded too (an award with no offers is not
+ * a thing), and so is anything above 60, where the curve has already gone to single figures.
+ * Discarding 29 loses a handful of genuinely-29 rows and prevents 11,273 wrong readings, which is
+ * the right side of that trade and is stated here rather than hidden.
  */
 
 /** A single character code, or null. Rejects the multi-digit strays measured in AMC. */
@@ -248,6 +262,19 @@ const bounded = (v: string | null | undefined, min: number, max: number): number
   if (!/^\d+$/.test(s)) return null
   const n = Number(s)
   return n >= min && n <= max ? n : null
+}
+
+/**
+ * The number of offers the government received, with the sentinel discarded.
+ *
+ * 29 occurs 11,273 times while 28 occurs 3 times and 30 occurs once. That is not a count, and the
+ * measurement behind this line is written out in the COLUMN INTEGRITY block above. Anything above
+ * 60 is past where the real curve has decayed to single figures, and zero is not an award.
+ */
+const OFFERS_SENTINEL = 29
+const offerCount = (v: string | null | undefined): number | null => {
+  const n = bounded(v, 1, 60)
+  return n === null || n === OFFERS_SENTINEL ? null : n
 }
 
 /**
@@ -331,7 +358,7 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
         // it is a stray from another column, and it becomes null rather than a number.
         amc: single(r['AMC']),
         amsc: single(r['AMSC']),
-        offers: bounded(r['Offers'], 1, 25),
+        offers: offerCount(r['Offers']),
         deliveryDays: bounded(r['Delivery Days'], 1, 1095),
         setAside: txt(r['Set Aside']),
         firstArticle: txt(r['First Article']),

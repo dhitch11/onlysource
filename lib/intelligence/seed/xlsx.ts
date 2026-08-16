@@ -210,7 +210,30 @@ function parseSheetXml(sheetXml: string, shared: string[]): ParsedSheet {
   const declaredRowCount = dim ? Number(dim[2]) : 0
 
   const rowRe = /<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g
-  const cellRe = /<c r="([A-Z]+\d+)"([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g
+  /*
+   * THE ATTRIBUTE GROUP IS LAZY, AND THAT ONE CHARACTER IS LOAD BEARING.
+   *
+   * It was `([^>]*)`, greedy, and greedy is wrong here in a way no test caught for weeks.
+   * Given a self-closing cell `<c r="W2" s="5"/>`, the greedy group swallows ` s="5"/`
+   * INCLUDING THE SLASH. The `\/>` branch then cannot match (the next character is `>`), so
+   * the engine takes the `>([\s\S]*?)<\/c>` branch instead, which matches the `>` and then
+   * scans forward to the NEXT CELL'S `</c>`.
+   *
+   * The consequences, measured on data/nsn-now/full_1.xlsx (13,859 self-closing cells in the
+   * Procurement sheet alone):
+   *   - the empty cell is assigned a value belonging to a LATER cell
+   *   - every cell in between is consumed and never emitted at all
+   * An empty AMSC cell ate the Award Date, which is why 156 rows carried a date serial like
+   * "13190" in the AMC column. Award Date orders the price series behind every escalation
+   * figure on the map and in the AI brief, so this reached the screen.
+   *
+   * Lazy fixes it: the group starts empty and grows one character at a time, and at each
+   * length the alternation is tried with `\/>` FIRST, so a self-closing cell matches as a
+   * self-closing cell. The module's own doc comment above promised cells are keyed on their
+   * reference and never on document order. This is the line that was quietly breaking that
+   * promise.
+   */
+  const cellRe = /<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g
 
   const byRow = new Map<number, Map<string, string>>()
   let rm: RegExpExecArray | null

@@ -3,18 +3,22 @@ import { readQuoteSignals, tallyQuoteSignals } from '@/lib/intelligence/scoring/
 import type { AwardRecord, FeedWindow, NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 
 /**
- * THE QUOTE CHECKLIST, AND THE TWO SIGNALS THAT MUST STAY WITHHELD.
+ * THE QUOTE CHECKLIST, COMPUTED, AND THE ONE SENTINEL THAT MUST STAY DISCARDED.
  *
- * The load-bearing test in this file is the one that asserts a signal is NOT shown. The export's
- * `Offers` column is contaminated on 25.0% of rows and `LTC Expiration` on 35.2%, both measured
- * across all 59,990 procurement rows, and both were rendering plausible-looking figures ("9114
- * bidders on the last award") before anybody counted. A future edit that "fixes" the abstention by
- * reading the value again would reintroduce a number that is wrong one time in four, in front of
- * somebody deciding what to bid. So the abstention is pinned here, with the reason.
- *
- * Every abstention is paired with a POSITIVE CONTROL: a signal that DOES read, from the same
+ * Every abstention here is paired with a POSITIVE CONTROL: a signal that DOES read, from the same
  * fixture, so a module that returned UNAVAILABLE for everything would fail this suite rather than
- * pass it.
+ * pass it. That pairing is the whole reason the suite is worth running.
+ *
+ * A NOTE ON HOW THIS FILE GOT ITS SHAPE, because the mistake is more instructive than the fix.
+ * Rendering these signals produced "9114 bidders on the last award". I counted, found 25% of the
+ * `Offers` column and 35% of `LTC Expiration` unusable, and withheld both signals. Then I checked
+ * the raw sheet XML with a hand-written regex to confirm the export was at fault, and it agreed.
+ *
+ * Both the parser and my check had the same defect, because I wrote the check the same way the
+ * parser was written: a greedy attribute group that swallows the slash of a self-closing cell, so
+ * an empty cell steals a later cell's value. An independent check that reproduces the bug it is
+ * checking for is not an independent check. Fixing `seed/xlsx.ts` took LTC Expiration to 100% valid
+ * dates and left exactly one real artifact, the 29 sentinel, which is what this file now pins.
  */
 
 const WINDOW: FeedWindow = { firstAwardIso: '2016-01-04', lastAwardIso: '2026-02-01', years: 10 }
@@ -63,34 +67,54 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
 
 const find = (s: NsnAwardSummary, id: string) => readQuoteSignals(s, WINDOW).find((x) => x.id === id)!
 
-describe('the contaminated columns stay withheld, whatever the row says', () => {
-  it('never reports a bid count, even when the export carries one', () => {
+describe('the sentinel is discarded, and the clean columns are read', () => {
+  /*
+   * These signals were WITHHELD earlier on 2026-08-16 on a contamination measurement that was
+   * measuring our own parser, not the export. The self-closing-cell defect in seed/xlsx.ts made
+   * empty cells steal a later cell's value. With it fixed, LTC Expiration is 100% valid dates and
+   * Offers is numeric throughout with a single sentinel value.
+   *
+   * What is pinned here is the SENTINEL. 29 occurs 11,273 times while 28 occurs 3 times and 30
+   * occurs once, so it is not a count, and the scorecard was scoring it as "contested" on 18.8%
+   * of all rows. It is discarded at parse time; this asserts the signal layer agrees.
+   */
+  it('reads a real bid count', () => {
     const sig = find(summary({ latestOffers: 2 }), 'competition')
-    expect(sig.leg.state).toBe('UNAVAILABLE')
-    expect(sig.leg.value).toBeNull()
-    expect(sig.reading).toContain('Withheld')
-    // The refusal states the measured rate, so a reader can judge it rather than trust us.
-    expect(sig.leg.because).toContain('25.0%')
+    expect(sig.leg.state).toBe('MEASURED')
+    expect(sig.leg.value).toBe(2)
+    expect(sig.direction).toBe('favourable')
   })
 
-  it('never reports a bid count when the export carries an absurd one either', () => {
-    const sig = find(summary({ latestOffers: 9114 }), 'competition')
+  it('a single bidder is the strongest competition reading available', () => {
+    const sig = find(summary({ latestOffers: 1 }), 'competition')
+    expect(sig.leg.evidenceWeight).toBeGreaterThan(0.8)
+    expect(sig.reading).toContain('One bidder')
+  })
+
+  it('a contested award reads as against, so the direction is not just "we found a number"', () => {
+    expect(find(summary({ latestOffers: 12 }), 'competition').direction).toBe('unfavourable')
+  })
+
+  it('abstains when the parser discarded the value, rather than inventing a zero', () => {
+    const sig = find(summary({ latestOffers: null }), 'competition')
     expect(sig.leg.state).toBe('UNAVAILABLE')
+    expect(sig.leg.value).toBeNull()
     expect(sig.direction).toBe('neutral')
   })
 
-  it('never reports a long term contract expiry, even when a date is present', () => {
-    const sig = find(summary({ ltcExpirationIso: '2031-01-04' }), 'ltc_expiry')
-    expect(sig.leg.state).toBe('UNAVAILABLE')
-    expect(sig.reading).toContain('Withheld')
-    expect(sig.leg.because).toContain('35.2%')
+  it('names the sentinel discard in its limitation, so a missing 29 is explained not mysterious', () => {
+    expect(find(summary({ latestOffers: 3 }), 'competition').limitation).toContain('sentinel')
   })
 
-  it('POSITIVE CONTROL: a clean column DOES read, so the module is not abstaining on everything', () => {
-    const sig = find(summary({ latestDeliveryDays: 21 }), 'urgency')
+  it('reads a long term contract expiry', () => {
+    const sig = find(summary({ ltcExpirationIso: '2031-01-04' }), 'ltc_expiry')
     expect(sig.leg.state).toBe('MEASURED')
-    expect(sig.leg.value).toBe(21)
     expect(sig.direction).toBe('favourable')
+    expect(sig.reading).toContain('2031-01-04')
+  })
+
+  it('POSITIVE CONTROL: a column with nothing in it still abstains, so nothing is always-on', () => {
+    expect(find(summary({ ltcExpirationIso: null }), 'ltc_expiry').leg.state).toBe('UNAVAILABLE')
   })
 })
 
