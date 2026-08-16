@@ -23,7 +23,13 @@ export async function POST(req: NextRequest) {
   } catch {
     return Response.json({ error: 'bad_request' }, { status: 400 })
   }
-  const id = typeof body.id === 'string' && body.id ? body.id : crypto.randomUUID()
+  const isNew = !(typeof body.id === 'string' && body.id)
+  // A brand-new deal needs at least a title; refuse a contentless create rather than store an
+  // "(untitled)" placeholder. Updates to an existing deal (id present) may be partial.
+  if (isNew && !((body.title ?? '').trim())) {
+    return Response.json({ error: 'empty_deal', message: 'A deal needs a title.' }, { status: 400 })
+  }
+  const id = isNew ? crypto.randomUUID() : (body.id as string)
   const deals = upsertDeal({ ...body, id }, systemClock.now())
   return Response.json({ deals, id })
 }

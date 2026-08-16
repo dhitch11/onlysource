@@ -23,11 +23,13 @@ export async function POST(req: NextRequest) {
   } catch {
     return Response.json({ error: 'bad_request' }, { status: 400 })
   }
-  const packets = savePacket(
-    { label: (body.label ?? '').trim(), nsn: (body.nsn ?? '').trim(), query: (body.query ?? '').replace(/^\?/, '') },
-    crypto.randomUUID(),
-    systemClock.now(),
-  )
+  const nsn = (body.nsn ?? '').trim()
+  const query = (body.query ?? '').replace(/^\?/, '').trim()
+  // A packet with no stock number and no inputs is empty; refuse it rather than store junk.
+  if (!nsn && !query) {
+    return Response.json({ error: 'empty_packet', message: 'Nothing to save yet — run a lot first.' }, { status: 400 })
+  }
+  const packets = savePacket({ label: (body.label ?? '').trim(), nsn, query }, crypto.randomUUID(), systemClock.now())
   return Response.json({ packets })
 }
 
