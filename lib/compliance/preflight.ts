@@ -263,6 +263,17 @@ export function runPreflight(c: PreflightCandidate): PreflightResult {
 
   // ------------------------------------------------------------------ CHECK 3: the T versus U surplus fork
   const isSurplus = c.compliance_path === 'c04_surplus_representation' || c.category === 'government_surplus'
+  /*
+   * THE FAIL-OPEN THIS BRANCH USED TO HAVE, closed 2026-08-16. When the lot was not yet
+   * classified (material condition or channel uncaptured -> path 'unknown', category
+   * 'UNKNOWN'), `isSurplus` read false and this whole fork was silently SKIPPED, so the
+   * verdict came back 'clear' with a clear-statement claiming "the solicitation type does
+   * not exclude this material": a claim about a check that never ran. Measured live: an
+   * unclassified surplus lot rendered a "Ready to submit" quote packet over a "Clear"
+   * pre-flight. Unknown-whether-surplus is exactly as unassessable as known-surplus with an
+   * unknown type character, and it is named as such below, never skipped.
+   */
+  const surplusUnknowable = !isSurplus && c.compliance_path === 'unknown' && c.category === 'UNKNOWN'
 
   if (isSurplus) {
     const aidc =
@@ -299,6 +310,21 @@ export function runPreflight(c: PreflightCandidate): PreflightResult {
         reroute: 'Obtain the solicitation type character or type indicator before committing effort.',
       })
     }
+  } else if (surplusUnknowable) {
+    findings.push({
+      check: 'surplus_solicitation_type',
+      severity: 'unassessable',
+      failing_field: 'material_condition',
+      statement:
+        'The lot is not classified, because the material condition or acquisition channel has not been ' +
+        'captured, so whether this material is surplus, and therefore whether the solicitation type ' +
+        'excludes it, cannot be assessed. On an AIDC buy surplus is disqualified at any price; unknown ' +
+        'is not clear.',
+      rule: ruleWithQuote(RULES.ms_surplus_ineligible_on_aidc),
+      reroute:
+        'Capture the material condition and the acquisition channel so the lot classifies, then this ' +
+        'gate can actually be evaluated.',
+    })
   }
 
   // ------------------------------------------------------------------ CHECK 3b: alternate on an automated buy
@@ -353,10 +379,18 @@ export function runPreflight(c: PreflightCandidate): PreflightResult {
     solicitation_number: c.solicitation.solicitation_number,
     verdict,
     findings,
+    /*
+     * The clear statement enumerates only checks that actually RAN. The old fixed sentence
+     * claimed "the solicitation type does not exclude this material" even when the surplus
+     * fork was never evaluated, which converted a skipped check into an asserted clearance.
+     */
     clear_statement:
       verdict === 'clear'
-        ? 'Pre-flight clear. No automated-award exception, no listing gap, and the solicitation type ' +
-          'does not exclude this material.'
+        ? 'Pre-flight clear. No automated-award exception and no listing gap' +
+          (isSurplus
+            ? ', and the solicitation type does not exclude this material.'
+            : '; the lot is classified as something other than government surplus, so the surplus ' +
+              'solicitation-type fork does not apply to it.')
         : null,
   }
 }

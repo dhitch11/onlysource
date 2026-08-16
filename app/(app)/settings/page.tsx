@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { readSettings } from '@/lib/notify/settings'
-import { emailConfigured } from '@/lib/notify/email'
+import { emailConfigured, sendPreflight } from '@/lib/notify/email'
 import { SIGNAL_KINDS } from '@/lib/notify/signals'
 import { SettingsForm } from './SettingsForm'
 import styles from './settings.module.css'
@@ -20,6 +20,9 @@ export const dynamic = 'force-dynamic'
 export default async function SettingsPage() {
   await requireGateSession('/settings')
   const settings = readSettings()
+  // The channel's standing state, computed server-side so the page can say "disarmed"
+  // BEFORE the operator spends a click on a test. sendPreflight exists for exactly this.
+  const pf = sendPreflight(settings.emailRecipient)
 
   return (
     <main className={styles.page}>
@@ -35,6 +38,7 @@ export default async function SettingsPage() {
         initial={settings}
         kinds={SIGNAL_KINDS}
         emailConfigured={emailConfigured()}
+        channelState={{ wouldSend: pf.wouldSend, reason: pf.reason }}
       />
     </main>
   )

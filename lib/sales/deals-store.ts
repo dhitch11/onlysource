@@ -22,12 +22,25 @@ export type StoredDeal = {
   niin: string | null
   /** Modeled value in whole dollars; null when unknown. */
   valueUsd: number | null
+  /**
+   * THE RECORDED CLOSE. What this deal ACTUALLY closed for, entered by a person at the
+   * moment the deal moves into Won & Revenue, never copied from the modeled value by the
+   * system. Won & Revenue sums THIS field only; `valueUsd` stays what it always was, a
+   * model. A deal outside Won & Revenue carries null here, always: moving a deal back out
+   * of Won clears the recorded close, because a recorded win that is no longer won is not
+   * history, it is a stale number wearing a measurement's clothes.
+   */
+  wonValueUsd: number | null
+  /** When the close was recorded. Clock injected by the caller; this store never reads time. */
+  wonAtMs: number | null
+  /** The award or PO reference the operator entered when recording the win. */
+  wonRef: string | null
   nextAction: string | null
   createdAt: number
   updatedAt: number
 }
 
-const OWNERS: DealOwner[] = ['DH', 'DG', 'AI']
+export const OWNERS: DealOwner[] = ['DH', 'DG', 'AI']
 
 function stateDir(): string {
   return process.env.ONLYSOURCE_STATE_DIR || path.join(process.cwd(), '.state')
@@ -45,6 +58,13 @@ function coerce(raw: unknown): StoredDeal | null {
     ? (r.stage as PipelineStage)
     : 'opportunities'
   const owner = OWNERS.includes(r.owner as DealOwner) ? (r.owner as DealOwner) : 'DH'
+  /*
+   * THE WON-FIELD INVARIANT, ENFORCED AT THE COERCION BOUNDARY. A recorded close exists only
+   * on a deal that is actually in Won & Revenue. Whatever a stored file or a merge produced,
+   * a deal read back outside that stage carries no recorded close, so the Won column can
+   * never be inflated by a leftover value on a card that moved back.
+   */
+  const won = stage === 'won_revenue'
   return {
     id,
     stage,
@@ -53,6 +73,12 @@ function coerce(raw: unknown): StoredDeal | null {
     ref: typeof r.ref === 'string' ? r.ref : '',
     niin: typeof r.niin === 'string' ? r.niin : null,
     valueUsd: typeof r.valueUsd === 'number' && Number.isFinite(r.valueUsd) ? r.valueUsd : null,
+    wonValueUsd:
+      won && typeof r.wonValueUsd === 'number' && Number.isFinite(r.wonValueUsd) && r.wonValueUsd >= 0
+        ? r.wonValueUsd
+        : null,
+    wonAtMs: won && typeof r.wonAtMs === 'number' && Number.isFinite(r.wonAtMs) ? r.wonAtMs : null,
+    wonRef: won && typeof r.wonRef === 'string' && r.wonRef.trim() ? r.wonRef : null,
     nextAction: typeof r.nextAction === 'string' && r.nextAction.trim() ? r.nextAction : null,
     createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
     updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : 0,

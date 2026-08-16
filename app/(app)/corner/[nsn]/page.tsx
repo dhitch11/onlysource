@@ -12,8 +12,11 @@ import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { PursueButton } from '@/components/sales/PursueButton'
+import { PursuitPackagePanel } from '@/components/sales/PursuitPackagePanel'
 import { findDealByRef } from '@/lib/sales/deals-store'
 import { aiConfigured } from '@/lib/ai/anthropic'
+import { sendPreflight } from '@/lib/notify/email'
+import { readSettings } from '@/lib/notify/settings'
 import { Scrollable } from '@/components/ui/Scrollable'
 import { AiBrief } from './AiBrief'
 import styles from './corner.module.css'
@@ -307,6 +310,21 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
 
       {/* ------------------------------------------------------------------ AI brief */}
       <AiBrief nsn={key} configured={aiConfigured()} />
+
+      {/* ------------------------------------------------------------ pursuit package */}
+      {(() => {
+        // The email channel's TRUE state, computed server-side so the panel can say
+        // "disarmed" before a click is ever spent. sendPreflight finally has its caller.
+        const recipient = readSettings().emailRecipient
+        const pf = sendPreflight(recipient)
+        return (
+          <PursuitPackagePanel
+            nsn={key}
+            configured={aiConfigured()}
+            emailChannel={{ wouldSend: pf.wouldSend, reason: pf.reason, recipient }}
+          />
+        )
+      })()}
 
       {/* ---------------------------------------------------------- award history */}
       {dossier.priceHistory.length > 0 ? (

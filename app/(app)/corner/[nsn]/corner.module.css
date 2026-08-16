@@ -449,6 +449,12 @@
   line-height: 1.6;
   max-width: 70ch;
 }
+/* The honesty footer: which model actually wrote it, and whether the guard cut anything. */
+.briefProvenance {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.5;
+}
 
 /* -------------------------------------------------------------- fallback */
 .unavailable {

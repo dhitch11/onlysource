@@ -40,6 +40,14 @@ export const MODEL_CHAINS = {
   corner_brief: ['claude-opus-5', 'claude-sonnet-5', 'claude-sonnet-4-5'],
   /** The whole candidate book aggregated. Synthesis across many rows. */
   portfolio_brief: ['claude-opus-5', 'claude-sonnet-5', 'claude-sonnet-4-5'],
+  /**
+   * DELIVERABLES: the pursuit package memo and the supplier outreach draft. Copy that leaves
+   * the building with the operator's name near it. The owner's ruling, verbatim: "If you're
+   * creating deliverables, you should always use at least Opus 5 ... I would choose Opus 5
+   * over Fable 5 ... because the results are very close." So Opus 5 first, and the survival
+   * slot is the next best writer, never a budget model.
+   */
+  deliverable: ['claude-opus-5', 'claude-sonnet-5'],
 } as const
 
 export type AiSlot = keyof typeof MODEL_CHAINS

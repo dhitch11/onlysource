@@ -16,14 +16,19 @@ export function SettingsForm({
   initial,
   kinds,
   emailConfigured,
+  channelState,
 }: {
   initial: AlertSettings
   kinds: KindMeta[]
   emailConfigured: boolean
+  /** The channel's standing state, from sendPreflight server-side: would a send go out now? */
+  channelState: { wouldSend: boolean; reason: string | null }
 }) {
   const [s, setS] = useState<AlertSettings>(initial)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [testState, setTestState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  // 'refused' is its own state: the transport declined BY POLICY (disarmed, off-list). It is
+  // neither a delivery nor a failure, and it must not wear either one's styling.
+  const [testState, setTestState] = useState<'idle' | 'sending' | 'sent' | 'refused' | 'error'>('idle')
   const [testMsg, setTestMsg] = useState('')
 
   async function save(next: AlertSettings) {
@@ -56,7 +61,9 @@ export function SettingsForm({
         setTestState('sent')
         setTestMsg(`Test sent to ${d.to}.`)
       } else if (r.ok && !d.sent) {
-        setTestState('sent')
+        // Not sent, and honestly not an error either: policy refused it (disarmed channel,
+        // off-list recipient, or no signals). Its own neutral state, never the sent styling.
+        setTestState('refused')
         setTestMsg(d.reason || 'No email-enabled signals to send right now.')
       } else {
         setTestState('error')
@@ -137,12 +144,23 @@ export function SettingsForm({
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>Test it</h2>
         <p className={styles.cardSub}>Send yourself the alert email right now with today&rsquo;s live signals, so you know it works.</p>
+        {/* The channel's standing state, BEFORE a click is spent finding it out. */}
+        <p className={styles.channelState}>
+          {channelState.wouldSend
+            ? 'The channel is armed: a test would be delivered.'
+            : channelState.reason ?? 'The channel cannot deliver right now.'}
+        </p>
         <div className={styles.testRow}>
           <button type="button" className={styles.testBtn} onClick={sendTest} disabled={!emailConfigured || testState === 'sending'}>
             {testState === 'sending' ? 'Sending…' : 'Send me a test'}
           </button>
           {testMsg ? (
-            <span className={`${styles.testMsg} ${testState === 'error' ? styles.testErr : ''}`}>{testMsg}</span>
+            <span
+              className={`${styles.testMsg} ${testState === 'error' ? styles.testErr : ''} ${testState === 'refused' ? styles.testRefused : ''} ${testState === 'sent' ? styles.testSent : ''}`}
+            >
+              {testState === 'refused' ? 'Not sent. ' : ''}
+              {testMsg}
+            </span>
           ) : null}
         </div>
       </section>

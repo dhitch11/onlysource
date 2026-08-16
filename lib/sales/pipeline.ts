@@ -309,7 +309,40 @@ export function normalizeDealRef(ref: string): string {
 
 /**
  * The honest first next-action for a pursued opportunity. One sentence, no promise the
- * system cannot keep: before anything can be quoted, somebody has to source the approved
- * article and be able to prove where it came from.
+ * system cannot keep, and it names the VENUE: a new deal card that says "source the
+ * article" without saying where is a task with no door. The approved-source list is on the
+ * corner dossier; the contactable book is /suppliers.
  */
-export const PURSUE_NEXT_ACTION = 'Source the approved article and document traceability'
+export const PURSUE_NEXT_ACTION =
+  'Find who holds the approved article (approved sources, then the Suppliers book), draft the buy-side email, and document traceability'
+
+/**
+ * THE STAGE-SEEDED NEXT ACTIONS. Deterministic, written here, never generated.
+ *
+ * Each stage seeds an honest suggestion the moment a deal arrives with no next action of
+ * its own. Two rules, both load-bearing:
+ *
+ *   1. NEVER OVERWRITE AN OPERATOR'S OWN TEXT. A seed replaces nothing except another seed
+ *      (or an empty field). `isSeededNextAction` is how the server tells the difference.
+ *   2. NO PROMISE THE SYSTEM CANNOT KEEP. The Quoting seed says where quotes are actually
+ *      filed (DIBBS, the government's own site) because this product prepares the case and
+ *      never submits it.
+ */
+export const STAGE_NEXT_ACTION: Record<PipelineStage, string> = {
+  opportunities: PURSUE_NEXT_ACTION,
+  leads:
+    'Work the supplier: confirm they still hold the article, what condition it is in, and what they want for it',
+  quoting:
+    'Build the quote case in Documents, then file it on DIBBS yourself; the government site is where quotes are filed',
+  customers:
+    'Deliver against the order and keep the traceability packet with the shipment',
+  won_revenue: 'Collect payment and keep the award reference with this record',
+}
+
+/** True when this text is one of the seeds (any stage), so replacing it loses nothing an operator wrote. */
+export function isSeededNextAction(text: string | null): boolean {
+  if (text === null) return true
+  const t = text.trim()
+  if (t === '') return true
+  return Object.values(STAGE_NEXT_ACTION).includes(t) || t === PURSUE_NEXT_ACTION
+}

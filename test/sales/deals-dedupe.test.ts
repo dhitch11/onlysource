@@ -150,7 +150,15 @@ describe('POST /api/deals dedupes creates by ref, server-side', () => {
 
   it('an UPDATE (id present) is never treated as a duplicate create', async () => {
     const created = await post({ title: 'Bushing', ref: 'NSN-A', stage: 'opportunities' })
-    const updated = await post({ id: created.id, ref: 'NSN-A', stage: 'leads' })
+    /*
+     * Since the stage guard was wired (2026-08-16), a move to Leads needs the operator's
+     * attestation that a pursuit is running; without it the move is REFUSED, which is the
+     * guard's own contract (asserted in stage-guard.test.ts). With it, the update flows and
+     * is never mistaken for a duplicate create.
+     */
+    const refused = await post({ id: created.id, ref: 'NSN-A', stage: 'leads' })
+    expect(refused.status).toBe(409)
+    const updated = await post({ id: created.id, ref: 'NSN-A', stage: 'leads', attest: 'outreach_running' })
     expect(updated.status).toBe(200)
     expect(updated.existing).toBeUndefined()
     expect(readDeals()).toHaveLength(1)

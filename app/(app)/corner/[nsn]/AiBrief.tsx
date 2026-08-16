@@ -43,6 +43,11 @@ export function AiBrief({ nsn, configured }: { nsn: string; configured: boolean 
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [sections, setSections] = useState<Section[]>([])
   const [error, setError] = useState('')
+  // The two honesty fields the API returns: the model that ACTUALLY served this brief, and
+  // the sentences the grounding guard withheld. Both are rendered, never discarded: the
+  // operator must know which model wrote what they are reading, and that holes were cut.
+  const [model, setModel] = useState('')
+  const [withheldCount, setWithheldCount] = useState(0)
 
   async function run() {
     setState('loading')
@@ -53,13 +58,20 @@ export function AiBrief({ nsn, configured }: { nsn: string; configured: boolean 
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ nsn }),
       })
-      const data = (await resp.json()) as { brief?: string; message?: string }
+      const data = (await resp.json()) as {
+        brief?: string
+        message?: string
+        model?: string
+        unverified?: string[]
+      }
       if (!resp.ok || !data.brief) {
         setError(data.message || 'The analyst could not complete this brief.')
         setState('error')
         return
       }
       setSections(parseSections(data.brief))
+      setModel(data.model ?? '')
+      setWithheldCount(data.unverified?.length ?? 0)
       setState('done')
     } catch {
       setError('The request could not reach the analyst. Check the connection and try again.')
@@ -126,6 +138,18 @@ export function AiBrief({ nsn, configured }: { nsn: string; configured: boolean 
               {s.body ? <p className={styles.briefText}>{s.body}</p> : null}
             </div>
           ))}
+          <p className={styles.briefProvenance}>
+            {model ? (
+              <>
+                Written by <span className="mono">{model}</span> from the measured dossier.
+              </>
+            ) : (
+              'Written from the measured dossier.'
+            )}
+            {withheldCount > 0
+              ? ` ${withheldCount} sentence${withheldCount === 1 ? '' : 's'} withheld: they carried numbers this build did not measure.`
+              : ''}
+          </p>
         </div>
       ) : null}
     </section>

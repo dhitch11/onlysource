@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import type { DistressedSupplier } from "@/lib/intelligence/suppliers/distressed";
+import {
+  CALL_CAPTURE_FIELDS,
+  FOLLOW_UP_CALL_SCRIPT,
+  bestRecipient,
+  buySideEmailDraft,
+  firstNameOf,
+  type ComposeRecipient,
+  type SupplierNsnFact,
+} from "@/lib/sales/outreach-templates";
 import styles from "./suppliers.module.css";
 
 type Filter = "hot" | "manufacturer" | "all";
@@ -17,28 +26,34 @@ const tierTone = (tier: string | null): "verified" | "accent" | "idle" => {
   return "idle";
 };
 
-/** The best email for a supplier: the company email, else the first verified contact with one. */
-function bestEmail(r: DistressedSupplier): string | null {
-  if (r.email) return r.email;
-  const c = r.contacts.find((c) => c.email);
-  return c?.email ?? null;
-}
 function bestPhone(r: DistressedSupplier): string | null {
   if (r.phone) return r.phone;
   const c = r.contacts.find((c) => c.phone);
   return c?.phone ?? null;
 }
 
-/** A professional starter the operator edits before sending. Draft only; nothing is sent. */
-function composeHref(r: DistressedSupplier, email: string): string {
-  const subject = `Defense parts sourcing${r.company ? ` — ${r.company}` : ""}`;
-  const body =
-    `Hi${r.executive ? ` ${r.executive.split(" ")[0]}` : ""},\n\n` +
-    `I work defense-parts sourcing and came across ${r.company ?? "your company"} (CAGE ${r.cage}). ` +
-    `I have live DLA requirements I think you may be positioned to fill.\n\n` +
-    `Do you have a few minutes this week to compare notes?\n\n` +
-    `Thanks,\n`;
-  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+/**
+ * THE COMPOSE DRAFT — the operator's proven buy-side pitch, grounded in this row's own
+ * measured fields. Draft only; the operator edits and sends it themselves.
+ *
+ * What changed and why (audit 2026-08-16): the old draft asked award-dead suppliers to FILL
+ * live DLA requirements, which is backwards. Every row on this page is here because it went
+ * award-quiet with stock on the shelf; the play is to MARKET that dormant inventory back
+ * into the supply chain or BUY it. The greeting now belongs to the person the address
+ * belongs to (bestRecipient), the anchor is the row's own last recorded award, and where the
+ * award index ties THIS CAGE to a stock number, the draft names it. No em dashes, and the
+ * operator signs: nothing after "Thanks,".
+ */
+function composeHref(r: DistressedSupplier, rec: ComposeRecipient, facts: SupplierNsnFact[]): string {
+  const draft = buySideEmailDraft({
+    recipientFirstName: firstNameOf(rec.name),
+    company: r.company,
+    cage: r.cage,
+    lastAwardedAt: r.lastAwardedAt,
+    holdsInventory: r.holdsInventory,
+    nsnFacts: facts,
+  });
+  return `mailto:${encodeURIComponent(rec.email)}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
 }
 
 /** Copy button that shows a brief confirmation. Self-contained state so it works inside a grid cell. */
@@ -71,11 +86,12 @@ function csvCell(v: string | number | null | undefined): string {
 }
 
 function exportCsv(rows: DistressedSupplier[], name: string) {
-  const head = ["Company", "CAGE", "Tier", "Score", "City", "State", "Email", "Phone", "Executive", "Holds inventory", "SAM status"];
+  const head = ["Company", "CAGE", "Tier", "Score", "City", "State", "Email", "Email belongs to", "Phone", "Executive", "Holds inventory", "SAM status"];
   const lines = [head.map(csvCell).join(",")];
   for (const r of rows) {
+    const rec = bestRecipient(r);
     lines.push(
-      [r.company, r.cage, r.prospectTier, r.prospectScore, r.city, r.state, bestEmail(r), bestPhone(r), r.executive, r.holdsInventory, r.samStatus]
+      [r.company, r.cage, r.prospectTier, r.prospectScore, r.city, r.state, rec?.email ?? null, rec?.name ?? null, bestPhone(r), r.executive, r.holdsInventory, r.samStatus]
         .map(csvCell)
         .join(","),
     );
@@ -91,7 +107,14 @@ function exportCsv(rows: DistressedSupplier[], name: string) {
   URL.revokeObjectURL(url);
 }
 
-export function SuppliersGrid({ suppliers }: { suppliers: DistressedSupplier[] }) {
+export function SuppliersGrid({
+  suppliers,
+  nsnFacts,
+}: {
+  suppliers: DistressedSupplier[];
+  /** Measured CAGE-to-NSN ties from the award index, computed server-side. Absent CAGE = no tie. */
+  nsnFacts: Record<string, SupplierNsnFact[]>;
+}) {
   const [filter, setFilter] = useState<Filter>("hot");
   const [hideContacted, setHideContacted] = useState(false);
   const [contacted, setContacted] = useState<Set<string>>(new Set());
@@ -198,21 +221,26 @@ export function SuppliersGrid({ suppliers }: { suppliers: DistressedSupplier[] }
         header: "Reach out",
         width: "22ch",
         cell: (r): Cell => {
-          const email = bestEmail(r);
+          const rec = bestRecipient(r);
           const phone = bestPhone(r);
-          if (!email && !phone) return { state: "unknown", reason: "no contact channel in the file" };
+          if (!rec && !phone) return { state: "unknown", reason: "no contact channel in the file" };
           return {
             state: "known",
             provenance: "measured",
             value: (
               <span className={styles.reachCell}>
-                {email ? (
-                  <a className={styles.reachBtn} href={composeHref(r, email)} onClick={(e) => e.stopPropagation()}>
+                {rec ? (
+                  <a
+                    className={styles.reachBtn}
+                    href={composeHref(r, rec, nsnFacts[r.cage] ?? [])}
+                    onClick={(e) => e.stopPropagation()}
+                    title={rec.name ? `Drafts to ${rec.name}, ${rec.email}` : `Drafts to ${rec.email}`}
+                  >
                     Compose
                   </a>
                 ) : null}
-                {email ? <CopyButton text={email} label="Copy email" /> : null}
-                {!email && phone ? <CopyButton text={phone} label="Copy phone" /> : null}
+                {rec ? <CopyButton text={rec.email} label="Copy email" /> : null}
+                {!rec && phone ? <CopyButton text={phone} label="Copy phone" /> : null}
                 <button
                   type="button"
                   className={`${styles.miniBtn} ${contacted.has(r.cage) ? styles.miniBtnOn : ""}`}
@@ -230,9 +258,9 @@ export function SuppliersGrid({ suppliers }: { suppliers: DistressedSupplier[] }
         },
       },
     ],
-    // toggleContacted is stable enough; contacted drives the re-render.
+    // toggleContacted is stable enough; contacted (and the server-computed facts) drive the re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contacted],
+    [contacted, nsnFacts],
   );
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
@@ -292,23 +320,49 @@ export function SuppliersGrid({ suppliers }: { suppliers: DistressedSupplier[] }
             setHideContacted(false);
           },
         }}
-        expansion={(r) => [
-          { field: "CAGE", value: r.cage },
-          { field: "Company", value: r.company ?? "(none)" },
-          { field: "Why no awards", value: r.whyNoAwards ?? "(not researched)" },
-          { field: "Prospect rationale", value: r.prospectRationale ?? "(none)" },
-          ...(r.keyFindings ? [{ field: "Signals", value: r.keyFindings }] : []),
-          { field: "Industry", value: r.industry ?? "(unknown)" },
-          { field: "Employees", value: r.employees ?? "(unknown)" },
-          { field: "SAM", value: [r.samStatus, r.samExpiration ? `expires ${r.samExpiration}` : null].filter(Boolean).join(" · ") || "(not read)" },
-          { field: "Holds inventory", value: r.holdsInventory ?? "(not researched)" },
-          { field: "Website", value: r.url ?? "(none)" },
-          ...(r.executive ? [{ field: "Executive", value: `${r.executive}${r.executiveTitle ? `, ${r.executiveTitle}` : ""}` }] : []),
-          ...r.contacts.slice(0, 8).map((c, i) => ({
-            field: i === 0 ? "Verified contacts" : "",
-            value: `${c.name ?? "?"}${c.title ? `, ${c.title}` : ""}${c.email ? ` · ${c.email}` : ""}${c.phone ? ` · ${c.phone}` : ""}${c.verified ? " ✓" : ""}`,
-          })),
-        ]}
+        expansion={(r) => {
+          const phone = bestPhone(r);
+          const facts = nsnFacts[r.cage] ?? [];
+          return [
+            { field: "CAGE", value: r.cage },
+            { field: "Company", value: r.company ?? "(none)" },
+            { field: "Why no awards", value: r.whyNoAwards ?? "(not researched)" },
+            { field: "Prospect rationale", value: r.prospectRationale ?? "(none)" },
+            ...(r.keyFindings ? [{ field: "Signals", value: r.keyFindings }] : []),
+            ...facts.map((f, i) => ({
+              field: i === 0 ? "Their stock numbers" : "",
+              value: `NSN ${f.nsn} (${f.kind === "awarded" ? "on the recorded award history" : "lists stock"}${f.liveRequirement ? "; open government requirement right now" : ""})`,
+            })),
+            { field: "Industry", value: r.industry ?? "(unknown)" },
+            { field: "Employees", value: r.employees ?? "(unknown)" },
+            { field: "SAM", value: [r.samStatus, r.samExpiration ? `expires ${r.samExpiration}` : null].filter(Boolean).join(" · ") || "(not read)" },
+            { field: "Holds inventory", value: r.holdsInventory ?? "(not researched)" },
+            { field: "Website", value: r.url ?? "(none)" },
+            ...(r.executive ? [{ field: "Executive", value: `${r.executive}${r.executiveTitle ? `, ${r.executiveTitle}` : ""}` }] : []),
+            ...r.contacts.slice(0, 8).map((c, i) => ({
+              field: i === 0 ? "Verified contacts" : "",
+              value: `${c.name ?? "?"}${c.title ? `, ${c.title}` : ""}${c.email ? ` · ${c.email}` : ""}${c.phone ? ` · ${c.phone}` : ""}${c.verified ? " ✓" : ""}`,
+            })),
+            /*
+             * THE CALL SIDE OF THE LOOP. When a phone is on file the operator's own
+             * follow-up script rides in the expansion, so a call is made with the discovery
+             * questions and the capture list open, not from memory. The script is the
+             * operator's proven asset, structure intact.
+             */
+            ...(phone
+              ? [
+                  ...FOLLOW_UP_CALL_SCRIPT.map((sec, i) => ({
+                    field: i === 0 ? "Call script" : "",
+                    value: `${sec.label}: ${sec.lines.join(" ")}`,
+                  })),
+                  {
+                    field: "Capture on the call",
+                    value: CALL_CAPTURE_FIELDS.map((f) => f.label).join(" · "),
+                  },
+                ]
+              : []),
+          ];
+        }}
       />
     </>
   );

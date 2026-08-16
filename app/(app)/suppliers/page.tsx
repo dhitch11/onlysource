@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildDistressedSuppliers } from "@/lib/intelligence/suppliers/distressed";
+import { supplierNsnFacts } from "@/lib/intelligence/suppliers/outreach-dossier";
 import { resolveDataRoot } from "@/lib/data-root";
 import { SuppliersGrid } from "./SuppliersGrid";
 import styles from "./suppliers.module.css";
@@ -56,6 +57,11 @@ export default async function SuppliersPage() {
 
   const { suppliers, counts } = ix;
 
+  // Measured CAGE-to-NSN ties from the award index (awarded history and listed stock, with
+  // the open-requirement flag). They personalise the compose draft with facts the data
+  // actually holds; a CAGE with no tie gets no line, never a padded one.
+  const nsnFacts = supplierNsnFacts(suppliers.map((s) => s.cage));
+
   return (
     <main className={styles.page}>
       <header className={styles.head}>
@@ -109,7 +115,7 @@ export default async function SuppliersPage() {
         </p>
       </div>
 
-      <SuppliersGrid suppliers={suppliers} />
+      <SuppliersGrid suppliers={suppliers} nsnFacts={nsnFacts} />
     </main>
   );
 }

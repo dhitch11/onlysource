@@ -275,6 +275,22 @@
 .testErr {
   color: var(--red);
 }
+/* A DELIVERED test wears the measured role. */
+.testSent {
+  color: var(--olive);
+}
+/* A POLICY refusal (disarmed, off-list) is neutral fact: neither success nor failure. */
+.testRefused {
+  color: var(--dim);
+}
+/* The channel's standing state, rendered before any click. */
+.channelState {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+  border-inline-start: 2px solid var(--line-control);
+  padding-inline-start: var(--sp-3);
+}
 
 @media (max-width: 480px) {
   .kindRow {

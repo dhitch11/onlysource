@@ -392,3 +392,122 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ------------------------------------------------- the honest close + card flows */
+
+/* A stock-number title is a door to its dossier, not a dead end. */
+.cardTitleLink {
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.cardTitleLink:hover {
+  text-decoration-color: var(--accent);
+}
+.cardTitleLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* The RECORDED close: the money signal, brass, and it says "recorded". */
+.cardWon {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
+}
+.cardWonRef {
+  color: var(--faint);
+  font-weight: 400;
+  font-size: var(--fs-100);
+}
+
+/* A server refusal, in the server's own words. Not the clock, so not red. */
+.cardRefusal {
+  font-size: var(--fs-100);
+  line-height: 1.45;
+  color: var(--ink);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: var(--sp-2) var(--sp-3);
+}
+.cardNote {
+  font-size: var(--fs-100);
+  line-height: 1.45;
+  color: var(--olive);
+  border-inline-start: 2px solid var(--olive-dim);
+  padding-inline-start: var(--sp-2);
+}
+
+/* The inline close / attestation form. */
+.closeForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  padding: var(--sp-3);
+}
+.closeFormTitle {
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+.closeField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-100);
+  color: var(--dim);
+}
+.closeHint {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  line-height: 1.4;
+}
+.closeActions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* The per-card deliverable tools. */
+.cardTools {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.toolBtn {
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-control);
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: var(--fs-100);
+  cursor: pointer;
+}
+.toolBtn:hover {
+  color: var(--ink);
+  border-color: var(--accent-2);
+}
+.toolBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.toolBtnOn {
+  color: var(--accent);
+  border-color: var(--accent-2);
+  background: var(--accent-soft);
+}
+.cardPanel {
+  margin-top: var(--sp-2);
+}

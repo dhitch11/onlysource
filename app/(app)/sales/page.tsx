@@ -1,6 +1,11 @@
 import { requireGateSession } from '@/lib/session/require-gate'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { readDeals } from '@/lib/sales/deals-store'
+import { normalizeDealRef } from '@/lib/sales/pipeline'
+import { refsWithListedHolders } from '@/lib/intelligence/suppliers/outreach-dossier'
+import { aiConfigured } from '@/lib/ai/anthropic'
+import { sendPreflight } from '@/lib/notify/email'
+import { readSettings } from '@/lib/notify/settings'
 import { PipelineBoard } from './PipelineBoard'
 import styles from './SalesHub.module.css'
 
@@ -21,6 +26,15 @@ export const dynamic = 'force-dynamic'
 export default async function SalesHubPage() {
   await requireGateSession('/sales')
   const deals = readDeals()
+
+  // Which deals can ground a supplier outreach draft: their stock number has at least one
+  // listed holder in the export. Computed server-side from the real award index, so the
+  // control renders only where a draft can actually be written.
+  const outreachRefs = refsWithListedHolders(deals.map((d) => normalizeDealRef(d.ref)))
+
+  // The email channel's true state, computed before any click is spent on it.
+  const recipient = readSettings().emailRecipient
+  const pf = sendPreflight(recipient)
 
   return (
     <div className={styles.page}>
@@ -50,7 +64,12 @@ export default async function SalesHubPage() {
       </section>
 
       {/* ---------------------------------------------------------------- the pipeline */}
-      <PipelineBoard initial={deals} />
+      <PipelineBoard
+        initial={deals}
+        outreachRefs={outreachRefs}
+        analystConfigured={aiConfigured()}
+        emailChannel={{ wouldSend: pf.wouldSend, reason: pf.reason, recipient }}
+      />
     </div>
   )
 }

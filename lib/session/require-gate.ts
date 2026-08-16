@@ -42,7 +42,17 @@ export async function requireGateSession(returnTo?: string): Promise<void> {
   redirect(target)
 }
 
-/** For route handlers, which must answer with a status rather than a redirect. */
+/**
+ * For route handlers, which must answer with a status rather than a redirect.
+ *
+ * WHAT AN ANONYMOUS CALLER ACTUALLY SEES IN PRODUCTION: a 307 to /enter, not this 401.
+ * The edge proxy (Caddy) intercepts unauthenticated requests before they reach Next, so
+ * this JSON answer is the DEFENSE-IN-DEPTH layer behind it: it fires when the edge is
+ * bypassed, misconfigured, or absent (local dev, tests). Measured 2026-08-16:
+ * `curl /api/deals` with no cookie answers `HTTP/2 307, location: /enter?...` from Caddy
+ * and discloses nothing. Both layers refusing is the design; do not "fix" the mismatch by
+ * removing either one.
+ */
 export async function gateOrJson(): Promise<Response | null> {
   const verdict = await readGateVerdict()
   if (verdict.valid) return null

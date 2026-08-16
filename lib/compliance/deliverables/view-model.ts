@@ -416,6 +416,38 @@ export function buildDocumentsView(raw: CapturedFacts, asOf: string): DocumentsV
     ? preflightResult.findings.filter((x) => x.severity === 'blocking').map((x) => x.statement)
     : []
 
+  /*
+   * TWO MORE INPUTS FEED THE QUOTE PACKET'S BLOCKERS, closed 2026-08-16. Measured live before
+   * the fix: an unclassified surplus lot rendered a quote packet chipped "Ready to submit"
+   * whose own body cites a traceability enclosure that could not be built, because
+   * deliverable state read ONLY the pre-flight's blocking findings.
+   *
+   *   (a) While no compliance path is asserted, the classifier's blocked facts (material
+   *       condition not captured, channel not captured) block the QUOTE: a quote with no
+   *       asserted compliance path is a draft, not a submission.
+   *   (b) The quote body names the traceability packet as its enclosure, so an enclosure
+   *       that cannot be built blocks the quote that cites it.
+   */
+  const classificationBlockers =
+    determination.path === 'unknown'
+      ? determination.blocked_facts.map(
+          (b) => `No compliance path is asserted: ${b.statement}`,
+        )
+      : []
+  const traceabilityMissingRefs = REQUIRED_REFS['traceability_packet'].filter(
+    (r) => payloadsFor('traceability_packet', f, asOf)[r.ref] === undefined,
+  )
+  const quotePacketBlockers = [
+    ...blockers,
+    ...classificationBlockers,
+    ...(traceabilityMissingRefs.length > 0
+      ? [
+          'the quote cites the traceability packet as its enclosure, and that packet cannot be built ' +
+            `yet (missing ${traceabilityMissingRefs.map((m) => m.label).join(', ')})`,
+        ]
+      : []),
+  ]
+
   const path: 'c04' | 'l04' | 'unknown' =
     determination.path === 'c04_surplus_representation'
       ? 'c04'
@@ -480,7 +512,12 @@ export function buildDocumentsView(raw: CapturedFacts, asOf: string): DocumentsV
       }
     }
 
-    const st = deliverableState({ kind, payloads, artifact: assembly, open_blockers: blockers })
+    const st = deliverableState({
+      kind,
+      payloads,
+      artifact: assembly,
+      open_blockers: kind === 'quote_packet' ? quotePacketBlockers : blockers,
+    })
     deliverables.push({
       kind,
       label: DELIVERABLE_LABEL[kind],
