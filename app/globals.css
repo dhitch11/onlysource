@@ -592,3 +592,81 @@ a {
   .metricGrid .metricCard:nth-child(4) { animation-delay: 0.3s; }
   .topCorner { animation: cc-fade-up 0.55s 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 }
+
+/* ============================================================ dashboard signals
+ * The command-center "what needs your attention today" block. Each card is the same
+ * live signal the notification bell shows, laid out big on the flagship. */
+.signalBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3, 0.75rem);
+}
+.signalBlock__title {
+  font-size: var(--fs-500, 1.125rem);
+  font-weight: 650;
+  color: var(--ink);
+}
+.signalGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-3, 0.75rem);
+}
+.signalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-4, 1rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 11px);
+  background: var(--panel);
+  text-decoration: none;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.signalCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-2);
+}
+.signalCard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.signalCard--high {
+  border-color: var(--accent-2);
+  background: linear-gradient(180deg, var(--accent-soft), transparent);
+}
+.signalCard__sev {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  align-self: flex-start;
+  padding: 2px 7px;
+  border: 1px solid var(--line-control);
+  border-radius: 999px;
+}
+.signalCard--high .signalCard__sev {
+  color: var(--accent);
+  border-color: var(--accent-2);
+  background: var(--accent-soft);
+}
+.signalCard--medium .signalCard__sev {
+  color: var(--olive);
+  border-color: color-mix(in srgb, var(--olive) 45%, transparent);
+}
+.signalCard__title {
+  font-size: var(--fs-400, 1rem);
+  font-weight: 650;
+  color: var(--ink);
+}
+.signalCard__body {
+  font-size: var(--fs-200, 0.875rem);
+  color: var(--dim);
+  line-height: 1.5;
+}
+.signalCard__go {
+  margin-top: auto;
+  font-size: var(--fs-200, 0.875rem);
+  font-weight: 600;
+  color: var(--accent);
+}

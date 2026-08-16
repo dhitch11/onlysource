@@ -9,6 +9,7 @@ import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { computeSignals } from '@/lib/notify/signals'
 import {
   AWARD_CLOCK,
   AWARD_CLOCK_PROVENANCE,
@@ -45,6 +46,7 @@ export default async function WorkspacePage() {
   const present = resolveDataRoot().present
   const cm = present ? buildAllDatasets().cornerMap.summary : null
   const nq = present ? buildAllDatasets().noQuote.summary : null
+  const signals = present ? computeSignals().signals : []
   const awardIx = present ? buildNsnAwardIndex() : null
   const fcIx = present ? buildForecastIndex() : null
   const supIx = present ? buildDistressedSuppliers() : null
@@ -114,6 +116,25 @@ export default async function WorkspacePage() {
                 {topCorner.price != null ? ` · last award $${topCorner.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
               </span>
             </Link>
+          ) : null}
+
+          {/* -------------------------------------------- what needs attention today */}
+          {signals.length > 0 ? (
+            <section className="signalBlock" aria-label="What needs your attention">
+              <h2 className="signalBlock__title">What needs your attention today</h2>
+              <div className="signalGrid">
+                {signals.map((s) => (
+                  <Link key={s.id} href={s.href as never} className={`signalCard signalCard--${s.severity}`}>
+                    <span className="signalCard__sev">
+                      {s.severity === 'high' ? 'Act now' : s.severity === 'medium' ? 'Worth an hour' : 'Good to know'}
+                    </span>
+                    <span className="signalCard__title">{s.title}</span>
+                    <span className="signalCard__body">{s.body}</span>
+                    <span className="signalCard__go">Open →</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
           ) : null}
         </>
       ) : (
@@ -235,11 +256,11 @@ export default async function WorkspacePage() {
         </div>
       </section>
 
-      {/* ---------------------------------------------------- what is wired */}
-      <section className="card">
-        <div className="card__head">
-          <h2 className="card__title">What is connected</h2>
-        </div>
+      {/* -------------------------------------------- system status (tucked away) */}
+      <details className="card">
+        <summary className="card__head" style={{ cursor: 'pointer' }}>
+          <h2 className="card__title" style={{ display: 'inline' }}>System status</h2>
+        </summary>
         <div className="card__body">
           <dl className="rows">
             {Object.entries(report.subsystems).map(([key, value]) => (
@@ -259,7 +280,7 @@ export default async function WorkspacePage() {
             ))}
           </dl>
         </div>
-      </section>
+      </details>
 
     </div>
   )
