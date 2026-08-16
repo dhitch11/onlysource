@@ -213,8 +213,8 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     cell: (r): Cell => {
       const latest = r.award?.latest;
       const latestPrice = latest?.effectiveUnitPrice ?? null;
-      if (!latest || latestPrice == null) {
-        return { state: "unknown", reason: "award history not yet ingested for this NSN" };
+      if (!latest || latestPrice == null || latestPrice <= 0) {
+        return { state: "unknown", reason: "no positive award price on record for this NSN" };
       }
       const first = r.award?.firstUnitPrice;
       const rising = first != null && latestPrice > first;

@@ -149,8 +149,11 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       const quantity = num(r['Total Quantity'])
       const unitPrice = num(r['Unit Price'])
       const finalPrice = num(r['Final Price'])
+      // finalPrice/quantity ONLY when finalPrice is POSITIVE. Many real rows carry Final Price = 0
+      // alongside a good Unit Price; dividing there would zero out a real price and render $0.00 as
+      // a measured award. So a zero (or absent) Final Price falls back to the Unit Price.
       const effectiveUnitPrice =
-        finalPrice != null && quantity != null && quantity > 0
+        finalPrice != null && finalPrice > 0 && quantity != null && quantity > 0
           ? Math.round((finalPrice / quantity) * 100) / 100
           : unitPrice
       const rec: AwardRecord = {
@@ -199,8 +202,9 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
     const sorted = [...awards].sort((a, b) => (a.awardDateIso ?? '').localeCompare(b.awardDateIso ?? ''))
     const dated = sorted.filter((a) => a.awardDateIso)
     // Price the series on the RELIABLE per-unit figure, not the raw Unit Price (which can be a
-    // $1.00 placeholder). first/last drive every escalation number in the product.
-    const priced = sorted.filter((a) => a.effectiveUnitPrice != null)
+    // $1.00 placeholder). first/last drive every escalation number in the product. A non-positive
+    // price is not a real award price, so it never enters the series.
+    const priced = sorted.filter((a) => a.effectiveUnitPrice != null && a.effectiveUnitPrice > 0)
     const distinctAwardees = new Set(awards.map((a) => a.cage).filter(Boolean)).size
     byNsn.set(nsn, {
       nsn,
