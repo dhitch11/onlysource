@@ -144,6 +144,13 @@
   border-color: var(--line-2);
 }
 
+/* The house brass accent: the money signal. Loud, but never the clock's amber. */
+.accent {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 /* Reserved for the auto-award clock. If you are using these for anything else, stop. */
 .urgent {
   color: var(--amber);

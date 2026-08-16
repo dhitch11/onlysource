@@ -72,6 +72,14 @@ export interface ExplainButtonProps {
   helpId: string;
   /** The live computation record for the row under the cursor, when there is one. */
   computation?: ComputationRecord;
+  /**
+   * The live half of "where the number came from": the specific file(s) and feed day THIS
+   * instance was counted from, supplied by the surface from its provenance objects at render
+   * time. Registry rule 5 forbids typing figures or dated file names into static help text
+   * (they go stale silently), so the registry carries the method and this carries the facts.
+   * Rendered as a mono line under the source field; absent renders nothing.
+   */
+  sourceDetail?: string;
   /** Visual size. `sm` is for inside a dense table header, and still meets the 24px
    *  minimum pointer target through padding rather than through a smaller hit area. */
   size?: "sm" | "md";
@@ -90,7 +98,7 @@ function ageFrom(iso: string, nowMs: number): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function ExplainButton({ helpId, computation, size = "md" }: ExplainButtonProps) {
+export function ExplainButton({ helpId, computation, sourceDetail, size = "md" }: ExplainButtonProps) {
   const panelId = useId();
   const anchorName = `--x${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [open, setOpen] = useState(false);
@@ -159,6 +167,9 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
               <dd>{record.why}</dd>
               <dt>Where the number came from</dt>
               <dd>{record.source}</dd>
+              {/* The live provenance for THIS instance: the files and feed day it was counted
+                  from, passed in by the surface so it can never go stale in static text. */}
+              {sourceDetail ? <dd className={`mono ${styles.sourceDetail}`}>{sourceDetail}</dd> : null}
 
               {/*
                * THE FIFTH FIELD. Rendered last and deliberately styled apart, because it is

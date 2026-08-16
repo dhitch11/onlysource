@@ -5,6 +5,7 @@ import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { systemClock } from '@/lib/time/clock'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { Scrollable } from '@/components/ui/Scrollable'
 import styles from './goldmine.module.css'
 
 export const metadata: Metadata = { title: 'No-Quote Goldmine · ONLYSOURCE' }
@@ -108,8 +109,8 @@ export default async function GoldminePage() {
         <p className={styles.sub}>
           Parts the government tried to buy and got <b>zero</b> quotes back on. No competition showed
           up, so the buyer has to come back and ask again. These closed buys are the proof that the
-          lane is wide open, and the same order returns. Get in front of the next one. Open any part
-          for its full history.
+          lane is wide open, and the same order returns. Get in front of the next one. A stock number
+          that is also on the corner map links into its dossier.
         </p>
       </header>
 
@@ -125,7 +126,7 @@ export default async function GoldminePage() {
 
       {/* -------------------------------------------------- make-side: the millions class */}
       <Section
-        title="Make-side — nobody holds it anywhere"
+        title="Make-side: nobody holds it anywhere"
         blurb="No supplier shows any material for these. The only way to fill the order is to make the part, which means whoever can make it faces no one. This is the set a person cannot work by hand, sorted by the size of the buy."
         rows={makeSide}
         linkable={cornerDigits}
@@ -133,7 +134,7 @@ export default async function GoldminePage() {
 
       {/* ---------------------------------------------------------- sourcing: someone holds */}
       <Section
-        title="Sourcing — someone already holds material"
+        title="Sourcing: someone already holds material"
         blurb="A supplier shows stock against these, so the job is finding and moving material, not making it. Faster to win, smaller edge. Sorted by the size of the buy."
         rows={sourcing}
         linkable={cornerDigits}
@@ -169,7 +170,7 @@ function Section({
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>{title}</h2>
       <p className={styles.cardSub}>{blurb}</p>
-      <div className={styles.tableWrap}>
+      <Scrollable className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -178,7 +179,7 @@ function Section({
               <th className={styles.numCol}>Qty</th>
               <th className={styles.numCol}>Last price</th>
               <th className={styles.numCol}>Size of buy</th>
-              <th>Closes</th>
+              <th>Close date</th>
               {showHolders ? <th>Holders</th> : null}
             </tr>
           </thead>
@@ -222,7 +223,7 @@ function Section({
             ))}
           </tbody>
         </table>
-      </div>
+      </Scrollable>
       <p className={styles.tableFoot}>
         Showing the top {shown.length.toLocaleString()} of {rows.length.toLocaleString()} by size of
         buy. &ldquo;Size of buy&rdquo; is the last unit price times the quantity asked for, a rough

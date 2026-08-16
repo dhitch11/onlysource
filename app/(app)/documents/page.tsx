@@ -426,7 +426,10 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
           </fieldset>
 
           <fieldset className={s.fieldset}>
-            <legend className={s.legend}>Provenance evidence on file</legend>
+            <legend className={s.legend}>
+              Provenance evidence on file
+              <ExplainButton helpId="compliance.provenance_rung" size="sm" />
+            </legend>
             <div className={s.fieldGrid}>
               <Field
                 name="original_contract_number"

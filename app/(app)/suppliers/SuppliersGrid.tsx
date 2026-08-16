@@ -8,9 +8,11 @@ import styles from "./suppliers.module.css";
 
 type Filter = "hot" | "manufacturer" | "all";
 
-const tierTone = (tier: string | null): "verified" | "urgent" | "idle" => {
+// Tier A / hot wears the house brass accent: the act-first band, loud without spending the
+// amber that is reserved for the award clock alone.
+const tierTone = (tier: string | null): "verified" | "accent" | "idle" => {
   if (!tier) return "idle";
-  if (/hot|^a/i.test(tier)) return "urgent";
+  if (/hot|^a/i.test(tier)) return "accent";
   if (/^b|warm/i.test(tier)) return "verified";
   return "idle";
 };

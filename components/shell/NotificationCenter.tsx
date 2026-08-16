@@ -52,8 +52,12 @@ export function NotificationCenter() {
         setSignals(list)
         const seen = loadSeen()
         setUnseen(list.filter((s) => !seen.has(s.id)).length)
-        // One toast per session, for the most urgent unseen signal.
-        if (!sessionStorage.getItem(TOAST_KEY)) {
+        // One toast per session, for the most urgent unseen signal. NOT on a phone-width
+        // viewport: at 390px every fixed overlay sits on top of real numbers (the metric
+        // cards fill the screen), and occluding data to announce data is self-defeating.
+        // The bell badge carries the same unseen count there, so nothing is lost.
+        const phoneWidth = window.matchMedia('(max-width: 560px)').matches
+        if (!phoneWidth && !sessionStorage.getItem(TOAST_KEY)) {
           const urgent = list.find((s) => s.severity === 'high' && !seen.has(s.id))
           if (urgent) {
             setToast(urgent)
@@ -94,7 +98,12 @@ export function NotificationCenter() {
   const toggle = () => {
     setOpen((v) => {
       const next = !v
-      if (next) markAllSeen()
+      if (next) {
+        markAllSeen()
+        // The panel lists every signal the toast could name, so the toast has nothing to add
+        // while it is open, and dismissing it here guarantees the two never overlap.
+        setToast(null)
+      }
       return next
     })
   }

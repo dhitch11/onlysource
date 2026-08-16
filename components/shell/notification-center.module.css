@@ -138,8 +138,15 @@
 
 /* ------------------------------------------------------------------- the toast */
 .toast {
+  /*
+   * BOTTOM-right, never top-right. At top-right it sat directly over the dashboard's metric
+   * cards (covering the Tier A count on every fresh session) and truncated the open Signals
+   * panel, which also anchors top-right. Real numbers occluded by chrome is a defect, not a
+   * layout taste. The bottom edge holds no fixed chrome at any width, and the component also
+   * dismisses the toast whenever the Signals panel opens, so the two can never overlap.
+   */
   position: fixed;
-  top: 72px;
+  inset-block-end: 20px;
   inset-inline-end: 20px;
   inline-size: min(360px, calc(100vw - 40px));
   display: grid;
@@ -195,7 +202,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes nc-toast-in {
-    from { opacity: 0; transform: translateY(-8px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }
   }
   .toast { animation: nc-toast-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -208,8 +215,7 @@
 
 @media (max-width: 560px) {
   .toast {
-    top: auto;
-    bottom: 16px;
+    inset-block-end: 16px;
     inset-inline: 16px;
     inline-size: auto;
   }

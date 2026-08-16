@@ -143,7 +143,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
       id: 'dealer_eligibility',
       label: 'Who may supply it',
       leg: unavailable(eligibility.basis),
-      reading: 'The acquisition codes are missing or unrecognised, so who may supply this is not determined.',
+      reading: 'The acquisition codes are missing or unrecognized, so who may supply this is not determined.',
       direction: 'neutral',
       limitation: null,
     })
@@ -325,7 +325,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
           id: 'set_aside',
           label: 'Set aside',
           leg: measured(setAside, 0.7, `an award row records a set aside of "${setAside}"`),
-          reading: `This stock number has been bought under a set aside ("${setAside}"). Eligibility for that programme decides whether a quote counts.`,
+          reading: `This stock number has been bought under a set aside ("${setAside}"). Eligibility for that program decides whether a quote counts.`,
           direction: 'neutral',
           limitation: 'A set aside on a past award does not bind the next solicitation.',
         }

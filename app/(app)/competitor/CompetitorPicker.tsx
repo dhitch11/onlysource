@@ -22,7 +22,7 @@ export function CompetitorPicker({
       >
         {options.map((o) => (
           <option key={o.cage} value={o.cage}>
-            {o.label} · {o.parts} parts
+            {o.label} · {o.parts} {o.parts === 1 ? 'part' : 'parts'}
           </option>
         ))}
       </select>

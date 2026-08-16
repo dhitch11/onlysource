@@ -51,10 +51,12 @@ import {
  * ─────────────────────────────────────────────────────────────────────────────────────────
  * WHAT THE OPERATOR MUST BE TOLD, AND IS, IN `accessNote`.
  *
- * Access to this build is one shared organization phrase. There is no per person sign in yet.
- * So the roster records who is in the organization and what they may do; it does not create a
- * login and it does not email anybody. That sentence lives here, next to the data, so the
- * screen cannot drift away from what is true.
+ * Sign-in is per person: email plus a password set from this screen. A roster row without a
+ * password cannot sign in, and deactivation revokes access immediately. Nothing here emails
+ * anybody. That sentence lives here, next to the data, so the screen cannot drift away from
+ * what is true. (The one-shared-phrase era this comment used to describe ended when the
+ * credentialed sign-in landed; the break-glass phrase survives only for a server with zero
+ * credentialed accounts.)
  * ─────────────────────────────────────────────────────────────────────────────────────────
  */
 
@@ -192,7 +194,8 @@ const CONNECTORS: ConnectorState[] = [
     slug: 'nsn-now',
     label: 'NSN-Now',
     display: 'not_connected',
-    wouldAdd: 'Part lookups would resolve against the commercial catalog instead of stopping at the NIIN.',
+    wouldAdd:
+      'A one-time NSN-Now export already on disk supplies the award history, listed stock and DLA Forecast the app reads today. A live connection would refresh those automatically instead of waiting on the next export.',
     whoCanConnect: 'Owner or Admin',
   },
   {

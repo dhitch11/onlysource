@@ -5,6 +5,8 @@ import { resolveDataRoot } from '@/lib/data-root'
 import { buildCompetitorCatalogs, type CompetitorPart } from '@/lib/intelligence/competitor/catalog'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { ExplainButton } from '@/components/ui/ExplainButton'
+import { Scrollable } from '@/components/ui/Scrollable'
 import { CompetitorPicker } from './CompetitorPicker'
 import styles from './competitor.module.css'
 
@@ -87,11 +89,14 @@ export default async function CompetitorPage({
           <h1 className={styles.h1}>{co.company ?? `CAGE ${co.cage}`}</h1>
           {pickerOptions.length > 1 ? <CompetitorPicker options={pickerOptions} current={co.cage} /> : null}
         </div>
-        <p className={styles.sub}>
-          Every stock number <b>{co.company ?? `CAGE ${co.cage}`}</b> (CAGE {co.cage}) is approved to make,
-          taken apart. Where they are the only source, they hold a private monopoly. Where others are
-          approved too, they have to fight for it.
-        </p>
+        {/* A div, not a p: the explainer's popover renders a <div>, and a div inside a <p>
+            is auto-closed by the HTML parser, which shipped as a React #418 hydration error. */}
+        <div className={styles.sub}>
+          Every stock number <b>{co.company ?? `CAGE ${co.cage}`}</b> (CAGE {co.cage}
+          <ExplainButton helpId="monopoly.cage" size="sm" />) is approved to make, taken apart.
+          Where they are the only source, they hold a private monopoly. Where others are approved
+          too, they have to fight for it.
+        </div>
       </header>
 
       <section className={styles.metricStrip} aria-label="Teardown totals">
@@ -155,7 +160,7 @@ function Section({
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>{title}</h2>
       <p className={styles.cardSub}>{blurb}</p>
-      <div className={styles.tableWrap}>
+      <Scrollable className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
@@ -179,7 +184,7 @@ function Section({
                     ) : (
                       <span className={styles.nsnPlain}>{p.nsn}</span>
                     )}
-                    {isCorner ? <StatusChip tone="urgent">Corner</StatusChip> : null}
+                    {isCorner ? <StatusChip tone="accent">Corner</StatusChip> : null}
                   </td>
                   <td className={styles.partCell} title={p.description}>
                     {p.description || '—'}
@@ -202,10 +207,10 @@ function Section({
             })}
           </tbody>
         </table>
-      </div>
+      </Scrollable>
       <p className={styles.tableFoot}>
         Showing {shown.length.toLocaleString()} of {parts.length.toLocaleString()}. A{' '}
-        <StatusChip tone="urgent">Corner</StatusChip> tag means it is also one of our candidate corners; open it for the dossier.
+        <StatusChip tone="accent">Corner</StatusChip> tag means it is also one of our candidate corners; open it for the dossier.
       </p>
     </section>
   )

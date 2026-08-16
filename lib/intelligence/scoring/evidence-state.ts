@@ -72,6 +72,24 @@ export type Disposition =
   | "SKIP"; // a hard gate FAILED — structural zero
 
 /**
+ * THE ONE operator-facing label per disposition. Every surface that prints a disposition
+ * renders through this map, so a raw enum token like INSUFFICIENT_DATA can never reach a
+ * screen on one page while another page prints "Needs data" for the same fact.
+ */
+export const DISPOSITION_LABEL: Record<Disposition, string> = {
+  FLAG: "Flag",
+  WATCHLIST: "Watchlist",
+  INSUFFICIENT_DATA: "Needs data",
+  SKIP: "Skip",
+};
+
+/** Label a disposition that arrives as a plain string (a serialized record). Falls back to the
+ *  raw token rather than inventing a label for an unknown value. */
+export function dispositionLabel(d: string): string {
+  return (DISPOSITION_LABEL as Record<string, string>)[d] ?? d;
+}
+
+/**
  * Grade from the set of load-bearing legs. Conservative by construction: any UNAVAILABLE
  * load-bearing leg or any PRIOR driving quantity caps the grade, and calibration is never
  * asserted as adequate at launch (there is no resolved-outcome set yet), so A/B are unreachable

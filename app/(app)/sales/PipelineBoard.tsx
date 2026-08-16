@@ -9,6 +9,7 @@ import {
   type DealOwner,
 } from '@/lib/sales/pipeline'
 import type { StoredDeal } from '@/lib/sales/deals-store'
+import { Scrollable } from '@/components/ui/Scrollable'
 import styles from './SalesHub.module.css'
 
 const OWNERS: DealOwner[] = ['DH', 'DG', 'AI']
@@ -73,9 +74,14 @@ export function PipelineBoard({ initial }: { initial: StoredDeal[] }) {
   }
 
   function addDeal() {
+    // A deal must have a real title. The input's `required` + `pattern` surface the native
+    // validation message; this guard is the belt behind them, so a whitespace-only title can
+    // never write a junk card into the live pipeline. The server refuses it too.
+    const title = draft.title.trim()
+    if (!title) return
     const value = draft.valueUsd.trim() === '' ? null : Number(draft.valueUsd.replace(/[^0-9.]/g, ''))
     void save({
-      title: draft.title.trim() || '(untitled)',
+      title,
       ref: draft.ref.trim(),
       valueUsd: value != null && Number.isFinite(value) ? value : null,
       owner: draft.owner,
@@ -105,7 +111,18 @@ export function PipelineBoard({ initial }: { initial: StoredDeal[] }) {
             addDeal()
           }}
         >
-          <input className={styles.input} placeholder="What is the deal? (title)" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} aria-label="Deal title" autoFocus />
+          <input
+            className={styles.input}
+            placeholder="What is the deal? (title)"
+            value={draft.title}
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            aria-label="Deal title"
+            autoFocus
+            // Same validation pattern Documents uses: the browser names the problem before a
+            // request is made. `pattern` catches a whitespace-only title that `required` lets by.
+            required
+            pattern=".*\S.*"
+          />
           <input className={styles.input} placeholder="NSN / solicitation ref" value={draft.ref} onChange={(e) => setDraft({ ...draft, ref: e.target.value })} aria-label="Reference" />
           <input className={styles.input} placeholder="Value $ (optional)" value={draft.valueUsd} onChange={(e) => setDraft({ ...draft, valueUsd: e.target.value })} aria-label="Value in dollars" inputMode="numeric" />
           <select className={styles.input} value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value as DealOwner })} aria-label="Owner">
@@ -129,7 +146,10 @@ export function PipelineBoard({ initial }: { initial: StoredDeal[] }) {
         </form>
       ) : null}
 
-      <section aria-label="Pipeline" className={styles.pipe}>
+      <section aria-label="Pipeline">
+        {/* The five stage columns scroll sideways; the fade + hint say so when they do, so a
+            clipped WON & REVENUE column is never silently hidden. */}
+        <Scrollable className={styles.pipe}>
         {PIPELINE_STAGES.map((stage) => {
           const stageDeals = byStage.get(stage) ?? []
           const total = stageDeals.reduce((s, d) => s + (d.valueUsd ?? 0), 0)
@@ -181,6 +201,7 @@ export function PipelineBoard({ initial }: { initial: StoredDeal[] }) {
             </div>
           )
         })}
+        </Scrollable>
       </section>
     </>
   )

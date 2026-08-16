@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const query = (body.query ?? '').replace(/^\?/, '').trim()
   // A packet with no stock number and no inputs is empty; refuse it rather than store junk.
   if (!nsn && !query) {
-    return Response.json({ error: 'empty_packet', message: 'Nothing to save yet — run a lot first.' }, { status: 400 })
+    return Response.json({ error: 'empty_packet', message: 'Nothing to save yet. Run a lot first.' }, { status: 400 })
   }
   const packets = savePacket({ label: (body.label ?? '').trim(), nsn, query }, crypto.randomUUID(), systemClock.now())
   return Response.json({ packets })

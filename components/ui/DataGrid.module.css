@@ -183,6 +183,15 @@
   text-align: end;
 }
 
+/*
+ * Opt-in per column (GridColumn.wrap): allows a break inside a long unbroken token, so a
+ * comma-joined nomenclature cannot single-handedly set the whole table's min-content width
+ * past the viewport. Never applied to identifier columns.
+ */
+.wrapAnywhere {
+  overflow-wrap: anywhere;
+}
+
 .alignEnd .cellValue {
   justify-content: flex-end;
 }

@@ -103,7 +103,7 @@ export default async function SuppliersPage() {
         <span className={styles.truthDot} aria-hidden="true" />
         <p>
           Every figure and contact here is read from the researched file. The prospect score and tier
-          are the researcher&rsquo;s judgement, carried through unchanged and labeled as theirs, never
+          are the researcher&rsquo;s judgment, carried through unchanged and labeled as theirs, never
           recomputed here. A blank field renders as absent, not invented. This page holds real
           people&rsquo;s contact details, so it lives behind the gate and is never public.
         </p>

@@ -101,7 +101,7 @@ export const T4_ENTRIES: HelpRecord[] = [
     what: 'Requirements the agency issued that drew no quotes at all, split by whether anybody is showing material against them.',
     how: 'Work the ones where somebody holds material as a sourcing job. Send the rest to the capability match, because those need somebody to build the part.',
     why: 'The make-side half is the class the customer sized in the millions, and the reason a person cannot work it is that each one can burn hours and end with no path to the part.',
-    source: 'The no-quote solicitation export joined to the supplier availability snapshot on a normalised solicitation number.',
+    source: 'The no-quote solicitation export joined to the supplier availability snapshot on a normalized solicitation number.',
   },
   {
     id: 'capability.granularity',
@@ -129,5 +129,71 @@ export const T4_ENTRIES: HelpRecord[] = [
     how: 'Read the conflicts and the attributes present on only one side before you accept a match. Those are the rows a human has to decide.',
     why: 'Insufficient data is a real and common answer here, and it is the honest one when the catalog does not carry enough shared attributes. A verdict set with no abstention in it is a system that is guessing.',
     source: 'A deterministic comparison over the characteristics records for both items. No language model produces this verdict, and none may introduce an attribute the comparison did not contain.',
+  },
+
+  /* ------------------------------------------------ jargon that appears next to a number */
+  {
+    id: 'monopoly.ils',
+    owner: 'T4 INTELLIGENCE',
+    title: 'ILS',
+    what: 'The Inventory Locator Service, the commercial marketplace where parts stock is searched and confirmed across suppliers.',
+    how: 'Wherever a row says "not ILS-confirmed", read the listed stock as a claim a company typed in, not a shelf anyone has checked. Confirm by hand before committing capital.',
+    why: 'A corner is only buyable when nobody else can actually supply the part. Self-reported listings overstate and understate real shelves in both directions, so acting on them unchecked risks buying into a position anyone can fill.',
+    source: 'No ILS credential is connected in this build, which is why the feasibility leg abstains and the confirmed-corner count stays at zero.',
+    whatThisDoesNotDo:
+      'Nothing on these surfaces checks a real shelf. Absence of a listing is not proof no stock exists, and a listing is not proof it does.',
+  },
+  {
+    id: 'monopoly.cage',
+    owner: 'T4 INTELLIGENCE',
+    title: 'CAGE code',
+    what: 'A five-character Commercial and Government Entity code, the government ID for one company at one location.',
+    how: 'Use the code, not the company name, when you trace a source across surfaces. Names drift and repeat; the code is the stable key every government record carries.',
+    why: 'Two suppliers can share a name and one supplier can trade under several. Chasing the wrong entity wastes the hour, or worse, prices a deal against the wrong company.',
+    source: 'Read from the government files as published. Every join in this product keys on the code and shows the name only for display.',
+  },
+  {
+    id: 'monopoly.surplus_drag',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Surplus evaluated-drag',
+    what: 'How much the flat evaluation penalty on surplus offers costs as a share of this buy, at its last award price and quantity.',
+    how: 'Read it before quoting surplus. A small percentage means the penalty barely moves the comparison; a large one means a surplus offer starts the race from behind.',
+    why: 'DIBBS evaluates a surplus offer with a flat added cost, so on a small buy the penalty can be the whole margin. Knowing the drag decides whether surplus material can win the award at all.',
+    source: 'Computed from the last award unit price and the open quantity on this row. The flat adder is the standard surplus evaluation charge; the row states whether it is negligible or meaningful for this buy.',
+  },
+
+  /* --------------------------------------- the dashboard command-center tiles (T4 numbers) */
+  {
+    id: 'monopoly.forecast_nsns',
+    owner: 'T4 INTELLIGENCE',
+    title: 'NSNs on the DLA Forecast',
+    what: 'How many stock numbers in the loaded export appear on the DLA Forecast, the government list of parts it plans to buy again.',
+    how: 'Treat forecast presence as stated forward demand. Filter the Monopoly Map to "On forecast" to work the corners the buyer has already said it will return for.',
+    why: 'A corner with stated future demand is worth holding; one without it may never be bought again. This split decides where inventory dollars wait and where they die.',
+    source: 'Counted from the DLA Forecast sheets inside the NSN-Now export on disk, keyed by stock number. The panel below names the files and the feed day.',
+    whatThisDoesNotDo:
+      'It does not promise a purchase. A forecast line is a plan, not an order, and absence from the forecast is not proof demand is gone.',
+  },
+  {
+    id: 'monopoly.award_history_nsns',
+    owner: 'T4 INTELLIGENCE',
+    title: 'NSNs with award history',
+    what: 'How many stock numbers carry at least one real recorded award in the loaded export, giving a price the government actually paid.',
+    how: 'Use these rows to anchor any quote: the price history and its trend are measured, not modeled. Rows outside this count abstain on price rather than guessing.',
+    why: 'A real paid price is the anchor every margin calculation stands on. Quoting without one is guessing against the one party who knows the number.',
+    source: 'Counted from the procurement history sheets of the NSN-Now export on disk, one row per recorded award. The panel below names the files and the feed day.',
+    whatThisDoesNotDo:
+      'History does not bind the next award. A price paid before is evidence, not a ceiling or a floor.',
+  },
+  {
+    id: 'monopoly.distressed_tier_a',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Tier A distressed suppliers',
+    what: 'The hottest researched band of companies that stopped winning DLA awards: likely dead inventory, with verified ways to reach them.',
+    how: 'Open Suppliers and work the Tier A tab first. Each row carries the researcher\'s rationale and contacts; mark a company contacted as you go.',
+    why: 'A quiet company sitting on stock the government still buys is the cheapest way into a position. The tier ranks where an hour of calls is most likely to find it.',
+    source: 'The researched supplier workbook on disk, tier and score carried through from the researcher unchanged. The panel below names the file.',
+    whatThisDoesNotDo:
+      'The tier is the researcher\'s judgment, not a measurement of inventory. Silence is a signal, not proof a company is gone, and nothing here confirms what a company still holds.',
   },
 ]

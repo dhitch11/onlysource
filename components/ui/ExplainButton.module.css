@@ -52,6 +52,16 @@
   font-size: var(--fs-200);
   line-height: var(--lh-200);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  /*
+   * The trigger renders inside table headers and metric labels, and the popover element
+   * INHERITS text properties from that anchor even though it paints in the top layer. A
+   * grid <th> carries uppercase, tracked, nowrap styling, which turned every explainer
+   * opened from a column header into one 2,257px ALL-CAPS line. Reset the three inherited
+   * properties here so the panel always reads as body prose, wherever its trigger sits.
+   */
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
 }
 
 .panel:not(:popover-open) {
@@ -103,6 +113,14 @@
 
 .dl dd {
   color: var(--dim);
+}
+
+/* The live file-and-feed-day line under "where the number came from". Mono because it names
+ * artifacts, and wraps anywhere because archive keys are long and must stay copyable. */
+.sourceDetail {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  overflow-wrap: anywhere;
 }
 
 /* ------------------------------------------------------- the live computation record */

@@ -137,9 +137,9 @@ const T8_ENTRIES: HelpRecord[] = [
     id: "ui.provenance.glyph",
     owner: "T8 DESIGN",
     title: "Provenance",
-    what: "Whether this figure was measured from a record, modelled from other data, or cannot be known from what we hold.",
-    how: "Read the shape, not the colour. A filled square is measured, a filled circle is modelled, a dashed outline means insufficient data. The colour repeats the shape and never carries it alone.",
-    why: "A modelled figure and a measured one look identical on a screen and are worth very different amounts. Quoting a modelled price as though it were measured is how a firm loses money on a contract it already won.",
+    what: "Whether this figure was measured from a record, modeled from other data, or cannot be known from what we hold.",
+    how: "Read the shape, not the color. A filled square is measured, a filled circle is modeled, a dashed outline means insufficient data. The color repeats the shape and never carries it alone.",
+    why: "A modeled figure and a measured one look identical on a screen and are worth very different amounts. Quoting a modeled price as though it were measured is how a firm loses money on a contract it already won.",
     source: "Set by the lane that produced the figure, on the record itself. It is never inferred at render time.",
     whatThisDoesNotDo:
       "It does not tell you whether the figure is CORRECT, only how it was arrived at. A measured figure read from the wrong record is still measured. Provenance is about method, not accuracy.",

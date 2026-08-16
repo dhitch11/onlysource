@@ -5,30 +5,24 @@ import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { PriceSparkline } from "@/components/ui/PriceSparkline";
-import type { CornerRow } from "@/lib/intelligence/corner";
-import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
-import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
-import type { CornerScoreResult } from "@/lib/intelligence/scoring/cornerscore";
+import type { EnrichedCornerRow } from "@/lib/intelligence/monopoly-view";
+import { dispositionLabel } from "@/lib/intelligence/scoring/evidence-state";
+import { isRisingPrice } from "@/lib/intelligence/rising-price";
 import styles from "./monopoly.module.css";
 
-/** A corner row with its NSN-Now award history, DLA Forecast, and CornerScore joined in. */
-export type CornerRowWithAward = CornerRow & {
-  award: NsnAwardSummary | null;
-  forecast: ForecastSummary | null;
-  score: CornerScoreResult;
-};
+/**
+ * A corner row with its award history, DLA Forecast and CornerScore joined in, in the SLIM
+ * wire shape lib/intelligence/monopoly-view builds: exactly the fields this grid renders,
+ * because serializing the full records was a 26MB payload per visit.
+ */
+export type CornerRowWithAward = EnrichedCornerRow;
 
-const DISPOSITION_TONE: Record<string, "verified" | "urgent" | "idle"> = {
+// Amber is the award clock's alone. Watchlist is a neutral in-progress state, not an alarm.
+const DISPOSITION_TONE: Record<string, "verified" | "active" | "idle"> = {
   FLAG: "verified",
-  WATCHLIST: "urgent",
+  WATCHLIST: "active",
   INSUFFICIENT_DATA: "idle",
   SKIP: "idle",
-};
-const DISPOSITION_LABEL: Record<string, string> = {
-  FLAG: "Flag",
-  WATCHLIST: "Watchlist",
-  INSUFFICIENT_DATA: "Needs data",
-  SKIP: "Skip",
 };
 
 type Filter = "candidate" | "sole" | "all";
@@ -76,7 +70,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
         <span className={styles.scoreCell}>
           <span className={`mono ${styles.scoreN}`}>{r.score.scoreV0}</span>
           <StatusChip tone={DISPOSITION_TONE[r.score.disposition] ?? "idle"}>
-            {DISPOSITION_LABEL[r.score.disposition] ?? r.score.disposition} · {r.score.grade}
+            {dispositionLabel(r.score.disposition)} · {r.score.grade}
           </StatusChip>
         </span>
       ),
@@ -117,7 +111,9 @@ const columns: GridColumn<CornerRowWithAward>[] = [
           state: "known",
           provenance: "measured",
           value: (
-            <StatusChip tone={silent ? "urgent" : "verified"}>
+            // Sole + silent is THE money signal on this page, so it wears the brass accent.
+            // Amber stays reserved for the award clock.
+            <StatusChip tone={silent ? "accent" : "verified"}>
               {silent ? "Sole + silent" : "Sole source"} · {r.approvedSources[0]}
             </StatusChip>
           ),
@@ -144,7 +140,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
         <span className={styles.legs} aria-label={`${r.legsEstablished} of 3 legs established`}>
           <span className={r.legsEstablished >= 1 ? styles.legOn : styles.legOff} title="Demand" />
           <span className={r.legsEstablished >= 2 ? styles.legOn : styles.legOff} title="Source silent" />
-          <span className={styles.legOff} title="Availability — not read" />
+          <span className={styles.legOff} title="Availability: not read" />
         </span>
       ),
     }),
@@ -159,7 +155,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
         return { state: "unknown", reason: "solicitation too short to name the path" };
       }
       return r.automatedSolicitation
-        ? { state: "known", provenance: "measured", value: <StatusChip tone="urgent">Machine award</StatusChip> }
+        ? { state: "known", provenance: "measured", value: <StatusChip tone="active">Machine award</StatusChip> }
         : { state: "known", provenance: "measured", value: <StatusChip tone="idle">Manual</StatusChip> };
     },
   },
@@ -184,7 +180,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     cell: (r): Cell => {
       const holders = r.award?.holders ?? [];
       if (!r.award) {
-        return { state: "unknown", reason: "not read — no availability feed connected" };
+        return { state: "unknown", reason: "not read: no availability feed connected" };
       }
       if (holders.length === 0) {
         // We DID look (this NSN is in the export) and no holder is listed. Still not proof of
@@ -209,11 +205,10 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     align: "end",
     mono: true,
     width: "16ch",
-    sortValue: (r) => r.award?.latest?.effectiveUnitPrice ?? -1,
+    sortValue: (r) => r.award?.latestPrice ?? -1,
     cell: (r): Cell => {
-      const latest = r.award?.latest;
-      const latestPrice = latest?.effectiveUnitPrice ?? null;
-      if (!latest || latestPrice == null || latestPrice <= 0) {
+      const latestPrice = r.award?.latestPrice ?? null;
+      if (latestPrice == null || latestPrice <= 0) {
         return { state: "unknown", reason: "no positive award price on record for this NSN" };
       }
       const first = r.award?.firstUnitPrice;
@@ -226,7 +221,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
             {usd(latestPrice)}
             {rising ? (
               <span className={styles.escalation} title={`up from ${usd(first)}`}>
-                {" "}↑ {Math.round(((latestPrice - first) / first) * 100)}%
+                {" "}↑ {Math.round(((latestPrice - first) / first) * 100).toLocaleString()}%
               </span>
             ) : null}
           </span>
@@ -270,9 +265,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
 
 /** The chronological priced-award series for one corner, only real unit prices. */
 function priceSeriesOf(r: CornerRowWithAward): number[] {
-  return (r.award?.awards ?? [])
-    .map((a) => a.effectiveUnitPrice)
-    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return r.award?.priceSeries ?? [];
 }
 
 export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
@@ -288,10 +281,10 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
   const [chain, setChain] = useState<string>("all");
 
   const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
+  // The SHARED definition (lib/intelligence/rising-price), the same one the Intelligence
+  // dashboard's "with rising prices" total counts with, so the two surfaces cannot disagree.
   const isRising = (r: CornerRowWithAward) =>
-    r.award?.firstUnitPrice != null &&
-    r.award?.lastUnitPrice != null &&
-    r.award.lastUnitPrice > r.award.firstUnitPrice;
+    isRisingPrice(r.award?.firstUnitPrice, r.award?.lastUnitPrice);
 
   // Every supply chain present in the data, for the select. Real values only.
   const chains = useMemo(() => {
@@ -306,7 +299,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
     if (toggles.onForecast && !r.forecast?.onForecast) return false;
     if (toggles.machine && r.automatedSolicitation !== true) return false;
     if (toggles.rising && !isRising(r)) return false;
-    if (toggles.priced && r.award?.latest?.effectiveUnitPrice == null) return false;
+    if (toggles.priced && r.award?.latestPrice == null) return false;
     if (chain !== "all" && !(r.forecast?.supplyChains ?? []).map((c) => c.trim()).includes(chain))
       return false;
     return true;
@@ -417,7 +410,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
         expansion={(r) => [
           {
             field: "CornerScore",
-            value: `${r.score.scoreV0}/100 · ${DISPOSITION_LABEL[r.score.disposition] ?? r.score.disposition} · confidence ${r.score.grade} — an ordinal watchlist rank, not a probability`,
+            value: `${r.score.scoreV0}/100 · ${dispositionLabel(r.score.disposition)} · confidence ${r.score.grade} (an ordinal watchlist rank, not a probability)`,
           },
           ...r.score.reasons.map((rc, i) => ({
             field: i === 0 ? "Why this score" : "",
@@ -432,7 +425,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
           {
             field: "Approved sources",
             value: r.approvedSources.length
-              ? `${r.approvedSourceCount} — CAGE ${r.approvedSources.join(", ")}`
+              ? `${r.approvedSourceCount} (CAGE ${r.approvedSources.join(", ")})`
               : "(none on this feed day)",
           },
           {
@@ -447,24 +440,20 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
               )
               .join(" · "),
           },
-          ...(r.award && r.award.awards.length
+          ...(r.award && r.award.count
             ? [
                 {
                   field: "Award history",
-                  value: `${r.award.awards.length} awards, ${r.award.distinctAwardees} distinct awardee${r.award.distinctAwardees === 1 ? " (sole-awarded every time)" : "s"}${
+                  value: `${r.award.count} awards, ${r.award.distinctAwardees} distinct awardee${r.award.distinctAwardees === 1 ? " (sole-awarded every time)" : "s"}${
                     r.award.firstUnitPrice != null && r.award.lastUnitPrice != null
                       ? `; ${usd(r.award.firstUnitPrice)} → ${usd(r.award.lastUnitPrice)}`
                       : ""
                   }`,
                 },
-                ...r.award.awards
-                  .slice()
-                  .reverse()
-                  .slice(0, 10)
-                  .map((a, i) => ({
-                    field: i === 0 ? "Awards (recent first)" : "",
-                    value: `${a.awardDateIso ?? "(no date)"} · ${a.effectiveUnitPrice != null ? usd(a.effectiveUnitPrice) : "(no price)"} · qty ${a.quantity ?? "?"} · CAGE ${a.cage ?? "?"} ${a.company ?? ""}`.trim(),
-                  })),
+                ...r.award.recent.map((a, i) => ({
+                  field: i === 0 ? "Awards (recent first)" : "",
+                  value: `${a.dateIso ?? "(no date)"} · ${a.price != null ? usd(a.price) : "(no price)"} · qty ${a.qty ?? "?"} · CAGE ${a.cage ?? "?"} ${a.company ?? ""}`.trim(),
+                })),
               ]
             : [{ field: "Award price", value: "award history not yet ingested for this NSN" }]),
           {
@@ -487,9 +476,9 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
               ? r.award.holders.length
                 ? r.award.holders
                     .map((h) => `${h.company ?? "?"} (CAGE ${h.cage ?? "?"}): ${h.quantity ?? "?"}`)
-                    .join(" · ") + " — NSN-Now listing, self-reported, not ILS-confirmed"
+                    .join(" · ") + ". NSN-Now listing, self-reported, not ILS-confirmed"
                 : "no holder listed in the NSN-Now export (self-reported; not proof none exists)"
-              : "not read — no availability feed connected",
+              : "not read: no availability feed connected",
           },
           ...r.gaps.map((g, i) => ({ field: i === 0 ? "What is not established" : "", value: g })),
         ]}

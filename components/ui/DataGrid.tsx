@@ -54,6 +54,7 @@ import {
 import { Provenance, type ProvenanceKind } from "./Provenance";
 import { ExplainButton } from "./ExplainButton";
 import { InsufficientData } from "./States";
+import { Scrollable } from "./Scrollable";
 import styles from "./DataGrid.module.css";
 
 /* ------------------------------------------------------------------- the cell contract */
@@ -84,6 +85,13 @@ export interface GridColumn<T> {
   width?: string;
   /** Pins the column to the start and keeps it visible while scrolling sideways. */
   pinned?: boolean;
+  /**
+   * Lets this column's cells break INSIDE a long unbroken token (overflow-wrap: anywhere).
+   * For prose-ish columns (nomenclatures are comma-joined single tokens) whose min-content
+   * width would otherwise force the whole grid past the viewport. Identifier columns must
+   * never set it: a stock number that wraps reads as two numbers.
+   */
+  wrap?: boolean;
 }
 
 /** The three causes of an empty grid. They are three different facts and one generic
@@ -259,8 +267,12 @@ export function DataGrid<T>({
        * The grid scrolls INSIDE this container. The page never scrolls sideways. A data grid
        * is two-dimensional content and is explicitly exempt from the 320px reflow floor
        * (R6), but the PAGE is not exempt and must never inherit the grid's width.
+       *
+       * OVERFLOW HONESTY: when columns are hidden past the right edge, <Scrollable> renders
+       * a fade plus "Scroll for more columns" so hidden money data is never silently hidden.
+       * A grid that fits renders neither.
        */}
-      <div className={styles.scroller}>
+      <Scrollable className={styles.scroller}>
         <table
           className={styles.table}
           aria-label={label}
@@ -351,6 +363,7 @@ export function DataGrid<T>({
                           className={[
                             col.pinned ? styles.pinned : "",
                             col.align === "end" ? styles.alignEnd : "",
+                            col.wrap ? styles.wrapAnywhere : "",
                           ]
                             .filter(Boolean)
                             .join(" ")}
@@ -389,7 +402,7 @@ export function DataGrid<T>({
             })}
           </tbody>
         </table>
-      </div>
+      </Scrollable>
 
       <p className={styles.footNote}>
         <span className="mono">{rows.length.toLocaleString()}</span> rows.

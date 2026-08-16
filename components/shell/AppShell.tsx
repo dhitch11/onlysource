@@ -159,7 +159,7 @@ export function AppShell({ children, user, org, destinations, meta }: AppShellPr
             type="button"
             className={styles.org}
             aria-haspopup="listbox"
-            aria-label={`Active organisation: ${org.name}. Switch organisation`}
+            aria-label={`Active organization: ${org.name}. Switch organization`}
           >
             <span className={styles.orgFlag} aria-hidden="true">
               <Reticle size={13} />

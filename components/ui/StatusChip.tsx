@@ -32,6 +32,12 @@ export type ChipTone =
   | "active"
   /** Not started, deferred, empty, not connected. Quietest of all. */
   | "idle"
+  /**
+   * The house brass accent: THE money signal (a live candidate corner, the hottest supplier
+   * tier). Loud without borrowing the clock's amber, which stays reserved. Use it for the one
+   * signal per surface a trader acts on first, never as a second "important".
+   */
+  | "accent"
   /** THE AUTO-AWARD CLOCK ONLY. Nothing else may use this. */
   | "urgent"
   /** The clock, critical. Nothing else may use this. */

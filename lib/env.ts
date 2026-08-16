@@ -100,10 +100,10 @@ export function configReport(): ConfigReport {
   const dbConfigured = Boolean(e.DATABASE_URL_RUNTIME)
 
   const subsystems: ConfigReport['subsystems'] = {
-    pre_release_gate: {
+    sign_in_gate: {
       status: gateConfigured ? 'configured' : 'not_configured',
       detail: gateConfigured
-        ? 'Shared-secret gate active. This is a pre-release door, not the product identity layer.'
+        ? 'Sign-in is live: email and password, verified on the server against the roster. The break-glass phrase goes inert the moment any account holds a password.'
         : 'PREVIEW_GATE_SECRET or PREVIEW_GATE_PASSWORD is absent. Every request is denied.',
     },
     error_tracking: {
@@ -116,7 +116,7 @@ export function configReport(): ConfigReport {
       status: dbConfigured ? 'configured' : 'not_configured',
       detail: dbConfigured
         ? 'Runtime database URL present.'
-        : 'No database yet. Identity, tenancy and the audit spine land with it. Nothing reads a database in this build.',
+        : 'DATABASE_URL_RUNTIME is absent. The roster, sign-in credentials, deals, packets and alert settings persist in the server state directory instead; the ingest Postgres is reached directly by the data-health check, not through this URL.',
     },
   }
 

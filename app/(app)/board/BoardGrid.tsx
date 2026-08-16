@@ -24,6 +24,10 @@ const columns: GridColumn<BoardRow>[] = [
     id: "nomenclature",
     header: "Item",
     sortValue: (r) => r.nomenclature,
+    // Nomenclatures are comma-joined single tokens ("VALVE,LINEAR,DIRECTIONAL"), so without
+    // a wrap allowance the longest one sets the whole grid's min width and pushed it 19px
+    // past a 1440 viewport, clipping the price column's insufficient-inputs chips.
+    wrap: true,
     cell: (r): Cell =>
       r.nomenclature.trim() === ""
         ? { state: "unknown", reason: "not published on this line" }
@@ -54,7 +58,9 @@ const columns: GridColumn<BoardRow>[] = [
   {
     id: "award",
     header: "Award path",
-    width: "16ch",
+    // Tightened (16ch -> 15ch, with the price column 17ch -> 15ch) so the whole grid fits a
+    // 1440 viewport with the insufficient-inputs chips visible at rest instead of 19px cut.
+    width: "15ch",
     sortValue: (r) => (r.automated === true ? 0 : r.automated === false ? 1 : 2),
     cell: (r): Cell => {
       if (r.automated === null) {
@@ -67,7 +73,8 @@ const columns: GridColumn<BoardRow>[] = [
         ? {
             state: "known",
             provenance: "measured",
-            value: <StatusChip tone="urgent">Machine award</StatusChip>,
+            // Neutral, not amber: amber is the clock's alone. The word carries the fact.
+            value: <StatusChip tone="active">Machine award</StatusChip>,
           }
         : { state: "known", provenance: "measured", value: <StatusChip tone="idle">Manual</StatusChip> };
     },
@@ -88,7 +95,7 @@ const columns: GridColumn<BoardRow>[] = [
     id: "return",
     header: "Return date",
     mono: true,
-    width: "13ch",
+    width: "11ch",
     sortValue: (r) => r.returnDate,
     cell: (r): Cell =>
       r.returnDate.trim() === ""
@@ -99,7 +106,7 @@ const columns: GridColumn<BoardRow>[] = [
     id: "price",
     header: "Evaluated price",
     align: "end",
-    width: "17ch",
+    width: "13ch",
     cell: (): Cell => ({
       state: "unknown",
       reason: "needs award history + availability",

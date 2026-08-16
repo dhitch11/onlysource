@@ -7,9 +7,12 @@ import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { buildCornerDossier, priceSeries } from '@/lib/intelligence/brief/dossier'
+import { dispositionLabel } from '@/lib/intelligence/scoring/evidence-state'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import { aiConfigured } from '@/lib/ai/anthropic'
+import { Scrollable } from '@/components/ui/Scrollable'
 import { AiBrief } from './AiBrief'
 import styles from './corner.module.css'
 
@@ -27,18 +30,23 @@ export async function generateMetadata({
 const usd = (n: number | null): string =>
   n == null ? '—' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-const LEG_STATE_TONE: Record<string, 'verified' | 'urgent' | 'idle'> = {
-  MEASURED: 'verified',
-  PRIOR: 'idle',
-  UNAVAILABLE: 'idle',
-  GATE_FAIL: 'urgent',
-}
 const LEG_LABEL: Record<string, string> = {
   demand: 'Demand',
   competition: 'Competition',
+  path: 'Award path',
   priceAnchor: 'Price anchor',
   forwardDemand: 'Forward demand',
   feasibility: 'Feasibility',
+}
+
+/**
+ * Micro-explainers on specific score signals. Keyed on `leg` alone or `leg·facet`, so the
+ * jargon-heavy cards (the flat surplus evaluated adder, the unwired ILS feed) carry the
+ * eye-in-circle affordance the house requires on every metric.
+ */
+const REASON_HELP: Record<string, string> = {
+  'priceAnchor·surplus drag': 'monopoly.surplus_drag',
+  feasibility: 'monopoly.ils',
 }
 
 /**
@@ -113,7 +121,9 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
           <p className={styles.item}>{dossier.item}</p>
           <div className={styles.chips}>
             {row.soleSource ? (
-              <StatusChip tone={dossier.source.awardSilent ? 'urgent' : 'verified'}>
+              // Brass accent, matching the Monopoly grid's chip for the same fact. Amber is
+              // reserved for the award clock.
+              <StatusChip tone={dossier.source.awardSilent ? 'accent' : 'verified'}>
                 {dossier.source.awardSilent ? 'Sole + silent' : 'Sole source'}
                 {row.approvedSources[0] ? ` · ${row.approvedSources[0]}` : ''}
               </StatusChip>
@@ -127,7 +137,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
               </StatusChip>
             ) : null}
             {dossier.awardPath === 'machine_award' ? (
-              <StatusChip tone="urgent">Machine award</StatusChip>
+              <StatusChip tone="active">Machine award</StatusChip>
             ) : dossier.awardPath === 'manual' ? (
               <StatusChip tone="idle">Manual award</StatusChip>
             ) : null}
@@ -137,7 +147,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
           <span className={styles.scoreN}>{score.scoreV0}</span>
           <span className={styles.scoreCaption}>CornerScore</span>
           <StatusChip tone={score.disposition === 'FLAG' ? 'verified' : 'idle'}>
-            {score.disposition} · {score.grade}
+            {dispositionLabel(score.disposition)} · {score.grade}
           </StatusChip>
         </div>
       </header>
@@ -210,7 +220,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
                     <StatusChip tone={s.leg.state === 'MEASURED' ? 'verified' : 'idle'}>
                       {s.leg.state === 'MEASURED'
                         ? s.direction === 'favourable'
-                          ? 'in favour'
+                          ? 'in favor'
                           : s.direction === 'unfavourable'
                             ? 'against'
                             : 'measured'
@@ -286,7 +296,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
             Every prime award in the NSN-Now export for this stock number, in order. Real prices, not
             modeled.
           </p>
-          <div className={styles.tableWrap}>
+          <Scrollable className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
@@ -312,7 +322,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
                 ))}
               </tbody>
             </table>
-          </div>
+          </Scrollable>
         </section>
       ) : null}
 
@@ -320,22 +330,31 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>How the score is built</h2>
         <p className={styles.cardSub}>
-          Five legs, each carrying its own evidence state. A leg that was not measured is marked, and
-          the score is capped honestly rather than pretending the leg was read.
+          Five legs, each carrying its own evidence state. A leg can contribute more than one
+          signal, so each card below names its leg and the signal it scores. A leg that was not
+          measured is marked, and the score is capped honestly rather than pretending the leg was
+          read.
         </p>
         <div className={styles.legGrid}>
-          {score.reasons.map((r, i) => (
-            <div key={i} className={styles.legRow}>
-              <div className={styles.legHead}>
-                <span className={styles.legName}>{LEG_LABEL[r.leg] ?? r.leg}</span>
-                <StatusChip tone={r.calibration === 'measured' ? 'verified' : 'idle'}>
-                  {r.calibration}
-                  {r.points ? ` · ${r.points > 0 ? '+' : ''}${r.points}` : ''}
-                </StatusChip>
+          {score.reasons.map((r, i) => {
+            const helpId = REASON_HELP[r.facet ? `${r.leg}·${r.facet}` : r.leg]
+            return (
+              <div key={i} className={styles.legRow}>
+                <div className={styles.legHead}>
+                  <span className={styles.legName}>
+                    {LEG_LABEL[r.leg] ?? r.leg}
+                    {r.facet ? ` · ${r.facet}` : ''}
+                  </span>
+                  {helpId ? <ExplainButton helpId={helpId} size="sm" /> : null}
+                  <StatusChip tone={r.calibration === 'measured' ? 'verified' : 'idle'}>
+                    {r.calibration}
+                    {r.points ? ` · ${r.points > 0 ? '+' : ''}${r.points}` : ''}
+                  </StatusChip>
+                </div>
+                <p className={styles.legPlain}>{r.plain}</p>
               </div>
-              <p className={styles.legPlain}>{r.plain}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 

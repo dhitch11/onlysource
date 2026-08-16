@@ -31,7 +31,7 @@ export type Signal = {
 
 /** Human labels + one-line descriptions for each kind. Used by settings and the help affordance. */
 export const SIGNAL_KINDS: Array<{ kind: SignalKind; label: string; describe: string }> = [
-  { kind: 'award_clock', label: 'Award-cutoff deadline', describe: 'The daily 3:00 PM ET machine-award cutoff. Miss it and the buy is decided without you.' },
+  { kind: 'award_clock', label: 'Award-cutoff deadline', describe: 'The 3:00 PM ET machine-award cutoff, every business day. Miss it and the buy is decided without you.' },
   { kind: 'perfect_storm', label: 'Perfect-storm corners', describe: 'Corners that line up on every measured leg at once: one silent source, on the forecast, machine-award, and a rising price.' },
   { kind: 'no_quote', label: 'No-quote make-side', describe: 'Government buys that drew zero quotes and nobody can source: you win by making the part.' },
   { kind: 'escalation', label: 'Biggest price ramps', describe: 'The cornered parts where the sole source has pushed the price up the most.' },
@@ -107,8 +107,8 @@ export function computeSignals(): SignalSet {
       id: `escalation:${leader.nsn}`,
       kind: 'escalation',
       severity: 'info',
-      title: `Biggest price ramp: +${leader.escalationPct}%`,
-      body: `${leader.nsn} (${leader.item}) has climbed ${leader.escalationPct}% across its award history, the steepest in the book. A cornered part whose price only goes up.`,
+      title: `Biggest price ramp: +${leader.escalationPct.toLocaleString()}%`,
+      body: `${leader.nsn} (${leader.item}) has climbed ${leader.escalationPct.toLocaleString()}% across its award history, the steepest in the book. A cornered part whose price only goes up.`,
       href: `/corner/${leader.nsn.replace(/[^0-9]/g, '')}`,
     })
   }

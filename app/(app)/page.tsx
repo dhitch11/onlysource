@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import path from 'node:path'
 import { configReport } from '@/lib/env'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -8,7 +10,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
-import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { buildMonopolyView } from '@/lib/intelligence/monopoly-view'
 import { computeSignals } from '@/lib/notify/signals'
 import {
   AWARD_CLOCK,
@@ -45,39 +47,105 @@ export default async function WorkspacePage() {
   // absent every figure abstains rather than showing a fabricated zero.
   const present = resolveDataRoot().present
   const cm = present ? buildAllDatasets().cornerMap.summary : null
+  // The feed day the whole workspace is reading. The hero names it because "live" would be a
+  // claim about freshness this snapshot cannot make; the honest sentence names the day.
+  const feedDay = present ? buildAllDatasets().cornerMap.provenance.feedDay : null
   const nq = present ? buildAllDatasets().noQuote.summary : null
   const signals = present ? computeSignals().signals : []
   const awardIx = present ? buildNsnAwardIndex() : null
   const fcIx = present ? buildForecastIndex() : null
   const supIx = present ? buildDistressedSuppliers() : null
 
-  // The single strongest opportunity right now: highest-scored candidate corner.
+  // The single strongest opportunity right now: highest-scored candidate corner. Read from
+  // the same memoized view /monopoly renders, so the two surfaces cannot disagree and the
+  // dashboard stops re-scoring 2,141 rows on every visit.
   let topCorner: { nsn: string; item: string; score: number; onForecast: boolean; price: number | null } | null = null
   if (present) {
-    const ds = buildAllDatasets()
-    const awardBy = awardIx?.ok ? awardIx.byNsn : null
-    const fcBy = fcIx?.ok ? fcIx.byNsn : null
+    const view = buildMonopolyView()
     let best = -1
-    for (const r of ds.cornerMap.rows) {
+    for (const r of view.rows) {
       if (!(r.soleSource && r.silentSourceCount > 0)) continue
-      const key = r.nsn.replace(/[^0-9]/g, '')
-      const award = awardBy?.get(key) ?? null
-      const forecast = fcBy?.get(key) ?? null
-      const s = scoreCorner(r, award, forecast)
-      if (s.scoreV0 > best) {
-        best = s.scoreV0
-        topCorner = { nsn: r.nsn, item: r.nomenclature.trim(), score: s.scoreV0, onForecast: !!forecast?.onForecast, price: award?.latest?.effectiveUnitPrice ?? null }
+      if (r.score.scoreV0 > best) {
+        best = r.score.scoreV0
+        topCorner = {
+          nsn: r.nsn,
+          item: r.nomenclature.trim(),
+          score: r.score.scoreV0,
+          onForecast: !!r.forecast?.onForecast,
+          price: r.award?.latestPrice ?? null,
+        }
       }
     }
   }
 
-  const metrics: Array<{ n: string; label: string; hint: string; href: string; hot?: boolean }> = present
+  /*
+   * The provenance line each tile's explainer shows: the actual files this instance counted
+   * from plus the feed day, read from the same provenance objects the builders return. It is
+   * passed live (never typed into static help text) so it can never go stale against the data.
+   */
+  const base = (p: string) => path.basename(p)
+  const feedNote = feedDay ? `feed day ${feedDay}` : 'no feed loaded'
+  const nqProv = present ? buildAllDatasets().noQuote.provenance : null
+  const cmProv = present ? buildAllDatasets().cornerMap.provenance : null
+  const nsnNowFiles = (awardIx?.ok ? awardIx.provenance : fcIx?.ok ? fcIx.provenance : []).map((p) => base(p.path))
+  const nsnNowNote =
+    nsnNowFiles.length > 0
+      ? `${nsnNowFiles.length} NSN-Now export workbook${nsnNowFiles.length === 1 ? '' : 's'} (${nsnNowFiles[0]} … ${nsnNowFiles[nsnNowFiles.length - 1]})`
+      : 'no NSN-Now export on disk'
+
+  const metrics: Array<{
+    n: string
+    label: string
+    hint: string
+    href: string
+    hot?: boolean
+    helpId: string
+    sourceDetail: string
+  }> = present
     ? [
-        { n: (cm?.candidateCorners ?? 0).toLocaleString(), label: 'candidate corners', hint: 'sole source, award-silent, under demand', href: '/monopoly', hot: true },
-        { n: (nq?.makeSideOnly ?? 0).toLocaleString(), label: 'no-quote make-side wins', hint: 'government buys nobody quoted, nobody can source', href: '/goldmine', hot: true },
-        { n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(), label: 'NSNs on the DLA Forecast', hint: 'the government will buy these again', href: '/monopoly' },
-        { n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(), label: 'NSNs with award history', hint: 'real prices and ten-year trends', href: '/monopoly' },
-        { n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(), label: 'Tier A distressed suppliers', hint: 'dead inventory, verified contacts', href: '/suppliers', hot: true },
+        {
+          n: (cm?.candidateCorners ?? 0).toLocaleString(),
+          label: 'candidate corners',
+          hint: 'sole source, under open demand, award-silent',
+          href: '/monopoly',
+          hot: true,
+          helpId: 'monopoly.candidate_corner',
+          sourceDetail: `Counted from ${cmProv?.sourceArchiveKey ?? 'the daily archive'} · ${feedNote}`,
+        },
+        {
+          n: (nq?.makeSideOnly ?? 0).toLocaleString(),
+          label: 'no-quote make-side wins',
+          hint: 'government buys nobody quoted, nobody can source',
+          href: '/goldmine',
+          hot: true,
+          helpId: 'capability.no_quote',
+          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · workspace ${feedNote}`,
+        },
+        {
+          n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(),
+          label: 'NSNs on the DLA Forecast',
+          hint: 'the government will buy these again',
+          href: '/monopoly',
+          helpId: 'monopoly.forecast_nsns',
+          sourceDetail: `Counted from the DLA Forecast sheets of ${nsnNowNote} · workspace ${feedNote}`,
+        },
+        {
+          n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(),
+          label: 'NSNs with award history',
+          hint: 'real prices and ten-year trends',
+          href: '/monopoly',
+          helpId: 'monopoly.award_history_nsns',
+          sourceDetail: `Counted from the procurement history sheets of ${nsnNowNote} · workspace ${feedNote}`,
+        },
+        {
+          n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(),
+          label: 'Tier A distressed suppliers',
+          hint: 'dead inventory, verified contacts',
+          href: '/suppliers',
+          hot: true,
+          helpId: 'monopoly.distressed_tier_a',
+          sourceDetail: `Counted from ${supIx?.ok ? supIx.provenance.map((p) => base(p.path)).join(' + ') : 'the researched workbook'} · workspace ${feedNote}`,
+        },
       ]
     : []
 
@@ -87,21 +155,35 @@ export default async function WorkspacePage() {
         <p className="eyebrow">Operator command center</p>
         <h1 className="h1">The market, mapped and ranked by money.</h1>
         <p className="lede">
-          Live on the real DLA feed. Every number here is measured from a government file, and every
-          position carries its own evidence and gaps. Start with the strongest corner, or work the
-          book of business.
+          {feedDay
+            ? `Built from the real DLA files for feed day ${feedDay}. `
+            : 'Built from the real DLA files; no feed is loaded here yet. '}
+          Every number here is measured from a government file, and every position carries its own
+          evidence and gaps. Start with the strongest corner, or work the book of business.
         </p>
       </section>
 
       {present ? (
         <>
           <section className="metricGrid" aria-label="Live metrics">
+            {/*
+             * Each tile is a wrapper holding a full-bleed Link plus the eye-in-circle
+             * explainer as a SIBLING, never a child, of the anchor: a button nested inside a
+             * link is invalid markup and a coin-toss click. The explainer names the source
+             * file, the count method, and the feed day for the number under it.
+             */}
             {metrics.map((m) => (
-              <Link key={m.label} href={m.href as never} className={`metricCard${m.hot ? ' metricCard--hot' : ''}`}>
-                <span className="metricN">{m.n}</span>
-                <span className="metricLabel">{m.label}</span>
-                <span className="metricHint">{m.hint}</span>
-              </Link>
+              <div key={m.label} className={`metricCard metricCard--withHelp${m.hot ? ' metricCard--hot' : ''}`}>
+                {/* div, not span: the explainer's popover is a <div>, invalid inside a span. */}
+                <div className="metricHelp">
+                  <ExplainButton helpId={m.helpId} size="sm" sourceDetail={m.sourceDetail} />
+                </div>
+                <Link href={m.href as never} className="metricCard__body">
+                  <span className="metricN">{m.n}</span>
+                  <span className="metricLabel">{m.label}</span>
+                  <span className="metricHint">{m.hint}</span>
+                </Link>
+              </div>
             ))}
           </section>
 
@@ -159,7 +241,7 @@ export default async function WorkspacePage() {
             <div className="banner banner--attention" role="note">
               <div>
                 <p>
-                  <strong>Partly estimated.</strong> The 3 business day offset is cited. These
+                  <strong>Partly estimated.</strong> The offset and the timezone are cited. These
                   parts are not:
                 </p>
                 <ul className="bullets">

@@ -75,7 +75,7 @@ export function SettingsForm({
         <div className={styles.cardHead}>
           <h2 className={styles.cardTitle}>Channels</h2>
           <span className={styles.saveLine} aria-live="polite">
-            {status === 'saving' ? 'Saving…' : status === 'saved' ? 'All changes saved' : status === 'error' ? 'Save failed — try again' : ''}
+            {status === 'saving' ? 'Saving…' : status === 'saved' ? 'All changes saved' : status === 'error' ? 'Save failed. Try again.' : ''}
           </span>
         </div>
         <p className={styles.cardSub}>Turn a whole channel off here and nothing uses it, whatever the choices below.</p>

@@ -519,6 +519,32 @@ a {
 .metricCard--hot:hover {
   box-shadow: 0 8px 30px -14px var(--accent);
 }
+/*
+ * The tile variant that carries an ExplainButton. The wrapper owns the card chrome; the
+ * link fills it (so the whole tile stays one big target); the explainer sits above the
+ * link as a sibling, because a <button> inside an <a> is invalid and unclickable-by-luck.
+ */
+.metricCard--withHelp {
+  position: relative;
+  padding: 0;
+}
+.metricCard__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-4);
+  color: inherit;
+  text-decoration: none;
+  border-radius: inherit;
+  min-inline-size: 0;
+}
+.metricHelp {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+  z-index: 1;
+}
 .metricN {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
-import { buildAllDatasets } from "@/lib/intelligence/datasets";
-import { buildNsnAwardIndex } from "@/lib/intelligence/awards/nsn-now";
-import { buildForecastIndex } from "@/lib/intelligence/forecast/dla-forecast";
-import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
+import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
 import { resolveDataRoot } from "@/lib/data-root";
 import { MonopolyGrid } from "./MonopolyGrid";
 import styles from "./monopoly.module.css";
@@ -50,29 +47,19 @@ export default async function MonopolyPage() {
     );
   }
 
-  const { cornerMap } = buildAllDatasets();
-  const { summary, rows, provenance } = cornerMap;
-
-  // Join real award history + availability from the NSN-Now export, where we have it. Most rows
-  // will not have it until the full export lands; those render the honest unread state. A row
-  // that DOES have it shows the government's actual paid price, not an abstention.
-  const awardIndex = buildNsnAwardIndex();
-  const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null;
-  const forecastIndex = buildForecastIndex();
-  const forecastByNsn = forecastIndex.ok ? forecastIndex.byNsn : null;
-  const enriched = rows.map((r) => {
-    const key = r.nsn.replace(/[^0-9]/g, "");
-    const award = awardByNsn?.get(key) ?? null;
-    const forecast = forecastByNsn?.get(key) ?? null;
-    return { ...r, award, forecast, score: scoreCorner(r, award, forecast) };
-  });
-  const pricedCount = enriched.filter((r) => r.award?.latest?.effectiveUnitPrice != null).length;
-  const forecastCount = enriched.filter(
-    (r) => r.soleSource && r.silentSourceCount > 0 && r.forecast?.onForecast,
-  ).length;
-  const availCount = enriched.filter(
-    (r) => r.soleSource && r.silentSourceCount > 0 && (r.award?.holders.length ?? 0) > 0,
-  ).length;
+  // The whole join + score is memoized per feed day (lib/intelligence/monopoly-view): the
+  // inputs are a pinned, hash-asserted snapshot, so recomputing them per request bought no
+  // freshness, only ~2s of TTFB on the page the daily loop starts on. Rendering stays
+  // force-dynamic; only the pure computation is reused.
+  const view = buildMonopolyView();
+  const { summary, provenance, rows: enriched } = view;
+  // Two priced counts, two denominators, NEVER implied into one another: the map-wide figure
+  // spans every enriched row, while the candidate figure is scoped to the funnel's own 115.
+  // The strip sentence below names both denominators explicitly because a bare count directly
+  // under a candidate-scoped sentence reads as candidate coverage, an 18x overstatement.
+  const { pricedCount, candidatePricedCount, forecastCount, availCount } = view;
+  const awardsJoined = view.awardsJoined;
+  const forecastJoined = view.forecastJoined;
 
   // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
   // to the widest step so the narrowing reads at a glance without exaggeration.
@@ -142,7 +129,7 @@ export default async function MonopolyPage() {
           <div className={styles.statN}>{summary.candidateCorners.toLocaleString()}</div>
           <div className={styles.statL}>
             <b>candidate corners</b>
-            <span className={styles.statHint}>sole source, under demand, source award-silent</span>
+            <span className={styles.statHint}>sole source, under open demand, award-silent</span>
           </div>
         </div>
         <div className={styles.stat}>
@@ -167,7 +154,7 @@ export default async function MonopolyPage() {
                 missing is an INDEPENDENT check, and that is the reason this stays at zero. The
                 old hint said "until availability is read", which stopped being true on 08-16. */}
             <span className={styles.statHint}>
-              zero until a listing is independently confirmed — see below
+              zero until a listing is independently confirmed; see below
             </span>
           </div>
         </div>
@@ -181,7 +168,7 @@ export default async function MonopolyPage() {
             A corner is three things at once: <b>DLA is buying it</b>, <b>one company may make
             it</b>, and <b>nobody has it on a shelf</b>. The first two are read from the government
             files here. For the third, the NSN-Now export lists who <b>self-reports</b> stock:{" "}
-            {awardByNsn ? (
+            {awardsJoined ? (
               <>
                 <b>{availCount.toLocaleString()}</b> of these candidate corners show a listing and
                 the rest are marked absent.
@@ -203,11 +190,11 @@ export default async function MonopolyPage() {
             require below the micro-purchase threshold, so it is a signal and not a death notice.
           </p>
           <p className={styles.truthProv}>
-            {awardByNsn
-              ? `Award history is joined from the NSN-Now export where present: ${pricedCount.toLocaleString()} of these positions now carry a real paid price and its ten-year trend. The rest await the full export and say so per row.`
+            {awardsJoined
+              ? `Award history is joined from the NSN-Now export where present: ${candidatePricedCount.toLocaleString()} of the ${summary.candidateCorners.toLocaleString()} candidate corners now carry a real paid price and its ten-year trend. Across the whole corner map (${enriched.length.toLocaleString()} positions): ${pricedCount.toLocaleString()}. The rest await the full export and say so per row.`
               : "No NSN-Now export is loaded yet, so award price reads as unread on every row rather than as an estimate."}
           </p>
-          {forecastByNsn ? (
+          {forecastJoined ? (
             <p className={styles.truthProv}>
               <b>Forward demand is now measured, not inferred.</b>{" "}
               <b>{forecastCount.toLocaleString()}</b> of these candidate corners appear on the

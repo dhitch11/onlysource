@@ -141,7 +141,7 @@ export function roleHas(role: Role, permission: Permission): boolean {
 
 /** Plain-language descriptions, rendered in org settings so the matrix is legible. */
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  owner: 'Everything, plus deleting the organisation and transferring ownership. Exactly one per organisation.',
+  owner: 'Everything, plus deleting the organization and transferring ownership. Exactly one per organization.',
   admin: 'Manages people, settings and integrations. Cannot submit a quote or commit to a supplier.',
   buyer: 'The money authority. Submits quotes, approves purchase orders, commits to suppliers, sees cost basis.',
   operator: 'Works the queue. Reads, annotates, builds packets and requests quotes. Cannot submit or commit.',

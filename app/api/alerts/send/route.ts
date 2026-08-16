@@ -48,6 +48,17 @@ export async function POST(req: NextRequest) {
 
   const result = await sendEmail({ to, subject, html: digestHtml(signals, set.feedDay), text: digestText(signals, set.feedDay) })
   if (!result.ok) {
+    /*
+     * AN INTENTIONAL REFUSAL IS NOT AN OUTAGE. While the deployment is deliberately disarmed
+     * (or a recipient is outside the configured allowlist), "nothing was sent" is this
+     * endpoint doing exactly what it is configured to do, so it answers 200 with sent:false
+     * and the stated reason. 5xx is reserved for a genuine delivery failure, so the day a
+     * real outage happens it is distinguishable from policy instead of byte-identical to it.
+     * `reason` carries the same human sentence the interface already shows.
+     */
+    if (result.refusedBy) {
+      return Response.json({ ok: true, sent: false, reason: result.reason, refusedBy: result.refusedBy })
+    }
     return Response.json({ error: 'send_failed', message: result.reason }, { status: 502 })
   }
   return Response.json({ ok: true, sent: true, to, count: signals.length, id: result.id })

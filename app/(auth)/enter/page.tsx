@@ -22,8 +22,9 @@ function messageFor(code: string | undefined, minutes: string | undefined) {
     case 'bad':
       return {
         kind: 'danger' as const,
-        title: 'That is not the access phrase for this environment.',
-        detail: 'Check for a trailing space. If you do not have the phrase, ask the conductor.',
+        title: 'That sign-in did not work.',
+        detail:
+          'Check for a trailing space. If you still cannot get in, ask the owner to reset your password from Admin & Users.',
       }
     case 'locked':
       return {
@@ -59,7 +60,7 @@ export default async function EnterPage({
   }
 
   const report = configReport()
-  const gateConfigured = report.subsystems.pre_release_gate?.status === 'configured'
+  const gateConfigured = report.subsystems.sign_in_gate?.status === 'configured'
   const message = messageFor(params.e, params.m)
   const next = params.next && params.next.startsWith('/') && !params.next.startsWith('//')
     ? params.next
@@ -150,14 +151,16 @@ export default async function EnterPage({
           </summary>
           <div className="card__body stack stack--tight">
             <p className="muted">
-              <strong>What it is.</strong> A single shared phrase that stands in front of a
-              pre-release environment while the real identity layer is being built.
+              <strong>What it is.</strong> The sign-in door for the ONLYSOURCE workspace. You
+              sign in with your email and password from the roster. A break-glass phrase exists
+              only for a fresh server with no accounts, and it goes inert the moment the first
+              password is set.
             </p>
             <p className="muted">
-              <strong>How it works.</strong> The phrase is compared on the server in constant
+              <strong>How it works.</strong> Credentials are compared on the server in constant
               time. A match issues a signed, HttpOnly cookie that expires after 12 hours with no
               sliding renewal. The pages behind it are never sent to your browser first and
-              hidden with styling. If the phrase is wrong, the server renders this page instead.
+              hidden with styling. If the sign-in is wrong, the server renders this page instead.
             </p>
             <p className="muted">
               <strong>Why it matters.</strong> A gate that hides content the server already sent

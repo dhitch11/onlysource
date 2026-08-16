@@ -33,6 +33,12 @@ import {
 export type ReasonCode = {
   /** Which leg or signal this reason belongs to. */
   leg: string;
+  /**
+   * Which SIGNAL within the leg, when a leg contributes more than one. Surfaces render it as
+   * "Price anchor · trend" so two cards for one leg never carry the same title, and the
+   * five-leg claim reconciles with the card count instead of contradicting it.
+   */
+  facet?: string;
   /** Plain language, decomposing the ranked quantity — never a bare number. */
   plain: string;
   /** Points this signal contributed to the v0 scorecard (may be 0 for context-only reasons). */
@@ -93,6 +99,7 @@ export function scoreCorner(
       add(10);
       reasons.push({
         leg: "competition",
+        facet: "concentration",
         plain: `every one of ${award.awards.length} past awards went to a single company (CAGE ${award.latest?.cage ?? "?"})`,
         points: 10,
         calibration: "measured",
@@ -100,10 +107,10 @@ export function scoreCorner(
       competition = measured(1, 0.85, "sole approved source and sole historical awardee");
     } else {
       competition = measured(0.7, 0.6, "sole approved source; award-concentration not yet loaded");
-      if (!award) dataGaps.push("award history not loaded — cannot confirm sole-awardee concentration");
+      if (!award) dataGaps.push("award history not loaded, so sole-awardee concentration cannot be confirmed");
     }
   } else {
-    competition = measured(0.2, 0.5, `${row.approvedSourceCount} approved sources — competitive`);
+    competition = measured(0.2, 0.5, `${row.approvedSourceCount} approved sources: competitive`);
     reasons.push({ leg: "competition", plain: `${row.approvedSourceCount} approved sources: this is competitive, not a corner`, points: 0, calibration: "measured" });
   }
 
@@ -112,6 +119,7 @@ export function scoreCorner(
     add(15);
     reasons.push({
       leg: "competition",
+      facet: "award silence",
       plain: "the approved source has no recorded prime award in two years (a silence signal, not a death notice)",
       points: 15,
       calibration: "measured",
@@ -137,7 +145,8 @@ export function scoreCorner(
       add(pts);
       reasons.push({
         leg: "priceAnchor",
-        plain: `unit price rose ${pct}% over the award history (${fmt(first)} → ${fmt(last)})`,
+        facet: "trend",
+        plain: `unit price rose ${pct.toLocaleString()}% over the award history (${fmt(first)} → ${fmt(last)})`,
         points: pts,
         calibration: "measured",
       });
@@ -147,14 +156,15 @@ export function scoreCorner(
       const drag = 200 / (last * row.quantity);
       reasons.push({
         leg: "priceAnchor",
-        plain: `surplus evaluated-drag is ${(drag * 100).toFixed(drag < 0.01 ? 2 : 1)}% of the buy${drag < 0.02 ? " — negligible" : " — meaningful"}`,
+        facet: "surplus drag",
+        plain: `surplus evaluated-drag is ${(drag * 100).toFixed(drag < 0.01 ? 2 : 1)}% of the buy, ${drag < 0.02 ? "negligible" : "meaningful"}`,
         points: 0,
         calibration: "measured",
       });
     }
   } else {
     priceAnchor = unavailable("no award history ingested for this NSN yet");
-    dataGaps.push("award price not ingested for this NSN — pricing leg abstains");
+    dataGaps.push("award price not ingested for this NSN, so the pricing leg abstains");
   }
 
   // ---- FORWARD DEMAND (ρ_forward): MEASURED when the NSN is on the government's own DLA Forecast.
@@ -185,14 +195,15 @@ export function scoreCorner(
     });
   } else {
     forwardDemand = prior(0.5, "forward demand is a prior until the DLA Forecast is loaded");
-    dataGaps.push("DLA Forecast not loaded — forward-demand leg is a prior, not a measurement");
+    dataGaps.push("DLA Forecast not loaded, so the forward-demand leg is a prior, not a measurement");
   }
   // Solicitation recurrence, a supporting signal: a part re-solicited many times is re-bought often.
   if (forecast && forecast.solicitationCount >= 5) {
     add(5);
     reasons.push({
       leg: "forwardDemand",
-      plain: `re-solicited ${forecast.solicitationCount} times — a recurring buy`,
+      facet: "recurrence",
+      plain: `re-solicited ${forecast.solicitationCount} times: a recurring buy`,
       points: 5,
       calibration: "measured",
     });
@@ -215,7 +226,7 @@ export function scoreCorner(
     });
   } else {
     feasibility = unavailable("no availability feed connected (ILS not wired)");
-    dataGaps.push("ILS availability not connected — feasibility leg abstains; a corner cannot be CONFIRMED");
+    dataGaps.push("ILS availability not connected, so the feasibility leg abstains and a corner cannot be CONFIRMED");
   }
 
   // ---- DISPOSITION via the Evidence-State decision table (§2.3), first match wins. ----

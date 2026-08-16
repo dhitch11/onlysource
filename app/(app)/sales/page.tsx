@@ -4,7 +4,7 @@ import { readDeals } from '@/lib/sales/deals-store'
 import { PipelineBoard } from './PipelineBoard'
 import styles from './SalesHub.module.css'
 
-export const metadata = { title: 'Sales Hub' }
+export const metadata = { title: 'Sales Hub · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
 
 /**

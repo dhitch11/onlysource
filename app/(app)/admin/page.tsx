@@ -6,7 +6,7 @@ import { describeRole } from '@/lib/admin/permissions'
 import { AdminConsole } from './AdminConsole'
 import styles from './Admin.module.css'
 
-export const metadata = { title: 'Admin & Users' }
+export const metadata = { title: 'Admin & Users · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
 
 /**

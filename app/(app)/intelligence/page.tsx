@@ -3,10 +3,12 @@ import Link from 'next/link'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildPortfolio } from '@/lib/intelligence/portfolio'
+import { dispositionLabel } from '@/lib/intelligence/scoring/evidence-state'
 import { aiConfigured } from '@/lib/ai/anthropic'
 import { HBars } from '@/components/ui/HBars'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { Scrollable } from '@/components/ui/Scrollable'
 import { PortfolioBrief } from './PortfolioBrief'
 import styles from './intelligence.module.css'
 
@@ -44,7 +46,7 @@ export default async function IntelligencePage() {
   const pf = buildPortfolio()
 
   const metrics: Array<{ n: number; label: string; hint: string }> = [
-    { n: pf.totals.candidateCorners, label: 'candidate corners', hint: 'sole source, under demand, award-silent' },
+    { n: pf.totals.candidateCorners, label: 'candidate corners', hint: 'sole source, under open demand, award-silent' },
     { n: pf.totals.onForecast, label: 'on the DLA Forecast', hint: 'forward demand is measured' },
     { n: pf.totals.priced, label: 'with real award prices', hint: 'a government-paid anchor' },
     { n: pf.totals.machineAward, label: 'machine-award path', hint: 'price wins, no manual evaluation' },
@@ -91,7 +93,9 @@ export default async function IntelligencePage() {
         <div className={styles.chartCard}>
           <h2 className={styles.chartTitle}>Disposition mix</h2>
           <p className={styles.chartSub}>How many are actionable versus still waiting on evidence.</p>
-          <HBars data={pf.byDisposition} />
+          {/* Same enum, same label map as the Monopoly grid: a raw WATCHLIST token on one
+              surface and "Watchlist" on another would be two spellings of one fact. */}
+          <HBars data={pf.byDisposition.map((b) => ({ ...b, label: dispositionLabel(b.label) }))} />
         </div>
         <div className={styles.chartCard}>
           <h2 className={styles.chartTitle}>Award path</h2>
@@ -120,7 +124,7 @@ export default async function IntelligencePage() {
                 <span className={styles.escPrices}>
                   {usd(c.firstPrice)} → {usd(c.lastPrice)}
                 </span>
-                <span className={styles.escPct}>+{c.escalationPct}%</span>
+                <span className={styles.escPct}>+{c.escalationPct?.toLocaleString()}%</span>
               </li>
             ))}
           </ul>
@@ -131,7 +135,7 @@ export default async function IntelligencePage() {
       <section className={styles.card}>
         <h2 className={styles.chartTitle}>Top plays</h2>
         <p className={styles.chartSub}>The highest-ranked corners in the book. Open any for its full dossier.</p>
-        <div className={styles.tableWrap}>
+        <Scrollable className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -172,14 +176,14 @@ export default async function IntelligencePage() {
                   <td>
                     <span className={styles.signals}>
                       {c.onForecast ? <StatusChip tone="verified">Forecast</StatusChip> : null}
-                      {c.machineAward ? <StatusChip tone="urgent">Machine</StatusChip> : null}
+                      {c.machineAward ? <StatusChip tone="active">Machine</StatusChip> : null}
                     </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Scrollable>
       </section>
     </main>
   )

@@ -40,12 +40,12 @@ import { ROLES } from './permissions'
  * ==========================================================================================
  * THE ONE THING THIS SCREEN MUST SAY OUT LOUD, BECAUSE IT WOULD OTHERWISE MISLEAD.
  * ==========================================================================================
- * Access to this build is ONE shared organization phrase. There is no per person sign in
- * yet. So adding a person to the roster records who is in the organization and what they may
- * do; it does not create a separate login and it does not send anybody an email. The surface
- * states that in plain words rather than letting an operator infer an invitation was sent.
- * `lib/admin/directory.ts` carries the sentence as `accessNote` so the interface and this
- * module can never drift apart on it.
+ * Sign-in is per person, by email and password, and a roster row can sign in only once a
+ * password has been set for it here. Adding a person does not send anybody an email, so the
+ * surface states that in plain words rather than letting an operator infer an invitation was
+ * sent. `lib/admin/directory.ts` carries the sentence as `accessNote` so the interface and
+ * this module can never drift apart on it. (This header once said access was one shared
+ * organization phrase; that era ended when the credentialed sign-in landed.)
  *
  * Shape on disk (`.state/admin-users.json`):
  *   { "overrides": { "seed:hitchman": { roleKey, title, status, updatedAt } },

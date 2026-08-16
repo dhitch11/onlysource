@@ -1,6 +1,7 @@
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
+import { isRisingPrice } from '@/lib/intelligence/rising-price'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
 import type { CornerRow } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
@@ -173,7 +174,10 @@ export function buildPortfolio(): Portfolio {
       onForecast: candidates.filter((c) => c.onForecast).length,
       priced: candidates.filter((c) => c.lastPrice != null).length,
       machineAward: machine,
-      withEscalation: candidates.filter((c) => c.escalationPct != null && c.escalationPct > 0).length,
+      // The SHARED predicate, never the rounded percent: a sub-0.5% riser rounds to an
+      // escalationPct of 0 and used to vanish from this count while the Monopoly grid still
+      // showed it rising. One definition, one number, on both surfaces.
+      withEscalation: candidates.filter((c) => isRisingPrice(c.firstPrice, c.lastPrice)).length,
     },
     bySupplyChain,
     byDisposition,

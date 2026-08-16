@@ -6,6 +6,7 @@ import { buildHubzoneMatches } from '@/lib/intelligence/opportunities/hubzone'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { systemClock } from '@/lib/time/clock'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { Scrollable } from '@/components/ui/Scrollable'
 import styles from '../goldmine/goldmine.module.css'
 
 export const metadata: Metadata = { title: 'HUBZone set-asides · ONLYSOURCE' }
@@ -73,9 +74,10 @@ export default async function HubzonePage() {
         <p className={styles.eyebrow}>Opportunities</p>
         <h1 className={styles.h1}>HUBZone set-asides</h1>
         <p className={styles.sub}>
-          Government buys the agency reserved for <b>HUBZone-certified</b> small businesses. If you hold
-          the certification these are yours to bid; if not, they are still live intelligence, and a
-          reason to partner with a certified firm. Nothing here assumes you qualify.
+          Government buys the agency has reserved for <b>HUBZone-certified</b> small businesses. If
+          you hold the certification these are yours to bid; if not, they are still intelligence on
+          what is being bought and at what price, and a reason to partner with a certified firm.
+          Nothing here assumes you qualify.
         </p>
       </header>
 
@@ -99,8 +101,12 @@ export default async function HubzonePage() {
 
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>The solicitations</h2>
-        <p className={styles.cardSub}>Sorted by soonest close. A stock number that is also one of our candidate corners links into its dossier.</p>
-        <div className={styles.tableWrap}>
+        <p className={styles.cardSub}>
+          Ordered by close date, earliest first. These dates come from the feed-day export, so many
+          have already passed; an <b>Open</b> chip marks the ones still open to quote. A stock
+          number that is also one of our candidate corners links into its dossier.
+        </p>
+        <Scrollable className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -110,7 +116,7 @@ export default async function HubzonePage() {
                 <th className={styles.numCol}>Qty</th>
                 <th className={styles.numCol}>Last price</th>
                 <th className={styles.numCol}>Size of buy</th>
-                <th>Closes</th>
+                <th>Close date</th>
               </tr>
             </thead>
             <tbody>
@@ -130,7 +136,7 @@ export default async function HubzonePage() {
                     </td>
                     <td className="mono">
                       {m.solicitation || '—'}
-                      {m.typeChar === 'U' ? <StatusChip tone="urgent">U</StatusChip> : m.typeChar === 'T' ? <StatusChip tone="idle">T</StatusChip> : null}
+                      {m.typeChar === 'U' ? <StatusChip tone="idle">U</StatusChip> : m.typeChar === 'T' ? <StatusChip tone="idle">T</StatusChip> : null}
                     </td>
                     <td className={styles.partCell} title={m.description}>
                       {m.description || '—'}
@@ -153,10 +159,12 @@ export default async function HubzonePage() {
               })}
             </tbody>
           </table>
-        </div>
+        </Scrollable>
         <p className={styles.tableFoot}>
-          &ldquo;Size of buy&rdquo; is the last unit price times the quantity requested, a rough figure, not a quote. A
-          <span className="mono"> U</span> in the solicitation means an alternate cannot win the instant buy.
+          &ldquo;Size of buy&rdquo; is the last unit price times the quantity requested, a rough
+          figure, not a quote. The <span className="mono">T</span> and <span className="mono">U</span>{' '}
+          chips are the solicitation&rsquo;s ninth character: both mark the automated award path,
+          where the buy is decided by machine and an alternate offer cannot win it.
         </p>
       </section>
     </main>

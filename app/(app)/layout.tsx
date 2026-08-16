@@ -119,7 +119,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Gov data · {feedDay}
             </span>
           ) : null}
-          <span className="pill pill--attention">{environment}</span>
+          {/* A quiet fact, not an alert: amber stays reserved for the award clock. */}
+          <span className="pill pill--off">{environment}</span>
           {/*
            * A VISIBLE LABEL, NOT A `title` TOOLTIP. R3/R4 ban the title attribute: it is
            * unreachable by keyboard, invisible to touch, and untestable.
