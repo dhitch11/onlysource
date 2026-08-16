@@ -1,5 +1,8 @@
 "use client";
 
+/** The instant BOTH the server and the first client render use, so they cannot disagree. */
+const FIXED_SHOWCASE_INSTANT = Date.parse("2026-08-16T12:00:00.000Z");
+
 /*
  * /design  THE DESIGN SYSTEM REFERENCE SURFACE. Owner: T8 DESIGN.
  *
@@ -17,6 +20,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { systemClock } from "@/lib/time/clock";
 import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { ExplainButton } from "@/components/ui/ExplainButton";
@@ -44,6 +48,28 @@ type Theme = "dark" | "light";
 export default function DesignPage() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [busy, setBusy] = useState(false);
+
+  /*
+   * A MOUNT-STABLE CLOCK, and it is here to fix a real defect that was live on production.
+   *
+   * This showcase built its illustrative timestamps with `Date.now()` at five call sites. In a
+   * client component that also renders on the server, the server evaluates one instant and the
+   * browser evaluates a different one milliseconds later, so the two trees disagree on a text
+   * node and React throws a hydration error (#418). It was the ONLY page error in the whole app,
+   * on every load of this route.
+   *
+   * The fix is not a frozen constant: these values demonstrate RELATIVE time ("2 hours ago"), and
+   * freezing them would make the showcase demonstrate the wrong thing within a day. Instead both
+   * sides render the same fixed instant first, and the real clock is adopted after mount, where
+   * there is no server tree left to disagree with.
+   *
+   * It also removes a straight violation of the R0.3 rule that only `lib/time/clock.ts` may read
+   * wall time, which exists precisely because an untestable clock read ships bugs like this one.
+   */
+  const [nowMs, setNowMs] = useState<number>(FIXED_SHOWCASE_INSTANT);
+  useEffect(() => {
+    setNowMs(systemClock.now());
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -88,9 +114,9 @@ export default function DesignPage() {
         <TruthStrip
           orgName="ONLYSOURCE"
           sources={[
-            { label: "DIBBS RFQ feed", count: 1957, receivedAt: new Date(Date.now() - 5.4e6).toISOString(), quarantined: 1, quarantineHref: "#" },
+            { label: "DIBBS RFQ feed", count: 1957, receivedAt: new Date(nowMs - 5.4e6).toISOString(), quarantined: 1, quarantineHref: "#" },
             { label: "Award history", unavailableReason: "not connected yet" },
-            { label: "Approved sources", count: 3683, receivedAt: new Date(Date.now() - 8.2e6).toISOString() },
+            { label: "Approved sources", count: 3683, receivedAt: new Date(nowMs - 8.2e6).toISOString() },
           ]}
           partialCoverage={{ indexed: 12480, total: 52000, of: "NSNs" }}
         />
@@ -169,7 +195,7 @@ export default function DesignPage() {
               counterfactual: "A live approved source with current SAM registration would remove the top factor and drop this below the flag threshold.",
               dataGaps: ["ILS availability not refreshed in 9 days"],
               modelVersion: "reference-values-only",
-              asOf: new Date(Date.now() - 3.6e6).toISOString(),
+              asOf: new Date(nowMs - 3.6e6).toISOString(),
             }}
           />
           <span className={styles.caption}>with a live computation record</span>
@@ -184,7 +210,7 @@ export default function DesignPage() {
               abstained: true,
               abstainReason: "no award history for this NSN in the indexed window",
               modelVersion: "reference-values-only",
-              asOf: new Date(Date.now() - 1.1e6).toISOString(),
+              asOf: new Date(nowMs - 1.1e6).toISOString(),
             }}
           />
           <span className={styles.caption}>abstention is an answer, not a failure</span>
@@ -334,7 +360,7 @@ export default function DesignPage() {
             onRetry={() => {}}
           />
           <PermissionDenied surface="Admin and users" requiredRole="admin" />
-          <StaleBanner asOf={new Date(Date.now() - 9e7).toISOString()} onRefresh={() => {}} />
+          <StaleBanner asOf={new Date(nowMs - 9e7).toISOString()} onRefresh={() => {}} />
           <div className={styles.row}>
             <InsufficientData missing="no ILS availability for this NSN" />
             <PartialCoverage indexed={12480} total={52000} of="NSNs in the scan" />
