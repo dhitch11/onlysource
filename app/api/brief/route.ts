@@ -74,8 +74,9 @@ export async function POST(req: NextRequest) {
 
   const dossier: CornerDossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
 
-  const result = await generate(SYSTEM_PROMPT, renderDossier(dossier), 1100)
+  const result = await generate(SYSTEM_PROMPT, renderDossier(dossier), 1100, 'corner_brief')
   if (!result.ok) {
+    log.warn('brief.ai_failed', { nsn: row.nsn, tried: result.triedModels.join(',') })
     return Response.json({ error: 'ai_failed', message: result.reason }, { status: 502 })
   }
 
@@ -85,7 +86,15 @@ export async function POST(req: NextRequest) {
   if (grounded.stripped.length > 0) {
     log.warn('brief.grounding.stripped', { nsn: row.nsn, count: grounded.stripped.length })
   }
-  return Response.json({ nsn: row.nsn, brief: grounded.text, dossier, unverified: grounded.stripped })
+  // `model` is the model that ACTUALLY served this, never the one we hoped for. Labelling output
+  // with a model that did not write it is its own small fabrication.
+  return Response.json({
+    nsn: row.nsn,
+    brief: grounded.text,
+    dossier,
+    unverified: grounded.stripped,
+    model: result.model,
+  })
 }
 
 const SYSTEM_PROMPT = `You are the analyst inside ONLYSOURCE, a defense-parts opportunity-intelligence platform that finds cornered DLA/DIBBS stock numbers: parts one approved company may make, that the government keeps buying, where that company has gone quiet on awards.

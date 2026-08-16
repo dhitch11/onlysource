@@ -39,13 +39,13 @@ export async function POST() {
     )
   }
   const dossier = buildPortfolioDossier(pf)
-  const result = await generate(SYSTEM_PROMPT, `PORTFOLIO DOSSIER\n\n${JSON.stringify(dossier, null, 2)}`, 1200)
+  const result = await generate(SYSTEM_PROMPT, `PORTFOLIO DOSSIER\n\n${JSON.stringify(dossier, null, 2)}`, 1200, 'portfolio_brief')
   if (!result.ok) {
     return Response.json({ error: 'ai_failed', message: result.reason }, { status: 502 })
   }
   // Enforce the measured-only promise: strip any sentence with a number not in the portfolio dossier.
   const grounded = groundBrief(result.text, dossier)
-  return Response.json({ brief: grounded.text, unverified: grounded.stripped })
+  return Response.json({ brief: grounded.text, unverified: grounded.stripped, model: result.model })
 }
 
 const SYSTEM_PROMPT = `You are the lead analyst inside ONLYSOURCE, a defense-parts opportunity-intelligence platform. You are briefing an operator on the whole candidate book for one feed day: cornered DLA stock numbers (one approved maker, the government still buying, that maker gone award-silent).
