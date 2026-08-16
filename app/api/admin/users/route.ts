@@ -17,6 +17,7 @@ import {
   validateNewUser,
   type GuardedUser,
 } from '@/lib/admin/roster-rules'
+import { revokePassword, setPassword } from '@/lib/auth/accounts'
 import { systemClock } from '@/lib/time/clock'
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +45,14 @@ type Body = {
   title?: unknown
   roleKey?: unknown
   status?: unknown
+  /**
+   * A new password for this user, or null to revoke their sign in.
+   *
+   * NEVER logged, never echoed back, never stored. It is hashed by `lib/auth/accounts` and only
+   * the derivation reaches the disk. This field is also the reason this route must never gain a
+   * "log the request body" line for debugging.
+   */
+  password?: unknown
 }
 
 function guarded(users: DirectoryUser[]): GuardedUser[] {
@@ -127,6 +136,7 @@ export async function POST(req: NextRequest) {
           title: check.value.title,
           roleKey: check.value.roleKey,
           status: 'active',
+          passwordHash: null,
           createdAt: now,
           updatedAt: now,
         }),
@@ -139,6 +149,25 @@ export async function POST(req: NextRequest) {
   // ---------- change ----------
   const target = users.find((u) => u.id === id)
   if (!target) return refuse('unknown_user', 'That user is not in the roster.')
+
+  /*
+   * The credential change is handled FIRST and on its own, because it is the one field that is
+   * not a patch on the roster row: it is hashed and written by the account layer. Doing it here
+   * also means a request carrying only a password is not treated as an "empty change".
+   */
+  if (body.password !== undefined) {
+    if (body.password === null) {
+      const done = revokePassword(id, systemClock.now())
+      if (!done.ok) return notSaved()
+      return ok(readRoster())
+    }
+    if (typeof body.password !== 'string') {
+      return refuse('bad_password', 'A password has to be text.')
+    }
+    const result = await setPassword(id, body.password, systemClock.now())
+    if (!result.ok) return refuse('password_refused', result.reason)
+    return ok(readRoster())
+  }
 
   const patch: { roleKey?: string; title?: string; status?: RosterStatus } = {}
 

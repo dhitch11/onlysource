@@ -51,6 +51,7 @@ const member = (over: Partial<RosterMember> & { id: string }): RosterMember => (
   title: '',
   roleKey: 'operator',
   status: 'active',
+  passwordHash: null,
   createdAt: 1,
   updatedAt: 1,
   ...over,

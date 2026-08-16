@@ -79,6 +79,10 @@ export function AdminConsole({
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Which row's password form is open, and what is typed in it. Never persisted, never logged. */
+  const [pwFor, setPwFor] = useState<string | null>(null)
+  const [pw, setPw] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
 
   /** One request path. Returns true only when the server actually returned a saved roster. */
   async function send(init: RequestInit & { url: string }, key: string): Promise<boolean> {
@@ -141,6 +145,38 @@ export function AdminConsole({
     }
   }
 
+  async function savePassword(id: string) {
+    const saved = await send(
+      {
+        url: '/api/admin/users',
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, password: pw }),
+      },
+      `${id}:password`,
+    )
+    if (saved) {
+      // Cleared immediately. The value never goes into component state that outlives the request,
+      // never into a URL, and never into a log.
+      setPw('')
+      setPwFor(null)
+      setNotice('Sign in set. That person can now sign in with their email and this password.')
+    }
+  }
+
+  async function revoke(id: string) {
+    const saved = await send(
+      {
+        url: '/api/admin/users',
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, password: null }),
+      },
+      `${id}:password`,
+    )
+    if (saved) setNotice('Sign in removed. That person stays in the roster and can no longer sign in.')
+  }
+
   async function remove(id: string) {
     const gone = await send(
       { url: `/api/admin/users?id=${encodeURIComponent(id)}`, method: 'DELETE' },
@@ -179,6 +215,12 @@ export function AdminConsole({
       {error ? (
         <p className={styles.error} role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {notice && !error ? (
+        <p className={styles.notice} role="status">
+          {notice}
         </p>
       ) : null}
 
@@ -323,6 +365,14 @@ export function AdminConsole({
                     Deactivated
                   </StatusChip>
                 )}
+                {/* Being in the roster is not the same as having a way in, and an operator has to
+                    be able to see the difference at a glance. */}
+                <StatusChip
+                  tone={u.hasPassword ? 'verified' : 'idle'}
+                  srLabel={u.hasPassword ? 'Has a sign in' : 'Has no sign in yet'}
+                >
+                  {u.hasPassword ? 'can sign in' : 'no sign in'}
+                </StatusChip>
               </span>
 
               <span className={styles.cell} role="cell">
@@ -337,6 +387,18 @@ export function AdminConsole({
                     }
                   >
                     {u.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                  </Button>
+
+                  <Button
+                    variant="quiet"
+                    disabled={rowBusy || !canMutate || u.status !== 'active'}
+                    onClick={() => {
+                      setPw('')
+                      setNotice(null)
+                      setPwFor(pwFor === u.id ? null : u.id)
+                    }}
+                  >
+                    {u.hasPassword ? 'Change sign in' : 'Give sign in'}
                   </Button>
 
                   {confirming === u.id ? (
@@ -364,6 +426,50 @@ export function AdminConsole({
                   )}
                 </span>
               </span>
+
+              {pwFor === u.id ? (
+                <form
+                  className={styles.pwForm}
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    void savePassword(u.id)
+                  }}
+                >
+                  <label className={styles.pwLabel} htmlFor={`pw-${u.id}`}>
+                    Password for {u.name} ({u.email})
+                  </label>
+                  <input
+                    id={`pw-${u.id}`}
+                    className={styles.input}
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                    autoFocus
+                  />
+                  <Button
+                    variant="primary"
+                    type="submit"
+                    busy={busyKey === `${u.id}:password`}
+                    busyLabel="Saving the sign in"
+                  >
+                    Save sign in
+                  </Button>
+                  <Button variant="quiet" onClick={() => { setPw(''); setPwFor(null) }}>
+                    Cancel
+                  </Button>
+                  {u.hasPassword ? (
+                    <Button
+                      variant="destructive"
+                      disabled={rowBusy}
+                      onClick={() => void revoke(u.id)}
+                    >
+                      Remove sign in
+                    </Button>
+                  ) : null}
+                </form>
+              ) : null}
 
               {/* Spans the whole row rather than sitting inside the actions cell, so the
                   controls above it stay on one line with every other row's controls. A

@@ -437,3 +437,42 @@
     max-width: none;
   }
 }
+
+/* The sign-in form, opened per row. Spans the row so the password field is never a cramped
+   column, and so the label naming WHO it belongs to is readable at 320px. */
+.pwForm {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--accent-2);
+  border-radius: 0.6rem;
+  background: var(--accent-soft);
+}
+
+.pwLabel {
+  font-size: 0.78rem;
+  color: var(--dim);
+  flex-basis: 100%;
+}
+
+.pwForm .input {
+  flex: 1 1 16rem;
+}
+
+/* A confirmation, not an alarm. Brass like the error banner, because both are the product
+   telling the operator what actually happened. */
+.notice {
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-2);
+  border-left: 3px solid var(--olive);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.9rem;
+  line-height: 1.45;
+}

@@ -63,6 +63,15 @@ export type RosterOverride = {
   roleKey?: string
   title?: string
   status?: RosterStatus
+  /**
+   * A scrypt credential from `lib/auth/credentials.ts`. NEVER a password.
+   *
+   * It lives here, in the gitignored server state, for the same reason the rest of the roster
+   * does: there is no database, and this directory is the one place that survives a deploy. It
+   * must never be copied onto a `DirectoryUser`, which is serialized to the browser; the
+   * directory exposes `hasPassword: boolean` instead.
+   */
+  passwordHash?: string
   updatedAt: number
 }
 
@@ -74,6 +83,8 @@ export type RosterMember = {
   title: string
   roleKey: string
   status: RosterStatus
+  /** A scrypt credential, or null when this person has no sign in yet. NEVER a password. */
+  passwordHash: string | null
   createdAt: number
   updatedAt: number
 }
@@ -117,6 +128,11 @@ function coerceOverride(raw: unknown): RosterOverride | null {
   if (r.roleKey !== undefined) out.roleKey = knownRole(r.roleKey)
   if (typeof r.title === 'string') out.title = r.title
   if (r.status !== undefined) out.status = coerceStatus(r.status)
+  // Only a well-formed credential survives a read. A hand-edited or truncated value is dropped
+  // rather than stored, so a malformed hash can never be compared against and never "matches".
+  if (typeof r.passwordHash === 'string' && r.passwordHash.startsWith('scrypt$')) {
+    out.passwordHash = r.passwordHash
+  }
   return out
 }
 
@@ -136,6 +152,8 @@ function coerceMember(raw: unknown): RosterMember | null {
     title: typeof r.title === 'string' ? r.title.trim() : '',
     roleKey: knownRole(r.roleKey),
     status: coerceStatus(r.status),
+    passwordHash:
+      typeof r.passwordHash === 'string' && r.passwordHash.startsWith('scrypt$') ? r.passwordHash : null,
     createdAt: typeof r.createdAt === 'number' && Number.isFinite(r.createdAt) ? r.createdAt : 0,
     updatedAt: typeof r.updatedAt === 'number' && Number.isFinite(r.updatedAt) ? r.updatedAt : 0,
   }
@@ -231,7 +249,7 @@ export function writeRoster(roster: Roster): void {
 /** Record a change to a seeded user. Name and email are not accepted, by design. */
 export function setOverride(
   id: string,
-  patch: { roleKey?: string; title?: string; status?: RosterStatus },
+  patch: { roleKey?: string; title?: string; status?: RosterStatus; passwordHash?: string },
   nowMs: number,
 ): Roster {
   const roster = readRoster()

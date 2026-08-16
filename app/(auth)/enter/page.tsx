@@ -88,9 +88,31 @@ export default async function EnterPage({
           <div className="card__body">
             <form action={enterAction} className="stack stack--tight">
               <input type="hidden" name="next" value={next} />
+              {/*
+                The email field is rendered whether or not an account exists yet, and that is
+                deliberate. Hiding it while the break-glass door is open would make the sign-in
+                form CHANGE SHAPE the moment somebody sets the first password, which is exactly
+                when a person is least able to tell a product change from a broken page. The
+                server decides which door applies; the form asks for both halves either way.
+              */}
+              <div className="field">
+                <label className="label" htmlFor="email">
+                  Email
+                </label>
+                <input
+                  className="input"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  autoFocus
+                  aria-describedby="signin-hint"
+                  disabled={!gateConfigured}
+                />
+              </div>
               <div className="field">
                 <label className="label" htmlFor="password">
-                  Access phrase
+                  Password
                 </label>
                 <input
                   className="input"
@@ -99,14 +121,12 @@ export default async function EnterPage({
                   type="password"
                   autoComplete="current-password"
                   required
-                  autoFocus
-                  aria-describedby="phrase-hint"
+                  aria-describedby="signin-hint"
                   disabled={!gateConfigured}
                 />
-                <p className="hint" id="phrase-hint">
-                  A shared phrase held by the build team. It is not an account and it is not
-                  your identity. Real sign-in replaces it, and this door is then deleted rather
-                  than kept as a second way in.
+                <p className="hint" id="signin-hint">
+                  Sign in with your ONLYSOURCE account. Your role decides what you can reach, and
+                  it is checked on the server on every request.
                 </p>
               </div>
               <div>

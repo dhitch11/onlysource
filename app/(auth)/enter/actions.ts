@@ -7,11 +7,13 @@ import { env, isProduction } from '@/lib/env'
 import { log } from '@/lib/log'
 import { checkAttempt, recordFailure, recordSuccess } from '@/lib/security/attempt-limiter'
 import {
+  ANONYMOUS_SUBJECT,
   GATE_SESSION_MAX_AGE_SECONDS,
   gateCookieName,
   issueGateToken,
   passwordMatches,
 } from '@/lib/session/pre-release-gate'
+import { credentialedAccountCount, verifyCredentials } from '@/lib/auth/accounts'
 import { systemClock } from '@/lib/time/clock'
 
 /**
@@ -77,24 +79,86 @@ export async function enterAction(formData: FormData): Promise<void> {
   }
 
   const submitted = formData.get('password')
-  const ok = await passwordMatches(
-    typeof submitted === 'string' ? submitted : '',
-    configured.PREVIEW_GATE_PASSWORD,
-  )
+  const password = typeof submitted === 'string' ? submitted : ''
+  const emailRaw = formData.get('email')
+  const email = typeof emailRaw === 'string' ? emailRaw.trim() : ''
+
+  /*
+   * ==========================================================================================
+   * TWO DOORS, AND ONLY ONE OF THEM IS OPEN AT A TIME.
+   * ==========================================================================================
+   * Owner ruling 2026-08-16: "There should only be one login built right now for
+   * david@reddenda.com."
+   *
+   * THE REAL DOOR is email plus password, verified against the roster. It is the only door that
+   * exists once any account has a credential.
+   *
+   * THE BREAK-GLASS DOOR is the old shared phrase, and it is reachable ONLY while
+   * `credentialedAccountCount() === 0`. It exists so that a wiped, restored or freshly deployed
+   * state directory cannot lock every human out of a live server with no way back in except SSH.
+   * The moment the first password is set it goes inert, permanently, without anybody having to
+   * remember to turn it off. That is the difference between a recovery path and a backdoor: a
+   * backdoor keeps working after you no longer need it.
+   */
+  const accounts = credentialedAccountCount()
+
+  if (accounts > 0) {
+    const result = await verifyCredentials(email, password)
+    if (!result.ok) {
+      const after = recordFailure(key, now)
+      // The LOG distinguishes the cases for an operator; the BROWSER is told only that the pair
+      // did not work, because naming which half was wrong confirms which addresses are real.
+      log.warn('signin.failed', {
+        outcome: 'denied',
+        reason: 'bad_credentials',
+        gate: 'account',
+        emailGiven: email.length > 0,
+        count: after.allowed ? after.remaining : 0,
+      })
+      backToEntry(next, { e: 'bad' })
+    }
+
+    recordSuccess(key)
+    const token = await issueGateToken(
+      configured.PREVIEW_GATE_SECRET,
+      now,
+      GATE_SESSION_MAX_AGE_SECONDS,
+      result.account.id,
+    )
+    const secureAcct = isProduction()
+    const jarAcct = await cookies()
+    jarAcct.set(gateCookieName(secureAcct), token, {
+      httpOnly: true,
+      secure: secureAcct,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: GATE_SESSION_MAX_AGE_SECONDS,
+    })
+    log.info('signin.opened', { outcome: 'allowed', gate: 'account', role: result.account.roleKey })
+    redirect(next as Route)
+  }
+
+  // ---- break-glass only: no account has a credential yet ----
+  const ok = await passwordMatches(password, configured.PREVIEW_GATE_PASSWORD)
 
   if (!ok) {
     const after = recordFailure(key, now)
     log.warn('gate.failed', {
       outcome: 'denied',
       reason: 'bad_phrase',
-      gate: 'pre_release',
+      gate: 'break_glass',
       count: after.allowed ? after.remaining : 0,
     })
     backToEntry(next, { e: 'bad' })
   }
 
   recordSuccess(key)
-  const token = await issueGateToken(configured.PREVIEW_GATE_SECRET, now)
+  const token = await issueGateToken(
+    configured.PREVIEW_GATE_SECRET,
+    now,
+    GATE_SESSION_MAX_AGE_SECONDS,
+    ANONYMOUS_SUBJECT,
+  )
   const secure = isProduction()
   const jar = await cookies()
   jar.set(gateCookieName(secure), token, {
@@ -105,7 +169,7 @@ export async function enterAction(formData: FormData): Promise<void> {
     maxAge: GATE_SESSION_MAX_AGE_SECONDS,
   })
 
-  log.info('gate.opened', { outcome: 'allowed', gate: 'pre_release' })
+  log.info('gate.opened', { outcome: 'allowed', gate: 'break_glass' })
   redirect(next as Route)
 }
 

@@ -116,13 +116,28 @@ async function hmac(secret: string, message: string): Promise<Uint8Array> {
 }
 
 export type GatePayload = {
-  /** Always the literal string below. There is no user identity behind this door. */
-  sub: 'pre-release'
+  /**
+   * WHO this session belongs to.
+   *
+   * Was always the literal 'pre-release', because the shared phrase had no identity behind it.
+   * It now carries a roster user id (`seed:hitchman`, `user:<uuid>`) for a real sign in, and
+   * keeps 'pre-release' for the break-glass door, which is only reachable while NO account has
+   * a credential.
+   *
+   * The type is widened rather than replaced so a session issued before this change stays valid
+   * and its holder is not signed out by a deploy. A session with sub 'pre-release' is treated as
+   * authenticated-but-anonymous: it passes the gate and resolves to no account, so anything that
+   * needs a person (a permission check) refuses rather than guessing one.
+   */
+  sub: string
   /** Issued at, epoch seconds. */
   iat: number
   /** Absolute expiry, epoch seconds. */
   exp: number
 }
+
+/** The subject used by the break-glass door, which carries no identity. */
+export const ANONYMOUS_SUBJECT = 'pre-release'
 
 /**
  * Compare a submitted password against the configured one, in constant time.
@@ -145,9 +160,10 @@ export async function issueGateToken(
   secret: string,
   nowMs: number,
   maxAgeSeconds = GATE_SESSION_MAX_AGE_SECONDS,
+  subject: string = ANONYMOUS_SUBJECT,
 ): Promise<string> {
   const iat = Math.floor(nowMs / 1000)
-  const payload: GatePayload = { sub: 'pre-release', iat, exp: iat + maxAgeSeconds }
+  const payload: GatePayload = { sub: subject, iat, exp: iat + maxAgeSeconds }
   const body = base64UrlEncode(encoder.encode(JSON.stringify(payload)))
   const sig = base64UrlEncode(await hmac(secret, body))
   return `${body}.${sig}`
@@ -193,7 +209,11 @@ export async function verifyGateToken(
     return { valid: false, reason: 'malformed' }
   }
 
-  if (payload.sub !== 'pre-release' || typeof payload.exp !== 'number') {
+  // Any non-empty subject is structurally valid: 'pre-release' for the break-glass door, a
+  // roster user id for a real sign in. What is verified here is the SIGNATURE and the EXPIRY.
+  // Whether the subject still corresponds to an active account is a question for the account
+  // layer on every request, not a claim frozen into a token at issue time.
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0 || typeof payload.exp !== 'number') {
     return { valid: false, reason: 'malformed' }
   }
   if (payload.exp * 1000 <= nowMs) return { valid: false, reason: 'expired' }

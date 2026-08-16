@@ -67,6 +67,14 @@ export type DirectoryUser = {
   id: string
   name: string
   email: string
+  /**
+   * Whether this person can sign in. A BOOLEAN, never the credential.
+   *
+   * `DirectoryUser` is serialized to the browser. The scrypt hash lives only in the server state
+   * and must never travel on this object, so the interface is told the one thing it needs, which
+   * is whether a sign in exists, and nothing it could ever misuse.
+   */
+  hasPassword: boolean
   /** Operator-facing job title. Both seeded users ship carrying "ProjectX". */
   title: string
   roleKey: string
@@ -131,9 +139,13 @@ const SEEDED_USERS: ReadonlyArray<{
   initials: string
 }> = [
   {
+    // OWNER RULING 2026-08-16, verbatim: "There should only be one login built right now for
+    // david@reddenda.com". A live instruction from the owner outranks the older build directive
+    // that specified dhitchman@onlysource.ai, so the address is corrected here rather than kept
+    // for consistency with a document he has since superseded.
     id: 'seed:hitchman',
     name: 'David Hitchman',
-    email: 'dhitchman@onlysource.ai',
+    email: 'david@reddenda.com',
     title: 'ProjectX',
     roleKey: 'owner',
     initials: 'DH',
@@ -149,9 +161,10 @@ const SEEDED_USERS: ReadonlyArray<{
 ]
 
 export const ACCESS_NOTE =
-  'Access to this build is one shared organization phrase, so this roster records who is in ' +
-  'the organization and what they may do. Adding a person does not create a separate sign in ' +
-  'and does not send them an email. Every change here is saved on the server.'
+  'Sign in is by email and password. A person in this roster can only sign in once you give ' +
+  'them a password here, and their role decides what they can reach. Deactivating somebody ' +
+  'takes their sign in away immediately. Nothing on this screen sends an email. Every change ' +
+  'is saved on the server.'
 
 /**
  * The connector registry, in its true state.
@@ -230,6 +243,7 @@ export function mergeRoster(roster: Roster): Omit<DirectoryUser, 'actions'>[] {
       roleName: roleFor(roleKey).name,
       status: o?.status ?? ('active' as RosterStatus),
       seeded: true,
+      hasPassword: Boolean(o?.passwordHash),
     }
   })
 
@@ -243,6 +257,7 @@ export function mergeRoster(roster: Roster): Omit<DirectoryUser, 'actions'>[] {
     status: m.status,
     initials: initialsFor(m.name),
     seeded: false,
+    hasPassword: Boolean(m.passwordHash),
   }))
 
   return [...seeded, ...added]
