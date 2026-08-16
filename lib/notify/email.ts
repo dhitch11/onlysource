@@ -19,13 +19,21 @@
  *   1. THE ARM SWITCH. `ONLYSOURCE_EMAIL_ARMED` must be exactly "true". Absent means DISARMED, so
  *      a fresh environment, a restored backup and a new server are all silent by default. Nothing
  *      is sent by accident because somebody forgot to set a variable.
- *   2. THE RECIPIENT ALLOWLIST. Only addresses in ALLOWED_RECIPIENTS can be delivered to, whatever
- *      the settings file, the request body or the environment says. Platform updates go to
- *      david@reddenda.com and nowhere else.
- *   3. THE BLOCKLIST, which outranks everything. david@sminet.org is refused by name. It was the
- *      configured test recipient and the owner ruled it must not receive platform updates. A rule
- *      that matters is a rule that is enforced in code, not a value in a settings file that the
- *      next lane edits without knowing why it was set.
+ *   2. THE RECIPIENT ALLOWLIST. Only addresses on the allowlist can be delivered to, whatever the
+ *      settings file or the request body says. It defaults to david@reddenda.com and is set by
+ *      ONLYSOURCE_ALLOWED_RECIPIENTS, so WHO receives mail is configuration, not source code.
+ *
+ * ★ A CORRECTION, KEPT BECAUSE THE MISTAKE IS THE USEFUL PART. This module briefly carried a
+ *   hardcoded BLOCKLIST naming david@sminet.org, added because the owner said not to send him
+ *   updates. He corrected it: "SMI Net should not be on a block list. I just said don't send him
+ *   updates or emails until I tell you to."
+ *
+ *   That is the difference between a POLICY and a TIMING decision, and I encoded the wrong one. A
+ *   blocklist says "never, by nature". He said "not yet". Burning a temporary instruction into
+ *   source makes it permanent, invisible and hard to reverse: months later somebody finds an
+ *   address branded as blocked with no idea the reason expired. The arm switch already expresses
+ *   "nothing goes out until I say so", which is what he actually asked for, and the allowlist
+ *   expresses who is in scope when it does. Neither needs a name compiled in.
  *
  * A refusal is REPORTED, never silently swallowed: the caller gets `{ok:false, reason}` naming which
  * control refused, so the interface can say "not sent, and here is why" rather than showing a
@@ -48,11 +56,23 @@ export function emailConfigured(): boolean {
  */
 export const ALERT_FROM = process.env.ONLYSOURCE_ALERT_FROM || 'ONLYSOURCE <david@reddenda.org>'
 
-/** Platform updates go here and nowhere else, by owner ruling. */
-export const ALLOWED_RECIPIENTS: readonly string[] = ['david@reddenda.com']
+/**
+ * Who may receive mail from this deployment. Configuration, not source code.
+ *
+ * Defaults to the owner's stated recipient for platform updates. Widening it is an environment
+ * change on the server, which is a deliberate act somebody can see and undo, rather than a code
+ * change that has to be found, understood and reverted.
+ */
+export function allowedRecipients(): string[] {
+  const configured = (process.env.ONLYSOURCE_ALLOWED_RECIPIENTS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  return configured.length > 0 ? configured : ['david@reddenda.com']
+}
 
-/** Refused by name, outranking every other control. */
-export const BLOCKED_RECIPIENTS: readonly string[] = ['david@sminet.org']
+/** Kept as a named export for callers that render the current policy. */
+export const DEFAULT_RECIPIENT = 'david@reddenda.com'
 
 /** Sending is off unless explicitly armed. Absent, empty or anything but "true" means DISARMED. */
 export function emailArmed(): boolean {
@@ -66,16 +86,13 @@ export function emailArmed(): boolean {
 export function recipientAllowed(to: string): { allowed: boolean; reason: string | null } {
   const addr = to.trim().toLowerCase()
   if (!addr) return { allowed: false, reason: 'No recipient was given.' }
-  if (BLOCKED_RECIPIENTS.includes(addr)) {
+  const allowed = allowedRecipients()
+  if (!allowed.includes(addr)) {
     return {
       allowed: false,
-      reason: `${addr} is blocked from receiving platform updates. Updates go to ${ALLOWED_RECIPIENTS.join(', ')}.`,
-    }
-  }
-  if (!ALLOWED_RECIPIENTS.includes(addr)) {
-    return {
-      allowed: false,
-      reason: `${addr} is not on the allowed recipient list. Updates go to ${ALLOWED_RECIPIENTS.join(', ')}.`,
+      // Says WHO is currently in scope and that the list is settable, so a reader knows this is a
+      // current configuration rather than a judgement about the address.
+      reason: `${addr} is not on this deployment's recipient list, which is currently ${allowed.join(', ')}. Set ONLYSOURCE_ALLOWED_RECIPIENTS on the server to change it.`,
     }
   }
   return { allowed: true, reason: null }

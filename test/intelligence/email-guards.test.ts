@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   ALERT_FROM,
-  ALLOWED_RECIPIENTS,
-  BLOCKED_RECIPIENTS,
+  DEFAULT_RECIPIENT,
+  allowedRecipients,
   emailArmed,
   recipientAllowed,
   sendEmail,
@@ -14,13 +14,17 @@ import {
  *
  * An autonomous daily cron was sending a digest without anybody asking for it. The owner's
  * instruction was to build the capability and stop the sending: "definitely should not be sending
- * any emails. Everything should get ready to be able to send them." Platform updates go to
- * david@reddenda.com only, and david@sminet.org must not receive them.
+ * any emails. Everything should get ready to be able to send them."
  *
- * A rule that lives in a settings file is a rule the next lane edits without knowing why it was
- * set. These are enforced in code, and this suite is what stops a future edit from quietly
- * loosening them. Every refusal below is paired with a POSITIVE CONTROL proving the same function
- * ALLOWS the correct case, so a module that refused everything would fail here rather than pass.
+ * TWO CONTROLS, AND THEY ANSWER DIFFERENT QUESTIONS:
+ *   the ARM SWITCH answers "is this deployment sending at all right now" (it is not), and
+ *   the RECIPIENT LIST answers "who is in scope when it does" (david@reddenda.com by default).
+ *
+ * Neither names an address as permanently unwelcome. An earlier version of this file did, and the
+ * owner corrected it. Encoding a "not yet" as a "never" hides a reversible decision inside a build.
+ *
+ * Every refusal below is paired with a POSITIVE CONTROL proving the same function ALLOWS the
+ * correct case, so a module that refused everything would fail here rather than pass.
  */
 
 const KEY = 'ONLYSOURCE_RESEND_KEY'
@@ -76,39 +80,73 @@ describe('sending is disarmed unless explicitly armed', () => {
   })
 })
 
-describe('the recipient rules, which outrank any settings file', () => {
-  it('blocks david@sminet.org by name', () => {
-    const r = recipientAllowed('david@sminet.org')
+describe('the recipient list is configuration, not a name compiled into the source', () => {
+  /*
+   * This block replaced a hardcoded BLOCKLIST that named one address. The owner corrected it:
+   * "SMI Net should not be on a block list. I just said don't send him updates or emails until I
+   * tell you to." A blocklist encodes "never, by nature"; he expressed "not yet". The arm switch
+   * already carries "not yet", and WHO is in scope is now an environment setting somebody can see
+   * and change, rather than a judgement about an address baked into a build.
+   */
+  const LIST = 'ONLYSOURCE_ALLOWED_RECIPIENTS'
+  let prevList: string | undefined
+
+  beforeEach(() => {
+    prevList = process.env[LIST]
+  })
+  afterEach(() => {
+    if (prevList === undefined) delete process.env[LIST]
+    else process.env[LIST] = prevList
+  })
+
+  it('defaults to the owner address when nothing is configured', () => {
+    delete process.env[LIST]
+    expect(allowedRecipients()).toEqual([DEFAULT_RECIPIENT])
+    expect(recipientAllowed(DEFAULT_RECIPIENT).allowed).toBe(true)
+  })
+
+  it('refuses an address that is not in scope, and says the list is settable', () => {
+    delete process.env[LIST]
+    const r = recipientAllowed('someone@example.com')
     expect(r.allowed).toBe(false)
-    expect(r.reason).toContain('blocked')
-    expect(BLOCKED_RECIPIENTS).toContain('david@sminet.org')
+    // The refusal must read as "not currently in scope", never as a verdict about the person.
+    expect(r.reason).toContain('recipient list')
+    expect(r.reason).toContain('ONLYSOURCE_ALLOWED_RECIPIENTS')
+    expect(r.reason).not.toMatch(/blocked|banned|forbidden/i)
   })
 
-  it('blocks it whatever the casing or padding', () => {
-    for (const v of ['David@SMINet.org', '  david@sminet.org  ', 'DAVID@SMINET.ORG']) {
-      expect(recipientAllowed(v).allowed, `${v} must be blocked`).toBe(false)
-    }
+  it('NO ADDRESS IS PERMANENTLY BLOCKED: any address becomes allowed when configured', () => {
+    // The regression guard for the correction. If somebody reintroduces a blocklist, this fails.
+    process.env[LIST] = 'david@sminet.org, david@reddenda.com'
+    expect(recipientAllowed('david@sminet.org').allowed).toBe(true)
+    expect(recipientAllowed('david@reddenda.com').allowed).toBe(true)
+    expect(recipientAllowed('nobody@example.com').allowed).toBe(false)
   })
 
-  it('blocks any address that is not on the allowlist, not just the named one', () => {
-    expect(recipientAllowed('someone@example.com').allowed).toBe(false)
+  it('matches case-insensitively and ignores padding', () => {
+    process.env[LIST] = 'David@Reddenda.com'
+    expect(recipientAllowed('  DAVID@REDDENDA.COM  ').allowed).toBe(true)
+  })
+
+  it('an empty recipient is refused', () => {
     expect(recipientAllowed('').allowed).toBe(false)
   })
 
-  it('POSITIVE CONTROL: allows david@reddenda.com, so the guard is not simply always-on', () => {
-    const r = recipientAllowed('david@reddenda.com')
-    expect(r.allowed).toBe(true)
-    expect(r.reason).toBeNull()
-    expect(ALLOWED_RECIPIENTS).toEqual(['david@reddenda.com'])
+  it('the arm switch still stops delivery to an ALLOWED address, so scope is not permission', async () => {
+    process.env[KEY] = 'test-key-not-a-real-credential'
+    delete process.env[ARM]
+    const r = await sendEmail({ to: DEFAULT_RECIPIENT, subject: 's', html: 'h', text: 't' })
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.refusedBy).toBe('disarmed')
   })
 
-  it('refuses a blocked recipient at the transport even when armed and configured', async () => {
+  it('refuses an out-of-scope recipient at the transport even when armed', async () => {
     process.env[KEY] = 'test-key-not-a-real-credential'
     process.env[ARM] = 'true'
-    const r = await sendEmail({ to: 'david@sminet.org', subject: 's', html: 'h', text: 't' })
+    delete process.env[LIST]
+    const r = await sendEmail({ to: 'someone@example.com', subject: 's', html: 'h', text: 't' })
     expect(r.ok).toBe(false)
     expect(r.ok === false && r.refusedBy).toBe('recipient')
-    // and it must say nothing was sent, in words, not just by returning false
     expect(r.ok === false && r.reason).toContain('Nothing was sent')
   })
 })
