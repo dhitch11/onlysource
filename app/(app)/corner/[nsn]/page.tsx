@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
@@ -72,7 +71,25 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
 
   const { cornerMap } = buildAllDatasets()
   const row = cornerMap.rows.find((r) => r.nsn.replace(/[^0-9]/g, '') === key)
-  if (!row) notFound()
+  if (!row) {
+    // An honest in-shell message rather than a bare 404. (A streamed shell means notFound() would
+    // land after the layout flushes and read as a blank page, so this is both clearer and correct.)
+    return (
+      <main className={styles.page}>
+        <Link href={'/monopoly' as never} className={styles.back}>
+          ← Monopoly Map
+        </Link>
+        <div className={styles.unavailable}>
+          <h1 className={styles.unavailableTitle}>That stock number isn&rsquo;t in this feed</h1>
+          <p>
+            No dossier exists for <span className="mono">{decodeURIComponent(nsnParam)}</span> in today&rsquo;s
+            data. It may not be a sole-source position, or it may not appear on this feed day. Head back to
+            the Monopoly Map to find the corners that are here.
+          </p>
+        </div>
+      </main>
+    )
+  }
 
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
