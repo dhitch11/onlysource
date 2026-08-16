@@ -88,7 +88,9 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(14rem, 2fr) minmax(7rem, 1fr) minmax(6rem, 1fr) minmax(7rem, 1fr) minmax(6rem, auto);
+  grid-template-columns:
+    minmax(12rem, 1.8fr) minmax(7.5rem, 0.9fr) minmax(6.5rem, 0.9fr)
+    minmax(6.5rem, 0.7fr) minmax(12rem, auto);
   gap: 1rem;
   align-items: center;
   padding: 0.75rem 1rem;
@@ -243,10 +245,171 @@
   line-height: 1.4;
 }
 
+/* ---------------- the roster console ---------------- */
+
+.rosterBar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.rosterCount {
+  font-size: 0.85rem;
+  color: var(--dim);
+  margin-right: auto;
+}
+
+/* The standing truth about what this roster is and is not. Always visible, never a tooltip,
+   because an operator who adds a person is entitled to know no email was sent BEFORE they
+   wonder why nobody replied. */
+.accessNote {
+  font-size: 0.8rem;
+  color: var(--faint);
+  line-height: 1.5;
+  max-width: 78ch;
+  margin-bottom: 0.9rem;
+}
+
+/* A refusal is loud enough to be seen and quiet enough not to be an alarm. Brass, not red:
+   red belongs to the award clock and nothing else. */
+.error {
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.9rem;
+  line-height: 1.45;
+}
+
+.addForm {
+  display: grid;
+  grid-template-columns: 1.6fr 1.6fr 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--accent-2);
+  border-radius: 0.75rem;
+  background: var(--accent-soft);
+  margin-bottom: 0.9rem;
+}
+
+.input {
+  min-height: 40px;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Every table cell that holds a control.
+   `min-width: 0` is load-bearing: without it a grid child refuses to shrink below its content
+   and a wide email address pushes the whole row sideways.
+   `align-items: flex-start` is the other one: the default `stretch` blew the status chip out
+   to the full column width, which read as a button rather than a label. */
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.roleSelect,
+.titleInput {
+  min-height: 34px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.titleInput {
+  font-family: var(--mono);
+  color: var(--dim);
+}
+
+.roleSelect:focus-visible,
+.titleInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.roleSelect:disabled,
+.titleInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* The reason a control is unavailable, on the row it belongs to. Visible text, never a
+   tooltip, for the same reason the page-level one is. */
+.rowReasons {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+}
+
+.rowReason {
+  font-size: 0.74rem;
+  color: var(--faint);
+  line-height: 1.4;
+  max-width: 68ch;
+}
+
+/* The one refusal that is identical on every seeded row, printed once under the table rather
+   than repeated per row where it buried the row-specific reason under boilerplate. */
+.tableNote {
+  font-size: 0.78rem;
+  color: var(--faint);
+  line-height: 1.5;
+  max-width: 88ch;
+  margin-top: 0.7rem;
+}
+
 @media (max-width: 60rem) {
+  /* One control per line below 60rem. The header row is hidden because a two-column header
+     cannot label a five-control stack, and every control carries its own aria-label, so the
+     screen reader path does not depend on the visual header either way. */
   .row {
-    grid-template-columns: 1fr 1fr;
-    row-gap: 0.5rem;
+    grid-template-columns: 1fr;
+    row-gap: 0.55rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .head {
+    display: none;
+  }
+
+  .addForm {
+    grid-template-columns: 1fr;
   }
 
   .topAction {
@@ -256,5 +419,9 @@
 
   .blockedReason {
     text-align: left;
+  }
+
+  .rowReason {
+    max-width: none;
   }
 }

@@ -38,7 +38,16 @@ describe('T7 help entries are actually registered, not merely written', () => {
 
   it('covers the controls on this lane surface that a non-technical expert must not guess at', () => {
     // Named ids rather than a count, so adding an unrelated entry cannot satisfy this.
-    for (const id of ['admin.role', 'admin.plane', 'admin.connection_state', 'admin.seeded_identity']) {
+    for (const id of [
+      'admin.role',
+      'admin.plane',
+      'admin.connection_state',
+      'admin.seeded_identity',
+      // The roster became editable on 2026-08-16. The control that saves a role change is
+      // exactly the kind a non-technical operator must not have to guess at, so it is named
+      // here rather than left to the sweep above.
+      'admin.roster',
+    ]) {
       expect(getHelp(id), `missing help for ${id}`).toBeDefined()
     }
   })
