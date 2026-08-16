@@ -5,6 +5,7 @@ import { resolveDataRoot } from '@/lib/data-root'
 import { buildCompetitorCatalogs, type CompetitorPart } from '@/lib/intelligence/competitor/catalog'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { CompetitorPicker } from './CompetitorPicker'
 import styles from './competitor.module.css'
 
 export const metadata: Metadata = { title: 'Competitor teardown · ONLYSOURCE' }
@@ -20,8 +21,13 @@ const SHOWN = 60
  * Every source pairing is a government record; a stock number that is also one of our candidate
  * corners links straight into its dossier.
  */
-export default async function CompetitorPage() {
+export default async function CompetitorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cage?: string }>
+}) {
   await requireGateSession('/competitor')
+  const { cage: cageParam } = await searchParams
 
   if (!resolveDataRoot().present) {
     return (
@@ -62,13 +68,25 @@ export default async function CompetitorPage() {
       .cornerMap.rows.filter((r) => r.soleSource && r.silentSourceCount > 0)
       .map((r) => r.nsn.replace(/[^0-9]/g, '')),
   )
-  const co = catalogs.competitors[0]! // one loaded today; the surface generalises to many
+  const co =
+    catalogs.competitors.find((c) => c.cage === (cageParam ?? '').toUpperCase()) ??
+    catalogs.competitors.find((c) => c.cage === catalogs.defaultCage) ??
+    catalogs.competitors[0]!
+
+  const pickerOptions = catalogs.competitors.map((c) => ({
+    cage: c.cage,
+    label: c.company ?? `CAGE ${c.cage}`,
+    parts: c.summary.parts,
+  }))
 
   return (
     <main className={styles.page}>
       <header className={styles.head}>
         <p className={styles.eyebrow}>Intelligence · competitor teardown</p>
-        <h1 className={styles.h1}>{co.company ?? 'Competitor'}</h1>
+        <div className={styles.headRow}>
+          <h1 className={styles.h1}>{co.company ?? `CAGE ${co.cage}`}</h1>
+          {pickerOptions.length > 1 ? <CompetitorPicker options={pickerOptions} current={co.cage} /> : null}
+        </div>
         <p className={styles.sub}>
           Every stock number <b>{co.company ?? `CAGE ${co.cage}`}</b> (CAGE {co.cage}) is approved to make,
           taken apart. Where they are the only source, they hold a private monopoly. Where others are

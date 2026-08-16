@@ -16,11 +16,47 @@
   text-transform: uppercase;
   color: var(--accent);
 }
+.headRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
 .h1 {
   font-size: var(--fs-600);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
+  min-width: 0;
+}
+.pickerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+.pickerText {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+.picker {
+  min-height: 40px;
+  max-width: 300px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-control);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+  cursor: pointer;
+}
+.picker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .sub {
   font-size: var(--fs-300);

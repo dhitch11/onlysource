@@ -41,8 +41,12 @@ export type CompetitorTeardown = {
 }
 
 export type CompetitorCatalogs =
-  | { ok: true; competitors: CompetitorTeardown[] }
+  | { ok: true; competitors: CompetitorTeardown[]; defaultCage: string }
   | { ok: false; reason: string }
+
+/** The minimum parts for a company to get its own teardown, and the cap on how many we surface. */
+const MIN_PARTS = 3
+const MAX_COMPETITORS = 40
 
 const clean = (v: string | undefined | null): string => (v ?? '').trim()
 const niinOf = (nsn: string): string => nsn.replace(/[^0-9]/g, '').slice(-9)
@@ -62,18 +66,20 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
     return cache
   }
 
-  const competitors: CompetitorTeardown[] = []
+  // Parse every parts export into one shared web of NSN -> approved sources.
+  type Src = { cage: string; company: string | null; amsc: string | null; partNumber: string | null; description: string }
+  const byNsn = new Map<string, Src[]>()
+  const cageFreq = new Map<string, number>()
+  const cageCompany = new Map<string, string | null>()
+  let sawMcrl = false
+  const stems: string[] = []
+
   for (const file of files) {
     const wb = readWorkbookSheets(path.join(dir, file))
     const mcrl = wb.sheets.get('MCRL')
     if (!mcrl) continue
-
-    // Group MCRL rows by NSN, collecting every approved source per NSN.
-    type Src = { cage: string; company: string | null; amsc: string | null; partNumber: string | null; description: string }
-    const byNsn = new Map<string, Src[]>()
-    const cageFreq = new Map<string, number>()
-    const cageCompany = new Map<string, string | null>()
-
+    sawMcrl = true
+    stems.push(file.replace(/-parts\.xlsx$/i, '').replace(/[-_]+/g, ' ').toLowerCase().trim())
     for (const row of mcrl.rows) {
       const nsn = clean(row['NSN Number'])
       const cage = clean(row['Cage']).toUpperCase()
@@ -89,20 +95,17 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
       list.push(src)
       byNsn.set(nsn, list)
       cageFreq.set(cage, (cageFreq.get(cage) ?? 0) + 1)
-      if (!cageCompany.has(cage)) cageCompany.set(cage, src.company)
+      if (!cageCompany.has(cage) && src.company) cageCompany.set(cage, src.company)
     }
+  }
 
-    // The subject of the file is the CAGE that appears on the most stock numbers.
-    let subjectCage = ''
-    let best = -1
-    for (const [cage, n] of cageFreq) {
-      if (n > best) {
-        best = n
-        subjectCage = cage
-      }
-    }
-    if (!subjectCage) continue
+  if (!sawMcrl) {
+    cache = { ok: false, reason: 'No MCRL sheet found in the parts exports.' }
+    return cache
+  }
 
+  // A teardown is derivable for any CAGE that appears on enough parts. Build the biggest players.
+  const buildFor = (subjectCage: string): CompetitorTeardown => {
     const parts: CompetitorPart[] = []
     const rivals = new Set<string>()
     for (const [nsn, sources] of byNsn) {
@@ -122,13 +125,11 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
         otherSources: others.map((o) => ({ cage: o.cage, company: o.company })),
       })
     }
-    // Sole-source positions first (their monopolies), then most-competed.
     parts.sort((a, b) => Number(b.soleSource) - Number(a.soleSource) || a.sourceCount - b.sourceCount)
-
-    competitors.push({
+    return {
       cage: subjectCage,
       company: cageCompany.get(subjectCage) ?? null,
-      fileLabel: file,
+      fileLabel: files[0] ?? '',
       parts,
       summary: {
         parts: parts.length,
@@ -136,9 +137,32 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
         competed: parts.filter((p) => !p.soleSource).length,
         distinctRivals: rivals.size,
       },
-    })
+    }
   }
 
-  cache = competitors.length > 0 ? { ok: true, competitors } : { ok: false, reason: 'No MCRL sheet found in the parts exports.' }
+  const bigCages = [...cageFreq.entries()]
+    .filter(([, n]) => n >= MIN_PARTS)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_COMPETITORS)
+    .map(([cage]) => cage)
+
+  const competitors = bigCages.map(buildFor).sort((a, b) => b.summary.parts - a.summary.parts)
+  if (competitors.length === 0) {
+    cache = { ok: false, reason: 'No company in the parts export is an approved source for enough parts to tear down.' }
+    return cache
+  }
+
+  // Default to the company the file is named for; otherwise the biggest player.
+  let defaultCage = competitors[0]!.cage
+  for (const stem of stems) {
+    if (stem.length < 4) continue
+    const match = competitors.find((c) => (c.company ?? '').toLowerCase().includes(stem))
+    if (match) {
+      defaultCage = match.cage
+      break
+    }
+  }
+
+  cache = { ok: true, competitors, defaultCage }
   return cache
 }
