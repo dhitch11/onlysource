@@ -15,6 +15,7 @@ import {
   type CapturedFacts,
 } from '@/lib/compliance/deliverables/view-model'
 import type { DeliverableState } from '@/lib/compliance/deliverables/artifacts'
+import { PacketVault } from './PacketVault'
 import s from './documents.module.css'
 
 export const metadata: Metadata = { title: 'Documents and POs · ONLYSOURCE' }
@@ -181,6 +182,14 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
           Generated from the opportunity. The paperwork built before it is demanded, so a request
           that arrives with a clock on it is a lookup rather than a scramble.
         </p>
+      </section>
+
+      {/* ---------------------------------------------------------------- saved packets */}
+      <section className={s.section}>
+        <div className={s.docHead}>
+          <h2 className={s.sectionTitle}>Saved packets</h2>
+        </div>
+        <PacketVault currentNsn={facts.nsn} />
       </section>
 
       {/* ---------------------------------------------------------------- deliverables */}
@@ -381,8 +390,8 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
       <section className={s.section}>
         <h2 className={s.sectionTitle}>Run a lot through the pipeline</h2>
         <p className={s.lede}>
-          This runs the real classifier, the real pre-flight and the real assembler. Nothing is stored,
-          and nothing is sent.
+          This runs the real classifier, the real pre-flight and the real assembler. Save the result to
+          your packets above to keep it; nothing is sent.
         </p>
 
         <form className={s.form} method="get">
