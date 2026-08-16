@@ -1,7 +1,5 @@
 "use client";
 
-/** The instant BOTH the server and the first client render use, so they cannot disagree. */
-const FIXED_SHOWCASE_INSTANT = Date.parse("2026-08-16T12:00:00.000Z");
 
 /*
  * /design  THE DESIGN SYSTEM REFERENCE SURFACE. Owner: T8 DESIGN.
@@ -21,6 +19,7 @@ const FIXED_SHOWCASE_INSTANT = Date.parse("2026-08-16T12:00:00.000Z");
 
 import { useEffect, useState } from "react";
 import { systemClock } from "@/lib/time/clock";
+import { HYDRATION_SAFE_INSTANT } from "@/components/ui/use-relative-now";
 import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { ExplainButton } from "@/components/ui/ExplainButton";
@@ -66,7 +65,9 @@ export default function DesignPage() {
    * It also removes a straight violation of the R0.3 rule that only `lib/time/clock.ts` may read
    * wall time, which exists precisely because an untestable clock read ships bugs like this one.
    */
-  const [nowMs, setNowMs] = useState<number>(FIXED_SHOWCASE_INSTANT);
+  // The SAME instant the shared hook uses. Two different "fixed" instants produced SSR text
+  // like "(-327510 min ago)": each was self-consistent and they disagreed with each other.
+  const [nowMs, setNowMs] = useState<number>(HYDRATION_SAFE_INSTANT);
   useEffect(() => {
     setNowMs(systemClock.now());
   }, []);

@@ -38,7 +38,7 @@
 import { useId, useRef, useState } from "react";
 import { getHelp, inferOwner } from "../help/registry";
 import styles from "./ExplainButton.module.css";
-import { useRelativeNow } from "./use-relative-now";
+import { useClockReady, useRelativeNow } from "./use-relative-now";
 
 /**
  * The live computation record: the second half of L2, and the half that gets opened for
@@ -96,6 +96,7 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
   const [open, setOpen] = useState(false);
   // The panel is opened, read and closed, so one read at mount is enough; no interval.
   const nowMs = useRelativeNow();
+  const clockReady = useClockReady();
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const record = getHelp(helpId);
@@ -223,7 +224,7 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
                 <p className={styles.stamp}>
                   <span className="mono">{computation.modelVersion}</span>
                   <span aria-hidden="true"> · </span>
-                  <span>as of {ageFrom(computation.asOf, nowMs)}</span>
+                  <span>as of {clockReady ? ageFrom(computation.asOf, nowMs) : computation.asOf.slice(0, 10)}</span>
                 </p>
               </div>
             ) : null}

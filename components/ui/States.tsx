@@ -29,7 +29,7 @@
 
 import styles from "./states.module.css";
 import { Button } from "./Button";
-import { useRelativeNow } from "./use-relative-now";
+import { useClockReady, useRelativeNow } from "./use-relative-now";
 
 /* ------------------------------------------------------------------ 1. never had data */
 
@@ -178,15 +178,18 @@ export interface StaleBannerProps {
  */
 export function StaleBanner({ asOf, onRefresh }: StaleBannerProps) {
   // A staleness banner that froze its own clock would be the one component in the product whose
-  // lie is the exact thing it exists to report. Refreshed every minute.
+  // lie is the exact thing it exists to report. Refreshed every minute. And no locale-dependent
+  // text before mount: `toLocaleString` renders a different clock face on a UTC server than in
+  // the reader's browser, which is a hydration mismatch only production can see.
   const nowMs = useRelativeNow(60_000);
+  const ready = useClockReady();
   const when = new Date(asOf);
   const hrs = Math.floor((nowMs - when.getTime()) / 3600000);
   return (
     <div className={styles.stale} role="status">
       <span>
-        Showing data from <strong>{when.toLocaleString()}</strong>
-        {Number.isFinite(hrs) ? `, ${hrs}h old` : ""}. It has not refreshed since.
+        Showing data from <strong>{ready ? when.toLocaleString() : asOf}</strong>
+        {ready && Number.isFinite(hrs) ? `, ${hrs}h old` : ""}. It has not refreshed since.
       </span>
       {onRefresh ? (
         <Button variant="quiet" onClick={onRefresh}>

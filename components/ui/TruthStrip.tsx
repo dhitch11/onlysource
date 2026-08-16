@@ -18,7 +18,7 @@
 
 import styles from "./TruthStrip.module.css";
 import { ExplainButton } from "./ExplainButton";
-import { useRelativeNow } from "./use-relative-now";
+import { useClockReady, useRelativeNow } from "./use-relative-now";
 
 export interface TruthSource {
   /** What the source is called in the operator's language, not the table name. */
@@ -47,13 +47,25 @@ export interface TruthStripProps {
   partialCoverage?: { indexed: number; total: number; of: string };
 }
 
-/* `nowMs` is passed IN rather than read here. Reading the clock during render made the server
-   and the browser disagree on this text node and threw a hydration error on every page that
-   rendered a provenance strip. See components/ui/use-relative-now.ts. */
-function stamp(iso: string | undefined, nowMs: number): string {
+/*
+ * NO LOCALE-DEPENDENT TEXT MAY CROSS THE HYDRATION BOUNDARY. Learned twice on this component.
+ *
+ * First lesson: reading the clock during render made server and client disagree on the age.
+ * Second lesson, found only by diffing prod SSR HTML against the hydrated DOM: `toLocaleTimeString`
+ * is TIMEZONE and LOCALE dependent, so the droplet (UTC) rendered "10:30 AM" where the browser
+ * (local time) rendered a different clock face for the same instant. Same instant, different text,
+ * hydration error #418 — but only on a server whose timezone differs from the reader's, which is
+ * why it reproduced on production and never on the machine it was built on.
+ *
+ * So before mount, `stamp` renders the DETERMINISTIC form (the ISO date, identical everywhere),
+ * and the friendly local clock face appears one frame later, where there is no server tree left
+ * to disagree with.
+ */
+function stamp(iso: string | undefined, nowMs: number, ready: boolean): string {
   if (!iso) return "not received";
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return "unknown";
+  if (!ready) return iso.slice(0, 10);
   const mins = Math.floor((nowMs - t.getTime()) / 60000);
   const clock = t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   if (mins < 60) return `${clock} (${mins} min ago)`;
@@ -65,6 +77,7 @@ export function TruthStrip({ sources, orgName, partialCoverage }: TruthStripProp
   // Refreshed every minute: this strip is exactly the thing an operator leaves on screen and
   // glances back at, so its age has to keep moving.
   const nowMs = useRelativeNow(60_000);
+  const ready = useClockReady();
   const anyStale = sources.some((s) => {
     if (!s.receivedAt) return true;
     return nowMs - new Date(s.receivedAt).getTime() > 24 * 3600 * 1000;
@@ -103,7 +116,7 @@ export function TruthStrip({ sources, orgName, partialCoverage }: TruthStripProp
                   ) : (
                     <span className="mono">{s.count.toLocaleString()}</span>
                   )}{" "}
-                  <span className={styles.when}>{stamp(s.receivedAt, nowMs)}</span>
+                  <span className={styles.when}>{stamp(s.receivedAt, nowMs, ready)}</span>
                   {s.quarantined && s.quarantined > 0 ? (
                     <>
                       {" "}
