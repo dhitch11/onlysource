@@ -157,7 +157,9 @@ export function PipelineBoard({ initial }: { initial: StoredDeal[] }) {
                       <p className={styles.cardTitle}>{d.title}</p>
                       {d.ref ? <p className={`mono ${styles.cardRef}`}>{d.ref}</p> : null}
                       <p className={styles.cardMeta}>
-                        <span className={styles.owner}>{OWNER_LABEL[d.owner]}</span>
+                        <span className={styles.owner} title={OWNER_LABEL[d.owner]} aria-label={`Owner ${OWNER_LABEL[d.owner]}`}>
+                          {d.owner}
+                        </span>
                         {d.valueUsd != null ? <span className={styles.cardValue}>{usd(d.valueUsd)}</span> : null}
                       </p>
                       {d.nextAction ? <p className={styles.cardNext}>{d.nextAction}</p> : null}
