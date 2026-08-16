@@ -27,6 +27,13 @@ export type Signal = {
   title: string
   body: string
   href: string
+  /**
+   * The ONE stock number this signal names, when it names exactly one (the perfect-storm
+   * leader, the escalation leader). Structured so a surface can wire an action to it (the
+   * dashboard's Pursue) without parsing prose. Absent on aggregate signals, deliberately:
+   * a "cutoff coming up" card names no part, so no part-level action can honestly hang on it.
+   */
+  nsn?: string
 }
 
 /** Human labels + one-line descriptions for each kind. Used by settings and the help affordance. */
@@ -85,6 +92,7 @@ export function computeSignals(): SignalSet {
       title: `${storm.length} perfect-storm ${storm.length === 1 ? 'corner' : 'corners'} right now`,
       body: `${storm.length} ${storm.length === 1 ? 'corner lines' : 'corners line'} up on every measured leg at once: the source is silent, it is on the forecast, it awards by machine, and the price is rising. The strongest is ${top.nsn} (${top.item}).`,
       href: '/monopoly',
+      nsn: top.nsn,
     })
   }
 
@@ -110,6 +118,7 @@ export function computeSignals(): SignalSet {
       title: `Biggest price ramp: +${leader.escalationPct.toLocaleString()}%`,
       body: `${leader.nsn} (${leader.item}) has climbed ${leader.escalationPct.toLocaleString()}% across its award history, the steepest in the book. A cornered part whose price only goes up.`,
       href: `/corner/${leader.nsn.replace(/[^0-9]/g, '')}`,
+      nsn: leader.nsn,
     })
   }
 

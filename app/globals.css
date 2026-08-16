@@ -609,6 +609,160 @@ a {
   color: var(--accent);
   font-family: var(--font-mono);
 }
+
+/* The action-carrying form of the top corner: the card chrome stays on the wrapper, the
+ * link fills it, and the Pursue control is a SIBLING of the anchor, same contract as
+ * .metricCard--withHelp (a button inside an anchor is invalid and a coin-toss click). */
+.topCorner--withAction {
+  position: relative;
+  padding: 0;
+}
+.topCorner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-4) var(--sp-5);
+  color: inherit;
+  text-decoration: none;
+  border-radius: inherit;
+  min-inline-size: 0;
+}
+.topCorner__act {
+  display: flex;
+  padding: 0 var(--sp-5) var(--sp-4);
+}
+
+/* ============================================================ the flagship thread
+ * How this system works, in one line: Find, Decide, Pursue, Close, each a real link to
+ * that stage's first surface. Elementary on purpose. */
+.flowStrip {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+.flowStrip__lead {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+}
+.flowStrip__step {
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  color: var(--accent);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.flowStrip__step:hover {
+  border-block-end-color: var(--accent);
+}
+.flowStrip__step:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.flowStrip__arrow {
+  color: var(--faint);
+}
+.flowStrip__note {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  margin-inline-start: auto;
+}
+
+/* The pipeline in miniature: the strongest unpursued corner beside the real stage counts. */
+.pipeMini {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+@media (max-width: 56rem) {
+  .pipeMini {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.pipeMini--allPursued {
+  display: block;
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.stageStrip {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: var(--sp-4);
+  gap: var(--sp-3);
+}
+.stageStrip__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.stageStrip__title {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+}
+/* auto-fit with a floor wide enough for the longest one-word label ("Opportunities"), so
+ * a stage name never breaks mid-word: on a narrow strip the cells wrap to a second row
+ * whole, which reads clean, where "Opportunitie / s" reads broken. */
+.stageStrip__stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+  gap: var(--sp-1);
+}
+.stageStrip__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-2) 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  min-inline-size: 0;
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.stageStrip__stage:hover {
+  border-color: var(--line-control);
+  background: var(--panel-2);
+}
+.stageStrip__stage:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.stageStrip__n {
+  font-size: var(--fs-500);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.stageStrip__label {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  text-align: center;
+  line-height: var(--lh-100);
+}
+.stageStrip__foot {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  margin-block-start: auto;
+}
 @media (prefers-reduced-motion: no-preference) {
   @keyframes cc-fade-up { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
   .metricCard { animation: cc-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -637,10 +791,12 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--s-3, 0.75rem);
 }
+/* The card chrome lives on a wrapper DIV; the link fills it and the Pursue control (when
+ * the signal names one stock number) is the link's SIBLING, never its child, same contract
+ * as .metricCard--withHelp: a button inside an anchor is invalid and a coin-toss click. */
 .signalCard {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   padding: var(--s-4, 1rem);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg, 11px);
@@ -652,9 +808,23 @@ a {
   transform: translateY(-2px);
   border-color: var(--accent-2);
 }
-.signalCard:focus-visible {
+.signalCard__link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.signalCard__link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.signalCard__act {
+  display: flex;
+  margin-block-start: var(--sp-2);
 }
 .signalCard--high {
   border-color: var(--accent-2);

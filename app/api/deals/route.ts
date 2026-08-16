@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { gateOrJson } from '@/lib/session/require-gate'
-import { readDeals, upsertDeal, removeDeal, type StoredDeal } from '@/lib/sales/deals-store'
+import { findDealByRef, readDeals, upsertDeal, removeDeal, type StoredDeal } from '@/lib/sales/deals-store'
 import { systemClock } from '@/lib/time/clock'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +28,20 @@ export async function POST(req: NextRequest) {
   // "(untitled)" placeholder. Updates to an existing deal (id present) may be partial.
   if (isNew && !((body.title ?? '').trim())) {
     return Response.json({ error: 'empty_deal', message: 'A deal needs a title.' }, { status: 400 })
+  }
+  /*
+   * THE PURSUE DEDUPE. A create carrying a reference that is already in the pipeline returns
+   * the EXISTING deal (200, {existing:true}) and writes nothing. Pressing Pursue twice, or
+   * pursuing one NSN from the Monopoly Map and again from its dossier, must land on one card:
+   * a pipeline with two cards for one part double-counts its own money. Refs compare
+   * normalized (case and punctuation stripped); an empty ref never matches, so plain manual
+   * deals with no reference are never folded into each other.
+   */
+  if (isNew && typeof body.ref === 'string') {
+    const existing = findDealByRef(body.ref)
+    if (existing) {
+      return Response.json({ deals: readDeals(), id: existing.id, existing: true })
+    }
   }
   const id = isNew ? crypto.randomUUID() : (body.id as string)
   const deals = upsertDeal({ ...body, id }, systemClock.now())

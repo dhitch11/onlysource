@@ -6,6 +6,9 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { systemClock } from '@/lib/time/clock'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { PursueButton } from '@/components/sales/PursueButton'
+import { readDeals } from '@/lib/sales/deals-store'
+import { normalizeDealRef } from '@/lib/sales/pipeline'
 import styles from './goldmine.module.css'
 
 export const metadata: Metadata = { title: 'No-Quote Goldmine · ONLYSOURCE' }
@@ -94,6 +97,9 @@ export default async function GoldminePage() {
   const sourcing = all.filter((r) => r.holders.length > 0).sort(bySize)
   const makeSideValue = makeSide.reduce((s, r) => s + r.estValue, 0)
 
+  // The refs already in the pipeline, so a pursued row renders flipped on first paint.
+  const pursued = new Set(readDeals().map((d) => normalizeDealRef(d.ref)).filter(Boolean))
+
   const metrics: Array<{ display: string; label: string; hint: string; hot: boolean }> = [
     { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false },
     { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
@@ -130,6 +136,7 @@ export default async function GoldminePage() {
         blurb="No supplier shows any material for these. The only way to fill the order is to make the part, which means whoever can make it faces no one. This is the set a person cannot work by hand, sorted by the size of the buy."
         rows={makeSide}
         linkable={cornerDigits}
+        pursued={pursued}
       />
 
       {/* ---------------------------------------------------------- sourcing: someone holds */}
@@ -138,6 +145,7 @@ export default async function GoldminePage() {
         blurb="A supplier shows stock against these, so the job is finding and moving material, not making it. Faster to win, smaller edge. Sorted by the size of the buy."
         rows={sourcing}
         linkable={cornerDigits}
+        pursued={pursued}
         showHolders
       />
     </main>
@@ -149,12 +157,15 @@ function Section({
   blurb,
   rows,
   linkable,
+  pursued,
   showHolders = false,
 }: {
   title: string
   blurb: string
   rows: Enriched[]
   linkable: Set<string>
+  /** Normalized deal refs already in the pipeline. */
+  pursued: Set<string>
   showHolders?: boolean
 }) {
   if (rows.length === 0) {
@@ -181,6 +192,7 @@ function Section({
               <th className={styles.numCol}>Size of buy</th>
               <th>Close date</th>
               {showHolders ? <th>Holders</th> : null}
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -219,6 +231,24 @@ function Section({
                     {r.holders.length > 2 ? ` +${r.holders.length - 2}` : ''}
                   </td>
                 ) : null}
+                <td>
+                  {/* The pursuit wire, on rows whose corner dossier exists (the same rows
+                      whose stock number links in). The modeled buy value is the last unit
+                      price times the quantity, only when both are on the government line. */}
+                  {linkable.has(r.digits) ? (
+                    <PursueButton
+                      nsn={r.nsn}
+                      niin={r.digits.length === 13 ? r.digits.slice(4) : null}
+                      item={r.description === 'not described on this line' ? '' : r.description}
+                      valueUsd={
+                        r.lastSoldPrice != null && r.quantity != null
+                          ? r.lastSoldPrice * r.quantity
+                          : null
+                      }
+                      initiallyInPipeline={pursued.has(normalizeDealRef(r.nsn))}
+                    />
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -1,0 +1,181 @@
+/*
+ * The "What each tool does" guide. Owner: T8 DESIGN.
+ * Trigger matches the quiet nav-row voice; the panel is a native popover in the top layer.
+ */
+
+.wrap {
+  margin-block-start: var(--sp-2);
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--line);
+}
+
+/* In the top-bar form (below 60rem the shell lays the nav out as a row) the divider is a
+ * vertical hairline like the group boundaries, not a top border. */
+@media (max-width: 60rem) {
+  .wrap {
+    margin-block-start: 0;
+    padding-block-start: 0;
+    border-block-start: none;
+    margin-inline-start: var(--sp-2);
+    padding-inline-start: var(--sp-2);
+    border-inline-start: 1px solid var(--line);
+    flex: none;
+  }
+
+  .trigger {
+    white-space: nowrap;
+  }
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  inline-size: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  min-block-size: 1.75rem; /* 28px: above the 24px pointer floor. */
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--faint);
+  font-size: var(--fs-100);
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--panel-2);
+  color: var(--dim);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.eye {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------------- the panel
+ * popover="auto" puts this in the top layer with light dismiss and Escape natively.
+ * Centered: it is a one-read guide to the whole product, not a row tooltip. */
+.panel {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  inline-size: min(34rem, calc(100vw - 2rem));
+  max-block-size: min(80dvh, 42rem);
+  overflow-y: auto;
+  padding: var(--sp-5);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.55);
+  color: var(--ink);
+}
+
+.panel::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.flow {
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.lead {
+  margin-block-start: var(--sp-2);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--dim);
+}
+
+.section {
+  margin-block-start: var(--sp-4);
+}
+
+.sectionHead {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+.blurb {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--faint);
+  font-weight: var(--fw-regular);
+}
+
+.list {
+  margin-block-start: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  /*
+   * THE MOBILE OVERFLOW FIX, measured before and after rather than assumed.
+   *
+   * At 390px the panel measured scrollWidth 1529 against clientWidth 356: every description
+   * rendered on one long line. The chain: this row is a flex item stretched across a column
+   * flex container, and a stretched item's width is FLOORED at its min-content width while
+   * `min-width` stays at the browser default `auto`. The row's min-content width is its
+   * longest unbreakable run, so the row went wide, the list stretched to the row, and the
+   * panel scrolled sideways. `min-inline-size: 0` removes the floor; `max-inline-size: 100%`
+   * pins the row to the panel whatever a child claims; `overflow-wrap` below lets a future
+   * long token (an NSN, a URL) break rather than resurrect the bug.
+   */
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.rowIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  flex: none;
+  margin-block-start: 1px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--accent);
+}
+
+.rowText {
+  min-inline-size: 0;
+  /* flex items blockify an inline span, but stating it removes the dependence on that rule */
+  display: block;
+  flex: 1 1 0;
+}
+
+.rowLabel {
+  display: block;
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.rowDesc {
+  display: block;
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+  overflow-wrap: anywhere;
+}

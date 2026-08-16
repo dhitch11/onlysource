@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { PIPELINE_STAGES, type Deal, type DealOwner, type PipelineStage } from './pipeline'
+import { normalizeDealRef, PIPELINE_STAGES, type Deal, type DealOwner, type PipelineStage } from './pipeline'
 
 /**
  * THE DEAL STORE — the operator's real pipeline, persisted.
@@ -95,6 +95,18 @@ export function removeDeal(id: string): StoredDeal[] {
   const next = readDeals().filter((d) => d.id !== id)
   writeDeals(next)
   return next
+}
+
+/**
+ * The serving half of the Pursue dedupe: the deal already carrying this reference, or null.
+ * Pressing Pursue twice, or pursuing the same NSN from two surfaces, must land on ONE card;
+ * the API returns this existing deal rather than writing a twin. Normalization lives in
+ * pipeline.ts (pure, shared with the client surfaces that mark pursued rows).
+ */
+export function findDealByRef(ref: string): StoredDeal | null {
+  const wanted = normalizeDealRef(ref)
+  if (!wanted) return null
+  return readDeals().find((d) => normalizeDealRef(d.ref) === wanted) ?? null
 }
 
 /** Project a stored deal into the Deal shape computeStageMetrics + the pipeline UI expect. */

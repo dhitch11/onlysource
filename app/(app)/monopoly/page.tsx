@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
 import { resolveDataRoot } from "@/lib/data-root";
+import { readDeals } from "@/lib/sales/deals-store";
+import { normalizeDealRef } from "@/lib/sales/pipeline";
 import { MonopolyGrid } from "./MonopolyGrid";
 import styles from "./monopoly.module.css";
 
@@ -60,6 +62,12 @@ export default async function MonopolyPage() {
   const { pricedCount, candidatePricedCount, forecastCount, availCount } = view;
   const awardsJoined = view.awardsJoined;
   const forecastJoined = view.forecastJoined;
+
+  // The refs already in the operator's pipeline, read from the real store, so every pursued
+  // row renders its flipped "In pipeline" state on first paint.
+  const pursuedRefs = readDeals()
+    .map((d) => normalizeDealRef(d.ref))
+    .filter((r) => r.length > 0);
 
   // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
   // to the widest step so the narrowing reads at a glance without exaggeration.
@@ -206,7 +214,7 @@ export default async function MonopolyPage() {
         </div>
       </div>
 
-      <MonopolyGrid rows={enriched} />
+      <MonopolyGrid rows={enriched} pursuedRefs={pursuedRefs} />
     </main>
   );
 }

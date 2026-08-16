@@ -292,3 +292,24 @@ export function computeStageMetrics(deals: Deal[]): StageMetrics[] {
 export function dealsMissingNextAction(deals: Deal[]): Deal[] {
   return deals.filter((d) => d.stage !== 'won_revenue' && (d.nextAction === null || d.nextAction.trim() === ''))
 }
+
+/**
+ * Reference equality for the Pursue dedupe: uppercase, punctuation and spacing stripped, so
+ * the same stock number written "5325-01-705-3574" and "5325017053574" is one reference.
+ * Empty normalizes to empty and MUST NEVER match anything: a deal with no reference is not
+ * "the same deal" as every other deal with no reference.
+ *
+ * Lives here rather than in the deals store because it is pure and both sides need it: the
+ * server dedupes creates with it, and the client surfaces use it to mark rows already in
+ * the pipeline (the store imports node:fs and cannot be pulled into a client bundle).
+ */
+export function normalizeDealRef(ref: string): string {
+  return ref.replace(/[^0-9a-zA-Z]/g, '').toUpperCase()
+}
+
+/**
+ * The honest first next-action for a pursued opportunity. One sentence, no promise the
+ * system cannot keep: before anything can be quoted, somebody has to source the approved
+ * article and be able to prove where it came from.
+ */
+export const PURSUE_NEXT_ACTION = 'Source the approved article and document traceability'

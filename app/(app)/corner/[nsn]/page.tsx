@@ -11,6 +11,8 @@ import { dispositionLabel } from '@/lib/intelligence/scoring/evidence-state'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { ExplainButton } from '@/components/ui/ExplainButton'
+import { PursueButton } from '@/components/sales/PursueButton'
+import { findDealByRef } from '@/lib/sales/deals-store'
 import { aiConfigured } from '@/lib/ai/anthropic'
 import { Scrollable } from '@/components/ui/Scrollable'
 import { AiBrief } from './AiBrief'
@@ -107,6 +109,14 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
   const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
   const series = priceSeries(dossier)
 
+  // THE PURSUIT WIRE: the dossier's primary action. The modeled buy value is quantity x the
+  // latest measured award unit price, only when both are on record; otherwise the deal is
+  // created honestly valueless. Pursued state reads from the real store on every visit.
+  const latestUnit = award?.latest?.effectiveUnitPrice ?? null
+  const modeledBuyValue =
+    row.quantity != null && latestUnit != null && latestUnit > 0 ? row.quantity * latestUnit : null
+  const alreadyPursued = findDealByRef(row.nsn) != null
+
   return (
     <main className={styles.page}>
       <Link href={'/monopoly' as never} className={styles.back}>
@@ -141,6 +151,16 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
             ) : dossier.awardPath === 'manual' ? (
               <StatusChip tone="idle">Manual award</StatusChip>
             ) : null}
+          </div>
+          <div className={styles.pursueRow}>
+            <PursueButton
+              appearance="primary"
+              nsn={row.nsn}
+              niin={row.niin}
+              item={dossier.item}
+              valueUsd={modeledBuyValue}
+              initiallyInPipeline={alreadyPursued}
+            />
           </div>
         </div>
         <div className={styles.scoreBox}>

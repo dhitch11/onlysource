@@ -5,6 +5,8 @@ import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { PriceSparkline } from "@/components/ui/PriceSparkline";
+import { PursueButton } from "@/components/sales/PursueButton";
+import { normalizeDealRef } from "@/lib/sales/pipeline";
 import type { EnrichedCornerRow } from "@/lib/intelligence/monopoly-view";
 import { dispositionLabel } from "@/lib/intelligence/scoring/evidence-state";
 import { isRisingPrice } from "@/lib/intelligence/rising-price";
@@ -268,7 +270,46 @@ function priceSeriesOf(r: CornerRowWithAward): number[] {
   return r.award?.priceSeries ?? [];
 }
 
-export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
+/**
+ * THE ACTION COLUMN — the pursuit wire. Every row can start a real deal. The modeled buy
+ * value is quantity x last award unit price ONLY when both were measured on this row; when
+ * either is unread the deal is created with no value, never an invention. `pursued` comes
+ * from the server-read deal store, so a row already in the pipeline renders the flipped
+ * state on first paint and a second press cannot duplicate (the API dedupes by ref too).
+ */
+function pursueColumn(pursued: Set<string>): GridColumn<CornerRowWithAward> {
+  return {
+    id: "pursue",
+    header: "Action",
+    helpId: "pursuit.pursue_action",
+    width: "13ch",
+    cell: (r): Cell => ({
+      state: "known",
+      value: (
+        <PursueButton
+          nsn={r.nsn}
+          niin={r.niin}
+          item={r.nomenclature.trim()}
+          valueUsd={
+            r.quantity != null && r.award?.latestPrice != null && r.award.latestPrice > 0
+              ? r.quantity * r.award.latestPrice
+              : null
+          }
+          initiallyInPipeline={pursued.has(normalizeDealRef(r.nsn))}
+        />
+      ),
+    }),
+  };
+}
+
+export function MonopolyGrid({
+  rows,
+  pursuedRefs,
+}: {
+  rows: CornerRowWithAward[];
+  /** Normalized refs already in the deal store, read server-side. */
+  pursuedRefs: string[];
+}) {
   const [filter, setFilter] = useState<Filter>("candidate");
   // Secondary filters that AND with the active tab. Each is a real, measured property of the row,
   // so a filtered view is always an honest subset, never a re-scored one.
@@ -279,6 +320,14 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
     priced: false,
   });
   const [chain, setChain] = useState<string>("all");
+
+  // The full column set: the measured columns plus the pursuit wire. Rebuilt only when the
+  // pursued set changes (a set identity, not a per-render array), so the grid's column
+  // identity stays stable across filtering.
+  const allColumns = useMemo(
+    () => [...columns, pursueColumn(new Set(pursuedRefs))],
+    [pursuedRefs],
+  );
 
   const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
   // The SHARED definition (lib/intelligence/rising-price), the same one the Intelligence
@@ -397,7 +446,7 @@ export function MonopolyGrid({ rows }: { rows: CornerRowWithAward[] }) {
 
       <DataGrid
         rows={shown}
-        columns={columns}
+        columns={allColumns}
         rowKey={(r) => `${r.niin}:${r.solicitation}`}
         label="Sole-source positions under open DLA demand, ranked by measured corner strength"
         density="compact"

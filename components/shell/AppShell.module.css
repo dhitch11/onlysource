@@ -67,28 +67,54 @@
   margin-block-start: var(--sp-1);
 }
 
-/* -------------------------------------------------------------------------------- nav */
+/* -------------------------------------------------------------------------------- nav
+ * SAAS-SCALE DENSITY (owner directive 2026-08-16: "world-class, like Linear or Vercel").
+ * Measured before this change on the live serving path: 15px labels, 36px min-height,
+ * 40.5px rendered rows, one label wrapping to 63px. Linear and Vercel sit near 13px/32px.
+ * After: 14px labels (--fs-200), 32px rows, 13px metadata, 11px group eyebrows. 32px keeps
+ * a comfortable margin over the 24px pointer floor (WCAG 2.5.8). */
 
-.nav ul {
+/* Scoped with :not([class]) for the same reason as the mobile rule below: the NavGuide popover
+ * lives inside the nav DOM and module-classed lists must never inherit the strip layout. */
+.nav ul:not([class]) {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+}
+
+.group + .group {
+  margin-block-start: var(--sp-3);
+}
+
+/*
+ * The stage eyebrow: FIND / DECIDE / PURSUE / ORG. 11px uppercase tracked, the same
+ * eyebrow voice as the dashboard severity chips (0.6875rem precedent in globals.css).
+ * The 13px --fs-100 floor binds copy read for content; this is a landmark whose words
+ * repeat at full size inside the NavGuide panel for anyone who needs them larger.
+ */
+.groupLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem; /* 11px */
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--faint);
+  padding: 0 var(--sp-2) var(--sp-1);
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   border-radius: var(--radius);
   color: var(--dim);
   font-weight: var(--fw-medium);
-  font-size: var(--fs-300);
+  font-size: var(--fs-200);
   border: 1px solid transparent;
   text-decoration: none;
-  /* Comfortably above the 24px pointer minimum. A destination hit dozens of times a day
-   * should not sit at the legal floor. */
-  min-block-size: 2.25rem;
+  /* 32px: the Linear-class row, still 8px above the 24px pointer minimum. */
+  min-block-size: 2rem;
 }
 
 .navItem:hover {
@@ -109,12 +135,6 @@
   );
   color: var(--ink);
   box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.navItemEmphasised {
-  margin-block-start: var(--sp-2);
-  border-color: var(--line-2);
-  background: var(--panel);
 }
 
 .navLabel {
@@ -138,12 +158,6 @@
   letter-spacing: var(--track-label);
   text-transform: uppercase;
   font-weight: var(--fw-semibold);
-}
-
-.sepBefore {
-  margin-block-start: var(--sp-3);
-  padding-block-start: var(--sp-3);
-  border-block-start: 1px solid var(--line);
 }
 
 /* ------------------------------------------------------------- org switcher + account */
@@ -330,23 +344,46 @@
     contain: layout;
   }
 
-  .nav ul {
-    flex-direction: row;
-    gap: var(--sp-1);
-    inline-size: max-content;
+  /* The groups lay out in a row; each group is its own row of items and the divider
+   * between stages becomes a vertical hairline. The 11px eyebrows would eat a text row
+   * in a horizontal strip, so on the top-bar form the guide carries the stage names and
+   * the strip stays one clean line. */
+  .nav {
+    display: flex;
+    align-items: center;
   }
 
-  .navItemEmphasised {
-    margin-block-start: 0;
+  .group {
+    display: flex;
+    align-items: center;
+    flex: none;
   }
 
-  .sepBefore {
+  .group + .group {
     margin-block-start: 0;
-    padding-block-start: 0;
-    border-block-start: none;
     margin-inline-start: var(--sp-2);
     padding-inline-start: var(--sp-2);
     border-inline-start: 1px solid var(--line);
+  }
+
+  .groupLabel {
+    display: none;
+  }
+
+  /*
+   * SCOPED WITH :not(), because `.nav ul` reaches further than it looks.
+   *
+   * The NavGuide panel is a popover whose DOM NODE LIVES INSIDE THE NAV; the top layer changes
+   * where it paints, not where it sits in the tree, so a descendant selector still matches its
+   * lists. This rule was silently flipping the guide's tool lists to `row` on mobile, laying
+   * three tools side by side in 286px and wrapping every description one syllable per line.
+   * Found by measuring computed flex-direction (`row`) against the module source (`column`),
+   * after the numbers passed and only a screenshot showed the damage.
+   */
+  .nav ul:not([class]) {
+    flex-direction: row;
+    gap: var(--sp-1);
+    inline-size: max-content;
   }
 
   .sideFoot {
@@ -380,10 +417,6 @@
   }
 }
 
-/* The Hunter Mode star is amber in the approved console. Amber is otherwise reserved for
- * the auto-award clock, and this is the one sanctioned exception because the BUILD-DIRECTIVE
- * and the approved console both render it that way. It is a MODULE MARK, not a status: the
- * ON state is real data and is absent until @T6's engine reports it. */
-.navItemEmphasised svg {
-  color: var(--amber);
-}
+/* The Hunter Mode nav row is gone (owner directive 2026-08-16: one entry for the pipeline;
+ * Hunter Mode is the emphasised module INSIDE /sales, where its banner already lives). The
+ * amber module-mark rule that styled that row went with it: amber is the award clock's. */

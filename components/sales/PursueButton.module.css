@@ -1,0 +1,167 @@
+/*
+ * The Pursue control. Owner: the pipeline surfaces.
+ * Every value from tokens.css. Brass is the money signal, and starting a deal is the money
+ * action, so the row button speaks quiet brass and the primary form wears the accent fill.
+ */
+
+.rowWrap,
+.primaryWrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  align-items: flex-start;
+}
+
+/* The compact grid form. 26px tall: above the 24px WCAG 2.5.8 floor, small enough for a
+ * compact data row. Width-stable while busy, exactly like <Button>. */
+.rowBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-block-size: 1.625rem; /* 26px */
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.rowBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.rowBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.rowBtn:disabled {
+  cursor: progress;
+}
+
+/* The dossier's full-size call to action: the house primary voice. */
+.primaryBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-block-size: 2.25rem;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  cursor: pointer;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.primaryBtn:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.labelHidden {
+  opacity: 0;
+}
+
+.spinner {
+  position: absolute;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 2px solid currentColor;
+  border-block-start-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: pursue-spin 700ms linear infinite;
+}
+
+@keyframes pursue-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-block-start-color: currentColor;
+    opacity: 0.5;
+  }
+}
+
+/* ------------------------------------------------------- the flipped state: a real link.
+ * Olive, the measured/verified voice: "this reference IS a stored deal" is a measured fact
+ * about the operator's own pipeline. */
+.inPipeline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-block-size: 1.625rem;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--olive) 45%, transparent);
+  background: color-mix(in srgb, var(--olive) 12%, transparent);
+  color: var(--olive);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.inPipeline:hover {
+  border-color: var(--olive);
+}
+
+.inPipeline:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.inPipelinePrimary {
+  min-block-size: 2.25rem;
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-200);
+  border-radius: var(--radius);
+}
+
+.check {
+  inline-size: 12px;
+  block-size: 12px;
+  flex: none;
+}
+
+/* The modeled-value disclosure under the primary form. */
+.valueLine {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  max-inline-size: 34ch;
+  line-height: var(--lh-100);
+}
+
+/* Inline failure, announced. Red is the clock's; a save failure speaks in words and weight. */
+.err {
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}

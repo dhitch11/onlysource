@@ -63,6 +63,11 @@
   margin-top: var(--sp-1);
 }
 
+/* The pursuit wire: the dossier's primary action, set apart from the evidence chips. */
+.pursueRow {
+  margin-top: var(--sp-3);
+}
+
 .scoreBox {
   display: flex;
   flex-direction: column;

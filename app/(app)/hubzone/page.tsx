@@ -7,6 +7,9 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { systemClock } from '@/lib/time/clock'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { PursueButton } from '@/components/sales/PursueButton'
+import { readDeals } from '@/lib/sales/deals-store'
+import { normalizeDealRef } from '@/lib/sales/pipeline'
 import styles from '../goldmine/goldmine.module.css'
 
 export const metadata: Metadata = { title: 'HUBZone set-asides · ONLYSOURCE' }
@@ -68,6 +71,9 @@ export default async function HubzonePage() {
     return Number.isFinite(c) && c >= nowMs
   }).length
 
+  // The refs already in the pipeline, so a pursued row renders flipped on first paint.
+  const pursued = new Set(readDeals().map((d) => normalizeDealRef(d.ref)).filter(Boolean))
+
   return (
     <main className={styles.page}>
       <header className={styles.head}>
@@ -117,6 +123,7 @@ export default async function HubzonePage() {
                 <th className={styles.numCol}>Last price</th>
                 <th className={styles.numCol}>Size of buy</th>
                 <th>Close date</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -153,6 +160,23 @@ export default async function HubzonePage() {
                       ) : (
                         '—'
                       )}
+                    </td>
+                    <td>
+                      {/* The pursuit wire, on rows that are also candidate corners (the same
+                          rows whose stock number links into a dossier). */}
+                      {isCorner && m.nsn ? (
+                        <PursueButton
+                          nsn={m.nsn}
+                          niin={m.niin || null}
+                          item={m.description ?? ''}
+                          valueUsd={
+                            m.lastSoldPrice != null && m.quantity != null
+                              ? m.lastSoldPrice * m.quantity
+                              : null
+                          }
+                          initiallyInPipeline={pursued.has(normalizeDealRef(m.nsn))}
+                        />
+                      ) : null}
                     </td>
                   </tr>
                 )

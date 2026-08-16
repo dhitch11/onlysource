@@ -3,6 +3,7 @@ import Link from 'next/link'
 import path from 'node:path'
 import { configReport } from '@/lib/env'
 import { ExplainButton } from '@/components/ui/ExplainButton'
+import { PursueButton } from '@/components/sales/PursueButton'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -12,6 +13,8 @@ import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { buildMonopolyView } from '@/lib/intelligence/monopoly-view'
 import { computeSignals } from '@/lib/notify/signals'
+import { readDeals } from '@/lib/sales/deals-store'
+import { normalizeDealRef, PIPELINE_STAGES, STAGE_LABEL } from '@/lib/sales/pipeline'
 import {
   AWARD_CLOCK,
   AWARD_CLOCK_PROVENANCE,
@@ -56,25 +59,69 @@ export default async function WorkspacePage() {
   const fcIx = present ? buildForecastIndex() : null
   const supIx = present ? buildDistressedSuppliers() : null
 
-  // The single strongest opportunity right now: highest-scored candidate corner. Read from
-  // the same memoized view /monopoly renders, so the two surfaces cannot disagree and the
-  // dashboard stops re-scoring 2,141 rows on every visit.
-  let topCorner: { nsn: string; item: string; score: number; onForecast: boolean; price: number | null } | null = null
+  /*
+   * THE PIPELINE IN MINIATURE (the flagship thread). Three real reads:
+   *   1. the operator's stored deals, counted by stage, never estimated;
+   *   2. the refs already pursued, so the strongest corner offered below is genuinely the
+   *      strongest UNPURSUED one (offering a corner already in the pipeline is noise);
+   *   3. that corner's measured facts, so its Pursue button carries an honest modeled value.
+   */
+  const deals = readDeals()
+  const pursued = new Set(deals.map((d) => normalizeDealRef(d.ref)).filter(Boolean))
+  const stageCounts = PIPELINE_STAGES.map((stage) => ({
+    stage,
+    label: STAGE_LABEL[stage],
+    count: deals.filter((d) => d.stage === stage).length,
+  }))
+
+  // The single strongest UNPURSUED opportunity right now: highest-scored candidate corner
+  // not already in the pipeline. Read from the same memoized view /monopoly renders, so the
+  // two surfaces cannot disagree and the dashboard stops re-scoring 2,141 rows per visit.
+  let topCorner: {
+    nsn: string
+    niin: string
+    item: string
+    score: number
+    onForecast: boolean
+    price: number | null
+    quantity: number | null
+  } | null = null
+  let candidateCount = 0
   if (present) {
     const view = buildMonopolyView()
     let best = -1
     for (const r of view.rows) {
       if (!(r.soleSource && r.silentSourceCount > 0)) continue
+      candidateCount += 1
+      if (pursued.has(normalizeDealRef(r.nsn))) continue
       if (r.score.scoreV0 > best) {
         best = r.score.scoreV0
         topCorner = {
           nsn: r.nsn,
+          niin: r.niin,
           item: r.nomenclature.trim(),
           score: r.score.scoreV0,
           onForecast: !!r.forecast?.onForecast,
           price: r.award?.latestPrice ?? null,
+          quantity: r.quantity,
         }
       }
+    }
+  }
+
+  /** Pursue facts for a signal card that names one NSN: joined from the same view. */
+  const pursueFactsFor = (nsn: string) => {
+    if (!present) return null
+    const r = buildMonopolyView().rows.find((x) => x.nsn === nsn)
+    if (!r) return null
+    return {
+      niin: r.niin,
+      item: r.nomenclature.trim(),
+      valueUsd:
+        r.quantity != null && r.award?.latestPrice != null && r.award.latestPrice > 0
+          ? r.quantity * r.award.latestPrice
+          : null,
+      initiallyInPipeline: pursued.has(normalizeDealRef(r.nsn)),
     }
   }
 
@@ -163,6 +210,89 @@ export default async function WorkspacePage() {
         </p>
       </section>
 
+      {/* -------------------------------------------- how this system works, in one line.
+        * Each word is a real link to that stage's first surface. Close is the paperwork:
+        * a quote goes out and a purchase order comes back, which lives in Documents. */}
+      <nav className="flowStrip" aria-label="How this system works">
+        <span className="flowStrip__lead">How this system works:</span>
+        <Link href={'/monopoly' as never} className="flowStrip__step">Find</Link>
+        <span className="flowStrip__arrow" aria-hidden="true">→</span>
+        <Link href={'/intelligence' as never} className="flowStrip__step">Decide</Link>
+        <span className="flowStrip__arrow" aria-hidden="true">→</span>
+        <Link href={'/sales' as never} className="flowStrip__step">Pursue</Link>
+        <span className="flowStrip__arrow" aria-hidden="true">→</span>
+        <Link href={'/documents' as never} className="flowStrip__step">Close</Link>
+        <span className="flowStrip__note">
+          Find a part worth owning, check the evidence, press Pursue, then quote it and paper it.
+        </span>
+      </nav>
+
+      {/* -------------------------------------------- the pipeline in miniature.
+        * The strongest corner nobody has pursued yet, beside the real count of deals in
+        * each stage. Both are reads: the corner from the same memoized view /monopoly
+        * renders, the counts from the stored pipeline itself. */}
+      {present && topCorner ? (
+        <section className="pipeMini" aria-label="The pipeline in miniature">
+          <div className="topCorner topCorner--withAction">
+            <div className="metricHelp">
+              <ExplainButton helpId="pursuit.modeled_buy_value" size="sm" />
+            </div>
+            <Link href={`/corner/${topCorner.nsn.replace(/[^0-9]/g, '')}` as never} className="topCorner__body">
+              <span className="topCorner__eyebrow">Strongest position nobody has pursued</span>
+              <span className="topCorner__nsn mono">{topCorner.nsn}</span>
+              <span className="topCorner__item">{topCorner.item || 'not described on this line'}</span>
+              <span className="topCorner__meta">
+                CornerScore <b>{topCorner.score}</b>
+                {topCorner.onForecast ? ' · on the DLA Forecast' : ''}
+                {topCorner.price != null ? ` · last award $${topCorner.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+              </span>
+            </Link>
+            <div className="topCorner__act">
+              <PursueButton
+                appearance="primary"
+                nsn={topCorner.nsn}
+                niin={topCorner.niin}
+                item={topCorner.item}
+                valueUsd={
+                  topCorner.quantity != null && topCorner.price != null && topCorner.price > 0
+                    ? topCorner.quantity * topCorner.price
+                    : null
+                }
+                initiallyInPipeline={false}
+              />
+            </div>
+          </div>
+
+          <div className="stageStrip">
+            <div className="stageStrip__head">
+              <span className="stageStrip__title">Your pipeline</span>
+              <ExplainButton helpId="pursuit.stage_counts" size="sm" />
+            </div>
+            <div className="stageStrip__stages">
+              {stageCounts.map((s) => (
+                <Link key={s.stage} href={'/sales' as never} className="stageStrip__stage">
+                  <span className="stageStrip__n mono">{s.count}</span>
+                  <span className="stageStrip__label">{s.label}</span>
+                </Link>
+              ))}
+            </div>
+            <span className="stageStrip__foot">
+              {deals.length === 0
+                ? 'Nothing pursued yet. Press Pursue on any find to start.'
+                : `${deals.length.toLocaleString()} deal${deals.length === 1 ? '' : 's'}, counted from your stored pipeline.`}
+            </span>
+          </div>
+        </section>
+      ) : present && candidateCount > 0 ? (
+        /* Every candidate corner is already a deal: an honest state, said plainly. */
+        <section className="pipeMini pipeMini--allPursued" aria-label="The pipeline in miniature">
+          <p className="muted">
+            All {candidateCount.toLocaleString()} candidate corners are already in your pipeline.
+            Work them in <Link href={'/sales' as never}>Pipeline</Link>.
+          </p>
+        </section>
+      ) : null}
+
       {present ? (
         <>
           <section className="metricGrid" aria-label="Live metrics">
@@ -187,34 +317,42 @@ export default async function WorkspacePage() {
             ))}
           </section>
 
-          {topCorner ? (
-            <Link href={'/monopoly' as never} className="topCorner">
-              <span className="topCorner__eyebrow">Strongest position right now</span>
-              <span className="topCorner__nsn mono">{topCorner.nsn}</span>
-              <span className="topCorner__item">{topCorner.item}</span>
-              <span className="topCorner__meta">
-                CornerScore <b>{topCorner.score}</b>
-                {topCorner.onForecast ? ' · on the DLA Forecast' : ''}
-                {topCorner.price != null ? ` · last award $${topCorner.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
-              </span>
-            </Link>
-          ) : null}
-
-          {/* -------------------------------------------- what needs attention today */}
+          {/* -------------------------------------------- what needs attention today.
+            * A card that names exactly one stock number carries the pursuit wire: the
+            * Pursue sits as a SIBLING of the link (a button inside an anchor is invalid
+            * and a coin-toss click), with the same measured facts the grids use.
+            * Aggregate cards (the cutoff, the no-quote total) carry no part-level action,
+            * honestly: there is no one part to pursue. */}
           {signals.length > 0 ? (
             <section className="signalBlock" aria-label="What needs your attention">
               <h2 className="signalBlock__title">What needs your attention today</h2>
               <div className="signalGrid">
-                {signals.map((s) => (
-                  <Link key={s.id} href={s.href as never} className={`signalCard signalCard--${s.severity}`}>
-                    <span className="signalCard__sev">
-                      {s.severity === 'high' ? 'Act now' : s.severity === 'medium' ? 'Worth an hour' : 'Good to know'}
-                    </span>
-                    <span className="signalCard__title">{s.title}</span>
-                    <span className="signalCard__body">{s.body}</span>
-                    <span className="signalCard__go">Open →</span>
-                  </Link>
-                ))}
+                {signals.map((s) => {
+                  const facts = s.nsn ? pursueFactsFor(s.nsn) : null
+                  return (
+                    <div key={s.id} className={`signalCard signalCard--${s.severity}${facts ? ' signalCard--withAction' : ''}`}>
+                      <Link href={s.href as never} className="signalCard__link">
+                        <span className="signalCard__sev">
+                          {s.severity === 'high' ? 'Act now' : s.severity === 'medium' ? 'Worth an hour' : 'Good to know'}
+                        </span>
+                        <span className="signalCard__title">{s.title}</span>
+                        <span className="signalCard__body">{s.body}</span>
+                        <span className="signalCard__go">Open →</span>
+                      </Link>
+                      {facts && s.nsn ? (
+                        <div className="signalCard__act">
+                          <PursueButton
+                            nsn={s.nsn}
+                            niin={facts.niin}
+                            item={facts.item}
+                            valueUsd={facts.valueUsd}
+                            initiallyInPipeline={facts.initiallyInPipeline}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </div>
             </section>
           ) : null}

@@ -53,6 +53,9 @@ import { T7_ENTRIES } from "@/lib/admin/help";
 // T5 DOCUMENTS. Same pattern: the lane that owns the verdict owns the sentence.
 import { T5_ENTRIES } from "@/lib/compliance/help";
 
+// The pursuit wire + pipeline surfaces. Same pattern: entries live in lib/sales/help.ts.
+import { PURSUIT_ENTRIES } from "@/lib/sales/help";
+
 /** The lanes that can own a help entry. Used by the panel to name who owes a missing one. */
 export type HelpOwner =
   | "T1 FOUNDATION"
@@ -200,6 +203,9 @@ register(T7_ENTRIES);
 // T5's content for it is written and waiting in T5_WHAT_THIS_DOES_NOT_DO, keyed by help id, and
 // moves into the record the day the field exists. Not changing your type from this lane.
 register(T5_ENTRIES);
+
+// The pursuit wire (the Pursue action, the modeled buy value, the stage counts).
+register(PURSUIT_ENTRIES);
 
 /*
  * Other lanes: register your entries here, in your own block.

@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { leaveAction } from '../(auth)/enter/actions'
-import { AppShell, type NavDestination } from '@/components/shell/AppShell'
+import { AppShell, type NavGroup } from '@/components/shell/AppShell'
 import { NotificationCenter } from '@/components/shell/NotificationCenter'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
@@ -24,61 +24,138 @@ import { resolveDataRoot } from '@/lib/data-root'
  */
 
 /**
- * THE NAVIGATION, AND THE HONEST PART OF IT.
+ * THE NAVIGATION IS THE WORKFLOW (owner directive 2026-08-16: "the menu itself teaches
+ * the workflow", "condensed tools, elementary language, action behind everything").
  *
- * The BUILD-DIRECTIVE order is: Dashboard, The Board, Sales Hub, Hunter Mode, then a
- * separator, then Monopoly Map, Documents & POs, Suppliers, Admin & Users.
+ * Four stages, in working order, read top to bottom:
  *
- * FOUR OF THOSE ROUTES DO NOT EXIST YET, so they are not rendered. A nav item that 404s is
- * worse than one that is absent: it teaches an operator that the product is broken, and it
- * costs the same trust as a fabricated number. The rule in section 4.19 is that the nav
- * never shows a destination that fails on click, and an unbuilt route fails on click.
+ *   FIND      the surfaces that hunt for money (the monopoly map, the no-quote list, the
+ *             set-asides). Condensed to the three genuinely distinct opportunity classes.
+ *   DECIDE    the evidence surfaces an operator checks before spending a dollar.
+ *   PURSUE    the pipeline and the tools that move a find to a close. ONE pipeline entry:
+ *             the old second "Hunter Mode" nav row (same href as Sales Hub) is gone, and
+ *             Hunter Mode lives where it always ran, as the emphasised module inside
+ *             /sales. Two rows to one page taught that there were two tools; there is one.
+ *   ORG       admin and settings, at the bottom, out of the working path.
  *
- * OWNING LANE: WHEN YOUR ROUTE LANDS, FLIP YOUR LINE. It is a one-line change here and
- * nothing else. Do not add a nav entry before the route resolves.
+ * EVERY item carries a one-line `description` in elementary language. It renders in the
+ * NavGuide ("What each tool does", the nav-foot explainer) and as the row's title
+ * supplement, so a brand-new user learns the system in one read.
  *
- *   The Board       app/(app)/board/page.tsx        @T3-ENGINE
- *   Monopoly Map    app/(app)/monopoly/page.tsx     @T4-INTELLIGENCE
- *   Suppliers       app/(app)/suppliers/page.tsx    @T4-INTELLIGENCE / @T5-DOCUMENTS
- *   Admin & Users   app/(app)/admin/page.tsx        @T7-ADMIN+API
+ * EVERY route that was in the old nav is still in this nav (13 rows to 12: only the
+ * duplicate href was removed), so no URL lost its way in. The /design gallery stays
+ * internal, reachable by URL, deliberately unlisted.
  *
- * COUNTS: the approved console renders "The Board 213" and "Monopoly Map 1.2k". Those are
- * illustrative. `count` is left undefined here and the slot renders nothing, because there
- * is no ingest yet. A badge saying 213 when nothing has been ingested tells an operator
- * there are 213 rows to clear before 3:00 PM. Pass a real number or pass none.
+ * COUNTS: a `count` is a claim about how much work is waiting, so it is computed from the
+ * real files below or absent. Never a placeholder.
  */
-/**
- * NAV ORDER: most important to least, with settings and internal tools at the bottom
- * (David 2026-08-15). The dashboard is the flagship and leads. Then the money surfaces in the
- * order an operator works them: the analytics breakdown, the highest-intent no-quote list, the
- * monopoly map, the supplier book. Then the working tools. Then, below a separator, the admin,
- * settings, and internal design reference.
- */
-const DESTINATIONS: NavDestination[] = [
-  // ---- the flagship + the money surfaces ----
-  { href: '/', label: 'Dashboard', icon: 'dashboard' },
-  { href: '/intelligence', label: 'Intelligence', icon: 'intelligence' },
-  // The No-Quote Goldmine — government buys that drew zero quotes. Highest-intent revenue.
-  { href: '/goldmine', label: 'No-Quote Goldmine', icon: 'goldmine' },
-  // HUBZone set-aside solicitations (a distinct, eligibility-gated opportunity class).
-  { href: '/hubzone', label: 'HUBZone set-asides', icon: 'hubzone' },
-  { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
-  // The enriched distressed-supplier book of business (count = Tier-A tally, computed below).
-  { href: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
-  // Competitor teardown — every part a company is approved to make, split into their monopolies vs
-  // where they compete. Loads from any <company>-parts.xlsx export.
-  { href: '/competitor', label: 'Competitor teardown', icon: 'competitor' },
-  // ---- the working tools ----
-  { href: '/board', label: 'The Board', icon: 'board', separatorBefore: true },
-  { href: '/sales', label: 'Sales Hub', icon: 'sales', tag: 'CRM' },
-  // Hunter Mode routes into the Sales Hub engine; no live tag until the engine reports (honest).
-  { href: '/sales', label: 'Hunter Mode', icon: 'hunter', emphasised: true },
-  { href: '/documents', label: 'Documents & POs', icon: 'documents' },
-  // ---- admin, settings, internal (the bottom) ----
-  { href: '/admin', label: 'Admin & Users', icon: 'admin', separatorBefore: true },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
-  // The Design system reference is internal (component gallery for builders), not an operator tool,
-  // so it is NOT in the nav. It stays reachable at /design by URL for whoever is building.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'home',
+    items: [
+      {
+        href: '/',
+        label: 'Dashboard',
+        icon: 'dashboard',
+        description: 'Your whole day on one screen: the strongest find, your pipeline, the award clock.',
+      },
+    ],
+  },
+  {
+    id: 'find',
+    label: 'Find',
+    blurb: 'Where the opportunities surface.',
+    items: [
+      {
+        href: '/monopoly',
+        label: 'Monopoly Map',
+        icon: 'map',
+        description: 'Parts only one company can make, where that company has gone quiet.',
+      },
+      {
+        href: '/goldmine',
+        label: 'No-Quote Goldmine',
+        icon: 'goldmine',
+        description: 'Buys the government asked for and nobody answered. Zero competition.',
+      },
+      {
+        href: '/hubzone',
+        label: 'HUBZone set-asides',
+        icon: 'hubzone',
+        description: 'Buys reserved for HUBZone-certified small firms.',
+      },
+    ],
+  },
+  {
+    id: 'decide',
+    label: 'Decide',
+    blurb: 'Check the evidence before you spend.',
+    items: [
+      {
+        href: '/intelligence',
+        label: 'Intelligence',
+        icon: 'intelligence',
+        description: 'The whole market added up: where the money is and how prices moved.',
+      },
+      {
+        href: '/board',
+        label: 'The Board',
+        icon: 'board',
+        description: 'Every open government requirement today, ranked by measured signal.',
+      },
+      {
+        href: '/competitor',
+        label: 'Competitor teardown',
+        icon: 'competitor',
+        description: 'Everything one company is approved to make, and where it stands alone.',
+      },
+    ],
+  },
+  {
+    id: 'pursue',
+    label: 'Pursue',
+    blurb: 'Turn a find into a closed deal.',
+    items: [
+      {
+        href: '/sales',
+        label: 'Pipeline',
+        icon: 'sales',
+        tag: 'CRM',
+        description: 'Your deals, moved stage by stage to won. Hunter Mode lives here.',
+      },
+      {
+        href: '/suppliers',
+        label: 'Suppliers',
+        icon: 'suppliers',
+        description: 'Companies holding dead stock you could buy out, with real contacts.',
+      },
+      {
+        href: '/documents',
+        label: 'Documents & POs',
+        icon: 'documents',
+        description: 'Quotes, purchase orders and the paper trail that closes a deal.',
+      },
+    ],
+  },
+  {
+    id: 'org',
+    label: 'Org',
+    blurb: 'The organization itself.',
+    items: [
+      {
+        href: '/admin',
+        label: 'Admin & Users',
+        icon: 'admin',
+        description: 'Who can sign in and what each person may do.',
+      },
+      {
+        href: '/settings',
+        label: 'Settings',
+        icon: 'settings',
+        description: 'Your account, alerts and preferences.',
+      },
+    ],
+  },
 ]
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -96,21 +173,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The feed day every surface is reading, shown once in the chrome so the operator always knows how
   // fresh the data is. A real measured value from the corner map's provenance, or nothing.
   const feedDay = dataPresent ? buildAllDatasets().cornerMap.provenance.feedDay : null
-  const destinations = DESTINATIONS.map((d) => {
-    if (!dataPresent) return d
-    if (d.href === '/monopoly') return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
-    if (d.href === '/suppliers') {
-      const sup = buildDistressedSuppliers()
-      return sup.ok ? { ...d, count: sup.counts.tierA } : d
-    }
-    return d
-  })
+  const groups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map((d) => {
+      if (!dataPresent) return d
+      if (d.href === '/monopoly') return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
+      if (d.href === '/suppliers') {
+        const sup = buildDistressedSuppliers()
+        return sup.ok ? { ...d, count: sup.counts.tierA } : d
+      }
+      return d
+    }),
+  }))
 
   return (
     <AppShell
       user={{ name: 'David Hitchman', role: 'Owner', title: 'ProjectX' }}
       org={{ name: 'ONLYSOURCE' }}
-      destinations={destinations}
+      groups={groups}
       meta={
         <>
           {feedDay ? (
