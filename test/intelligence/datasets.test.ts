@@ -99,20 +99,59 @@ describe('intelligence datasets over the real files', () => {
       expect(d.cornerMap.summary.silentApprovedSources).toBe(157)
     })
 
-    it('reports ZERO confirmed corners while the availability leg is unread', () => {
-      // The ceiling is structural, not a data accident. A corner is never confirmed off a
-      // missing availability read, so this number cannot move until a credential lands.
+    it('reports ZERO confirmed corners even though availability is now read', () => {
+      /*
+       * The ceiling is structural, not a data accident, and it SURVIVED the 2026-08-16 change
+       * that started reading the availability leg. That is the point of this test now.
+       *
+       * NSN-Now availability is SELF-REPORTED by the listing company. Reading it answers "who
+       * says they have it"; it does not answer "is it on a shelf". So a row can be
+       * `listed_self_reported` and the confirmed count still must not move, because promoting a
+       * self-report to a confirmation is exactly the fabrication this file exists to prevent.
+       */
       expect(d.cornerMap.summary.confirmedCorners).toBe(0)
       for (const row of d.cornerMap.rows) {
-        expect(row.availability).toBe('unknown_credential_absent')
+        expect(['listed_self_reported', 'unknown_credential_absent']).toContain(row.availability)
+        // Availability is deliberately kept OUT of legsEstablished, because that counter orders
+        // the map and "we know the answer" is not "the answer is favourable".
         expect(row.legsEstablished).toBeLessThanOrEqual(2)
+        // A read row carries its counts; an unread row carries null, never a zero.
+        if (row.availability === 'listed_self_reported') {
+          expect(row.availabilityHolders).toBeGreaterThan(0)
+          expect(row.availabilityUnits).not.toBeNull()
+        } else {
+          expect(row.availabilityHolders).toBeNull()
+          expect(row.availabilityUnits).toBeNull()
+        }
       }
+    })
+
+    it('actually reads availability for a substantial share of rows, so the wiring is not inert', () => {
+      // The positive control for the change. Before 2026-08-16 this was 0 on every row while the
+      // Availability sheet sat in the same workbook as the award history.
+      const read = d.cornerMap.rows.filter((r) => r.availability === 'listed_self_reported')
+      expect(read.length).toBeGreaterThan(500)
+      expect(read.length).toBeLessThan(d.cornerMap.rows.length)
     })
 
     it('names its gaps on every row, never empty by omission', () => {
       for (const row of d.cornerMap.rows.slice(0, 50)) {
         expect(row.gaps.length).toBeGreaterThan(0)
+      }
+    })
+
+    it('names the availability gap on rows where it is genuinely absent, and not on rows where it is read', () => {
+      const unread = d.cornerMap.rows.filter((r) => r.availability === 'unknown_credential_absent')
+      const read = d.cornerMap.rows.filter((r) => r.availability === 'listed_self_reported')
+      expect(unread.length).toBeGreaterThan(0)
+      expect(read.length).toBeGreaterThan(0)
+      for (const row of unread.slice(0, 30)) {
         expect(row.gaps.join(' ')).toContain('availability')
+      }
+      for (const row of read.slice(0, 30)) {
+        // A gap that has been closed must stop being reported as a gap, or the operator learns
+        // to ignore the gap list entirely.
+        expect(row.gaps.join(' ')).not.toContain('availability')
       }
     })
 

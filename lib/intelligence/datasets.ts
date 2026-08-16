@@ -24,6 +24,7 @@ import { parseNsn } from './niin'
 import { readApprovedSourceFile, readDailyIndex, type ApprovedSourceIndex, type DailyIndex } from './seed/feed'
 import { readSeedWorkbook, readDate, type SeedProvenance } from './seed/xlsx'
 import { buildCornerMap, type CornerMap } from './corner'
+import { buildNsnAwardIndex } from './awards/nsn-now'
 import { archivePath, seedPath } from '@/lib/data-root'
 
 /* ------------------------------------------------------------------------------------ */
@@ -413,10 +414,32 @@ function buildAllDatasetsUncached(paths: typeof DATA_PATHS): IntelligenceDataset
   const distressed = buildDistressed(paths)
   const awardSilentCages = new Set<Cage>(distressed.firms.map((f) => f.cage))
 
+  /*
+   * Self-reported availability, joined from the NSN-Now export by 13-digit NSN.
+   *
+   * This is the leg the map abstained on for every row with the reason "no commercial locator
+   * credential is connected". True about ILS, false about the data: the Availability sheet ships
+   * inside the same workbook as the award history and answers the leg for 908 of 2,141 rows.
+   * Built here rather than inside buildCornerMap so the corner module keeps no knowledge of where
+   * the export lives, and so a caller without an export still gets a map.
+   */
+  const awardIx = buildNsnAwardIndex()
+  const availabilityByNsn = new Map<string, { holders: number; units: number }>()
+  if (awardIx.ok) {
+    for (const [nsn, summary] of awardIx.byNsn) {
+      if (summary.holders.length === 0) continue
+      availabilityByNsn.set(nsn, {
+        holders: summary.holders.length,
+        units: summary.holders.reduce((t, h) => t + (h.quantity ?? 0), 0),
+      })
+    }
+  }
+
   const cornerMap = buildCornerMap({
     approved,
     index,
     awardSilentCages,
+    availabilityByNsn,
     provenance: {
       feedDay: paths.feedDay,
       sourceArchiveKey: SOURCE_ARCHIVE.storageKey,

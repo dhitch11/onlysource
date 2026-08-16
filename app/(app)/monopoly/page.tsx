@@ -163,7 +163,12 @@ export default async function MonopolyPage() {
           <div className={styles.statN}>{summary.confirmedCorners.toLocaleString()}</div>
           <div className={styles.statL}>
             <b>confirmed</b> corners
-            <span className={styles.statHint}>zero until availability is read — see below</span>
+            {/* Availability IS read now, from the export's own Availability sheet. What is still
+                missing is an INDEPENDENT check, and that is the reason this stays at zero. The
+                old hint said "until availability is read", which stopped being true on 08-16. */}
+            <span className={styles.statHint}>
+              zero until a listing is independently confirmed — see below
+            </span>
           </div>
         </div>
       </section>

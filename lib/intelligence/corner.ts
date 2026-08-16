@@ -16,9 +16,25 @@
  *                        because federal award reporting is not required at or below the
  *                        micro-purchase threshold, so a firm of exactly this size can be
  *                        winning awards monthly and show total silence in the public data.
- *  LEG 3, availability.  NOT READ. No locator credential. Every row abstains on this leg
- *                        rather than assuming thin availability, because a corner fabricated
- *                        off a missing availability read is the exact Law 1 failure.
+ *  LEG 3, availability.  READ WHERE THE EXPORT ANSWERS IT, and abstaining where it does not.
+ *                        Corrected 2026-08-16. This leg was hardcoded to abstain on every row
+ *                        with the reason "no commercial locator credential is connected", and
+ *                        that reason was true about ILS and false about the data on disk: the
+ *                        NSN-Now Batch Export ships an Availability sheet, and it answers this
+ *                        leg for 908 of the 2,141 rows on the map, 641 of them THIN (three or
+ *                        fewer holders), including 35 of the 115 candidate corners.
+ *
+ *                        An abstention that outlives its reason is not caution, it is a second
+ *                        kind of inaccuracy: it told an operator we could not know something we
+ *                        already knew, and the surface said the count would stay "at zero until
+ *                        a verified availability feed is connected" while the feed sat in the
+ *                        same workbook as the award history.
+ *
+ *                        What is still true, and is preserved exactly: NSN-Now availability is
+ *                        SELF-REPORTED by the listing company and is NOT an ILS confirmation and
+ *                        NOT a confirmed unit on a shelf. So the state is `listed_self_reported`,
+ *                        never `confirmed`, and a row with no availability row stays UNKNOWN
+ *                        rather than becoming a measured zero.
  *
  * So the output is a CANDIDATE list, ranked by how much of the cross could be established,
  * and the interface must render it as candidates. A row here is a position worth an hour of
@@ -52,11 +68,21 @@ export type CornerRow = {
   signals: SourceSignal[]
   /** How many approved sources carry the award-silence measurement. */
   silentSourceCount: number
-  /** Never read. Present so the interface renders the abstention rather than omitting it. */
-  availability: 'unknown_credential_absent'
   /**
-   * 0 to 3. Counts only legs actually ESTABLISHED, so it can never reach 3 while the
-   * availability credential is absent. That ceiling is deliberate and visible.
+   * Read from the NSN-Now Availability sheet where it exists, abstaining where it does not.
+   * `listed_self_reported` is deliberately not called `confirmed`: the holder self-reports and
+   * nothing here has seen a shelf.
+   */
+  availability: 'listed_self_reported' | 'unknown_credential_absent'
+  /** Companies listing stock for this stock number, or null when the export carries none. */
+  availabilityHolders: number | null
+  /** Units those companies list, in total, or null. Self-reported, never confirmed. */
+  availabilityUnits: number | null
+  /**
+   * 0 to 2 in practice. Counts DEMAND and SOURCE SILENCE only, deliberately. Availability is now
+   * read where the export answers it and travels on `availability*` above, but it is kept out of
+   * this counter because this counter orders the map, and a row with fifty listed holders would
+   * rise on "we know the answer" while being the opposite of a corner.
    */
   legsEstablished: number
   /** Named, never empty by omission. */
@@ -102,6 +128,12 @@ export type BuildCornerMapInput = {
   index: DailyIndex
   /** Companies with no recorded prime award in the trailing two years. */
   awardSilentCages: Set<Cage>
+  /**
+   * Self-reported availability from the NSN-Now export, keyed by 13-digit NSN.
+   * Optional so a caller with no export still builds a map; absent simply means every row
+   * abstains on the leg, which is the old behaviour and remains correct in that case.
+   */
+  availabilityByNsn?: Map<string, { holders: number; units: number }>
   /** Where each input came from, carried onto the surface. */
   provenance: Omit<CornerMap['provenance'], 'legsAvailable'>
 }
@@ -114,7 +146,7 @@ export type BuildCornerMapInput = {
  * them himself rather than argue with a number he cannot audit.
  */
 export function buildCornerMap(input: BuildCornerMapInput): CornerMap {
-  const { approved, index, awardSilentCages } = input
+  const { approved, index, awardSilentCages, availabilityByNsn } = input
   const rows: CornerRow[] = []
 
   for (const [niin, cages] of approved.byNiin) {
@@ -138,13 +170,32 @@ export function buildCornerMap(input: BuildCornerMapInput): CornerMap {
     const silentSourceCount = signals.filter((s) => s.kind === 'award_silent').length
     const soleSource = sourceList.length === 1
 
+    // The NSN the demand row carries, so availability can be joined. The corner map is keyed on
+    // NIIN; the award and availability data are keyed on the 13-digit NSN.
+    const nsn13 = (primary.nsn ?? '').replace(/[^0-9]/g, '')
+    const avail = nsn13.length === 13 ? availabilityByNsn?.get(nsn13) : undefined
+
     const gaps: string[] = [
-      'present availability not read: no commercial locator credential is connected',
+      ...(avail
+        ? []
+        : ['present availability not read: the export carries no availability row for this stock number']),
       'source status is inferred from public award silence, not from a registration record',
     ]
     if (primary.quantity == null) gaps.push('solicitation quantity did not parse from the index row')
 
-    // Legs ESTABLISHED, never legs assumed. Availability can never contribute while unread.
+    /*
+     * Legs ESTABLISHED, never legs assumed. DELIBERATELY UNCHANGED by the availability wiring,
+     * and the reason is worth stating because the obvious edit is wrong.
+     *
+     * `legsEstablished` feeds `byCornerStrength`, so it orders the map. Counting a read of the
+     * availability leg would raise every row whose availability we can SEE, including a row with
+     * fifty companies listing stock, which is the opposite of a corner. "We know the answer" and
+     * "the answer is favourable" are different facts and this counter must not blur them.
+     *
+     * The honest reading of availability now travels on the row as its own fields, where the
+     * interface can show it and the scorer can weigh it, without silently reordering the map on
+     * a semantic nobody agreed to change.
+     */
     let legsEstablished = 1 // demand, observed in the index
     if (silentSourceCount > 0) legsEstablished += 1
 
@@ -162,7 +213,9 @@ export function buildCornerMap(input: BuildCornerMapInput): CornerMap {
       soleSource,
       signals,
       silentSourceCount,
-      availability: 'unknown_credential_absent',
+      availability: avail ? 'listed_self_reported' : 'unknown_credential_absent',
+      availabilityHolders: avail ? avail.holders : null,
+      availabilityUnits: avail ? avail.units : null,
       legsEstablished,
       gaps,
     })
@@ -190,7 +243,7 @@ export function buildCornerMap(input: BuildCornerMapInput): CornerMap {
     provenance: {
       ...input.provenance,
       legsAvailable:
-        'demand read from the daily index; source status inferred from award silence; availability not read',
+        'demand read from the daily index; source status inferred from award silence; availability read from the NSN-Now export where it carries a row, self-reported and never confirmed',
     },
   }
 }
