@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { ROLES } from './permissions'
 
@@ -169,6 +169,39 @@ export function coerceRoster(raw: unknown): Roster {
   }
 
   return { overrides, added }
+}
+
+export type Writability = { writable: true; reason: null } | { writable: false; reason: string }
+
+export const NOT_WRITABLE_REASON =
+  'The server cannot write to its state directory, so a change here could not be saved. ' +
+  'User management stays read only until that is fixed on the server.'
+
+/**
+ * CAN THE ROSTER ACTUALLY BE SAVED? Measured, never assumed.
+ *
+ * This is the honest version of the flag the screen used to carry. `canMutate` began life as
+ * "is a database configured", became a hardcoded `true` when the state file replaced the
+ * database, and a boolean that is always true and read by nobody is the same "built and wired
+ * but never fed" shape this estate keeps re-learning. So it now answers a real question with a
+ * real measurement: is the file, or the directory that would hold it, writable by this process?
+ *
+ * It CREATES NOTHING. A read path with a side effect is its own defect, and a probe that fixed
+ * the thing it was measuring would report a writable directory it had just made. It checks the
+ * file if the file exists, else the directory if the directory exists, else the parent that
+ * would have to allow the directory to be created.
+ */
+export function rosterWritable(): Writability {
+  const dir = stateDir()
+  const p = filePath()
+  try {
+    if (existsSync(p)) accessSync(p, constants.W_OK)
+    else if (existsSync(dir)) accessSync(dir, constants.W_OK)
+    else accessSync(path.dirname(dir), constants.W_OK)
+    return { writable: true, reason: null }
+  } catch {
+    return { writable: false, reason: NOT_WRITABLE_REASON }
+  }
 }
 
 export function readRoster(): Roster {

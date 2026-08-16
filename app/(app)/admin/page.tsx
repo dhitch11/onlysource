@@ -42,7 +42,8 @@ export const dynamic = 'force-dynamic'
 export default async function AdminPage() {
   await requireGateSession()
   const directory = await getDirectory()
-  const { org, users, roles, roleOptions, connectors, accessNote } = directory
+  const { org, users, roles, roleOptions, connectors, accessNote, canMutate, mutateBlockedReason } =
+    directory
 
   return (
     <div className={styles.page}>
@@ -59,7 +60,13 @@ export default async function AdminPage() {
       </header>
 
       <div className={styles.body}>
-        <AdminConsole initial={users} roleOptions={roleOptions} accessNote={accessNote} />
+        <AdminConsole
+          initial={users}
+          roleOptions={roleOptions}
+          accessNote={accessNote}
+          canMutate={canMutate}
+          mutateBlockedReason={mutateBlockedReason}
+        />
 
         <div className={styles.cards}>
           <section className={styles.card} aria-label="Roles and permissions">

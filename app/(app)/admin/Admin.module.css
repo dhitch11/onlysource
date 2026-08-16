@@ -50,7 +50,7 @@
 
 .meta b {
   color: var(--olive);
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   font-weight: 600;
 }
 
@@ -143,7 +143,7 @@
 }
 
 .mono {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
   color: var(--dim);
   font-size: 0.85rem;
 }
@@ -200,7 +200,8 @@
 }
 
 .pair dd {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--dim);
   text-align: right;
   margin: 0;
@@ -259,6 +260,9 @@
   font-size: 0.85rem;
   color: var(--dim);
   margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* The standing truth about what this roster is and is not. Always visible, never a tooltip,
@@ -344,7 +348,8 @@
 }
 
 .titleInput {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--dim);
 }
 
@@ -375,6 +380,13 @@
   flex-direction: column;
   gap: 0.25rem;
   margin-top: 0.15rem;
+}
+
+/* The cell is always present so every row carries the same number of cells as the header
+   carries columns, which is what makes the ARIA table well formed. When it holds nothing it
+   must take no space, or every unblocked row grows a phantom line. */
+.rowReasons:empty {
+  display: none;
 }
 
 .rowReason {

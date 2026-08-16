@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -7,6 +7,7 @@ import {
   coerceRoster,
   readRoster,
   removeMember,
+  rosterWritable,
   setOverride,
   updateMember,
   writeRoster,
@@ -186,6 +187,41 @@ describe('a broken state file degrades safely instead of taking the console down
     })
     expect(r.overrides['seed:hitchman']).not.toHaveProperty('name')
     expect(r.overrides['seed:hitchman']).not.toHaveProperty('email')
+  })
+})
+
+describe('writability is measured, not assumed', () => {
+  it('reports writable for a directory this process can write', () => {
+    expect(rosterWritable()).toEqual({ writable: true, reason: null })
+  })
+
+  it('reports NOT writable, with a reason, when the directory is read only', () => {
+    // Skipped when the test runs as root, because root ignores the mode bits and the probe
+    // would be measuring nothing. Saying so beats a green test that proved nothing.
+    if (typeof process.getuid === 'function' && process.getuid() === 0) {
+      console.log('(skipped: running as root, where W_OK always succeeds)')
+      return
+    }
+    chmodSync(dir, 0o500)
+    try {
+      const w = rosterWritable()
+      expect(w.writable).toBe(false)
+      expect(w.reason).toContain('could not be saved')
+    } finally {
+      chmodSync(dir, 0o700)
+    }
+  })
+
+  it('reports writable when the state directory does not exist yet but its parent does', () => {
+    process.env.ONLYSOURCE_STATE_DIR = path.join(dir, 'not-created-yet')
+    expect(rosterWritable().writable).toBe(true)
+    // and the probe CREATED NOTHING while answering
+    expect(existsSync(path.join(dir, 'not-created-yet'))).toBe(false)
+  })
+
+  it('reports NOT writable when neither the directory nor its parent exists', () => {
+    process.env.ONLYSOURCE_STATE_DIR = path.join(dir, 'no', 'such', 'tree')
+    expect(rosterWritable().writable).toBe(false)
   })
 })
 

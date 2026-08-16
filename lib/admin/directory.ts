@@ -1,7 +1,7 @@
 import 'server-only'
 import { env } from '@/lib/env'
 import { ROLES, type Role } from './permissions'
-import { readRoster, type Roster, type RosterStatus } from './roster-store'
+import { readRoster, rosterWritable, type Roster, type RosterStatus } from './roster-store'
 import {
   guardRemove,
   guardRoleChange,
@@ -109,7 +109,11 @@ export type DirectorySnapshot = {
   roleOptions: RoleOption[]
   connectors: ConnectorState[]
   source: DirectorySource
-  /** True while the roster can be persisted, which is now. */
+  /**
+   * Whether the roster can actually be saved, MEASURED against the state directory on every
+   * request. Not "is a database configured" and not a hardcoded true: either of those is a
+   * flag that stops tracking the thing it claims to describe.
+   */
   canMutate: boolean
   /** Plain words for why not, when not. Never a silent disable. */
   mutateBlockedReason: string | null
@@ -284,6 +288,7 @@ export async function getDirectory(): Promise<DirectorySnapshot> {
   const roster = readRoster()
   const users = buildUsers(roster)
   const touched = Object.keys(roster.overrides).length > 0 || roster.added.length > 0
+  const write = rosterWritable()
 
   return {
     org: {
@@ -297,8 +302,8 @@ export async function getDirectory(): Promise<DirectorySnapshot> {
     roleOptions: ROLES.map((r) => ({ key: r.key, name: r.name })),
     connectors: CONNECTORS,
     source: touched ? 'operator_roster' : 'seed_identity',
-    canMutate: true,
-    mutateBlockedReason: null,
+    canMutate: write.writable,
+    mutateBlockedReason: write.reason,
     accessNote: ACCESS_NOTE,
   }
 }

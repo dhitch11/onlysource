@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import type { DirectoryUser, RoleOption } from '@/lib/admin/directory'
 import styles from './Admin.module.css'
 
@@ -23,6 +24,17 @@ import styles from './Admin.module.css'
  * second owner, which unlocks the first owner's controls) updates every affected row at once,
  * without this file knowing why.
  *
+ * ==========================================================================================
+ * A FOLLOWED REDIRECT IS NOT A SUCCESS. This is the defect this file exists to not have.
+ * ==========================================================================================
+ * When the gate cookie expires, `proxy.ts` answers an /api/* request with a 307 to /enter,
+ * `fetch` FOLLOWS it, and /enter answers 200 with HTML. So `response.ok` is TRUE on a request
+ * that saved nothing. Measured, on a real page with the cookie jar cleared:
+ * `{ok: true, status: 200, redirected: true, endedAt: "/enter?next=%2Fapi%2Fadmin%2Fusers"}`.
+ * A client that only checks `!r.ok` clears its form and says nothing, and the operator walks
+ * away believing an account was deactivated. `send()` therefore requires the PAYLOAD, not the
+ * status: no `users` array means no save, whatever the status line claims.
+ *
  * FOUR SMALLER THINGS THAT MATTER MORE THAN THEY LOOK:
  *
  *  - A failed request renders its message. Silence after a click reads as "it worked".
@@ -40,14 +52,23 @@ type Draft = { name: string; email: string; title: string; roleKey: string }
 
 const emptyDraft = (roleKey: string): Draft => ({ name: '', email: '', title: '', roleKey })
 
+const SESSION_GONE =
+  'This session is no longer signed in, so nothing was saved. Reload the page and enter the ' +
+  'access phrase again.'
+
 export function AdminConsole({
   initial,
   roleOptions,
   accessNote,
+  canMutate,
+  mutateBlockedReason,
 }: {
   initial: DirectoryUser[]
   roleOptions: RoleOption[]
   accessNote: string
+  /** Measured, not assumed: whether the server can actually write the roster file. */
+  canMutate: boolean
+  mutateBlockedReason: string | null
 }) {
   const defaultRole =
     roleOptions.find((r) => r.key === 'operator')?.key ?? roleOptions[0]?.key ?? 'operator'
@@ -59,19 +80,30 @@ export function AdminConsole({
   const [confirming, setConfirming] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  /** One request path. Returns true when the server saved it. */
+  /** One request path. Returns true only when the server actually returned a saved roster. */
   async function send(init: RequestInit & { url: string }, key: string): Promise<boolean> {
     setBusyKey(key)
     setError(null)
     try {
       const { url, ...rest } = init
       const r = await fetch(url, rest)
-      const d = (await r.json().catch(() => ({}))) as { users?: DirectoryUser[]; message?: string }
+      const d = (await r.json().catch(() => null)) as
+        | { users?: DirectoryUser[]; message?: string }
+        | null
+      if (r.redirected || d === null) {
+        // Followed to the sign-in page, or answered with something that is not our JSON.
+        setError(r.redirected ? SESSION_GONE : 'The server answered with something unreadable, so nothing was saved.')
+        return false
+      }
       if (!r.ok) {
         setError(d.message ?? 'That change was not saved.')
         return false
       }
-      if (d.users) setUsers(d.users)
+      if (!Array.isArray(d.users)) {
+        setError(SESSION_GONE)
+        return false
+      }
+      setUsers(d.users)
       return true
     } catch {
       setError('The server could not be reached, so nothing was saved.')
@@ -122,13 +154,24 @@ export function AdminConsole({
   return (
     <>
       <div className={styles.rosterBar}>
-        <p className={styles.rosterCount}>
+        {/* A DIV, not a P, and that is load-bearing. <ExplainButton> renders its panel as a
+            sibling <div popover>, and an HTML parser auto-closes a <p> when a <div> opens
+            inside it. The server tree and the client tree then disagree and React throws a
+            hydration error on a page that otherwise looks perfect. Measured: this exact
+            markup as a <p> produced eight React #418 errors per load. */}
+        <div className={styles.rosterCount}>
           {users.length} {users.length === 1 ? 'person' : 'people'} in the roster
           {activeCount !== users.length ? `, ${activeCount} active` : ''}
-        </p>
-        <Button variant="primary" onClick={() => setAdding((v) => !v)}>
-          {adding ? 'Cancel' : 'Add a user'}
-        </Button>
+          <ExplainButton helpId="admin.seeded_identity" size="sm" />
+        </div>
+        <span className={styles.topAction}>
+          <Button variant="primary" disabled={!canMutate} onClick={() => setAdding((v) => !v)}>
+            {adding ? 'Cancel' : 'Add a user'}
+          </Button>
+          {!canMutate && mutateBlockedReason ? (
+            <span className={styles.blockedReason}>{mutateBlockedReason}</span>
+          ) : null}
+        </span>
       </div>
 
       <p className={styles.accessNote}>{accessNote}</p>
@@ -139,7 +182,7 @@ export function AdminConsole({
         </p>
       ) : null}
 
-      {adding ? (
+      {adding && canMutate ? (
         <form
           className={styles.addForm}
           onSubmit={(e) => {
@@ -188,13 +231,19 @@ export function AdminConsole({
         </form>
       ) : null}
 
-      <section aria-label="Users" className={styles.table}>
+      <section aria-label="Users" role="table" className={styles.table}>
         <div className={`${styles.row} ${styles.head}`} role="row">
-          <span>User</span>
-          <span>Role</span>
-          <span>Title</span>
-          <span>Status</span>
-          <span>Actions</span>
+          <span role="columnheader">User</span>
+          <span role="columnheader">Role</span>
+          <span role="columnheader">Title</span>
+          <span role="columnheader">Status</span>
+          <span role="columnheader">Actions</span>
+          {/* A sixth column exists on every row for the reason a control is blocked. It is
+              named for assistive technology and hidden visually, because a header over a
+              mostly empty full-width line would read as a column that is usually broken. */}
+          <span role="columnheader" className="vh">
+            Notes
+          </span>
         </div>
 
         {users.map((u) => {
@@ -216,7 +265,7 @@ export function AdminConsole({
 
           return (
             <div key={u.id} className={styles.row} role="row">
-              <div className={styles.user}>
+              <div className={styles.user} role="cell">
                 <span className={styles.avatar} aria-hidden="true">
                   {u.initials}
                 </span>
@@ -227,12 +276,12 @@ export function AdminConsole({
                 </span>
               </div>
 
-              <span className={styles.cell}>
+              <span className={styles.cell} role="cell">
                 <select
                   className={styles.roleSelect}
                   aria-label={`Role for ${u.name}`}
                   value={u.roleKey}
-                  disabled={rowBusy || !roleVerdict.allowed}
+                  disabled={rowBusy || !canMutate || !roleVerdict.allowed}
                   onChange={(e) => patch(u.id, 'role', { roleKey: e.target.value })}
                 >
                   {roleOptions.map((r) => (
@@ -243,12 +292,16 @@ export function AdminConsole({
                 </select>
               </span>
 
-              <span className={styles.cell}>
+              <span className={styles.cell} role="cell">
+                {/* Keyed on the SERVER value, so a refused or coerced save remounts the input
+                    and the operator sees what was actually stored. An uncontrolled input with
+                    a stable key keeps the typed text on screen looking saved. */}
                 <input
+                  key={`${u.id}:${u.title}`}
                   className={styles.titleInput}
                   aria-label={`Title for ${u.name}`}
                   defaultValue={u.title}
-                  disabled={rowBusy}
+                  disabled={rowBusy || !canMutate}
                   placeholder="No title"
                   onBlur={(e) => {
                     const next = e.target.value.trim()
@@ -260,7 +313,7 @@ export function AdminConsole({
                 />
               </span>
 
-              <span className={styles.cell}>
+              <span className={styles.cell} role="cell">
                 {u.status === 'active' ? (
                   <StatusChip tone="verified" srLabel="Active member of this organization">
                     Active
@@ -272,13 +325,13 @@ export function AdminConsole({
                 )}
               </span>
 
-              <span className={styles.cell}>
+              <span className={styles.cell} role="cell">
                 <span className={styles.actions}>
                   <Button
                     variant="quiet"
                     busy={busyKey === `${u.id}:status`}
                     busyLabel="Saving"
-                    disabled={rowBusy || !statusVerdict.allowed}
+                    disabled={rowBusy || !canMutate || !statusVerdict.allowed}
                     onClick={() =>
                       patch(u.id, 'status', { status: u.status === 'active' ? 'deactivated' : 'active' })
                     }
@@ -303,7 +356,7 @@ export function AdminConsole({
                   ) : (
                     <Button
                       variant="quiet"
-                      disabled={rowBusy || !removeVerdict.allowed}
+                      disabled={rowBusy || !canMutate || !removeVerdict.allowed}
                       onClick={() => setConfirming(u.id)}
                     >
                       Remove
@@ -315,16 +368,16 @@ export function AdminConsole({
               {/* Spans the whole row rather than sitting inside the actions cell, so the
                   controls above it stay on one line with every other row's controls. A
                   reason tucked into one column pushed that column's buttons out of
-                  alignment with the selects beside them. */}
-              {shownReasons.length ? (
-                <span className={styles.rowReasons}>
-                  {shownReasons.map((r) => (
-                    <span key={r} className={styles.rowReason}>
-                      {r}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
+                  alignment with the selects beside them. Always present, so the row always
+                  has the same number of cells as the header has columns; empty rows are
+                  removed from the layout by `.rowReasons:empty`. */}
+              <span className={styles.rowReasons} role="cell">
+                {shownReasons.map((r) => (
+                  <span key={r} className={styles.rowReason}>
+                    {r}
+                  </span>
+                ))}
+              </span>
             </div>
           )
         })}
