@@ -25,6 +25,7 @@ export type NavIconName =
   | "admin"
   | "intelligence"
   | "goldmine"
+  | "competitor"
   | "settings"
   | "design";
 
@@ -84,6 +85,13 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
       <rect x="5" y="12" width="3.5" height="7" />
       <rect x="10.5" y="8" width="3.5" height="11" />
       <rect x="16" y="4" width="3.5" height="15" />
+    </>
+  ),
+  // Competitor teardown: a flag planted on taken ground.
+  competitor: (
+    <>
+      <path d="M5 3v18" />
+      <path d="M5 4h11l-2 3 2 3H5" />
     </>
   ),
   // Settings: a gear.

@@ -1,0 +1,225 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-bottom: var(--sp-7);
+}
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.h1 {
+  font-size: var(--fs-600);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.sub {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  max-width: 74ch;
+  line-height: 1.55;
+}
+.sub b {
+  color: var(--ink);
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--sp-3);
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-4);
+  min-width: 0;
+}
+.metricHot {
+  border-color: var(--accent-2);
+  background: var(--accent-soft);
+}
+.metricN {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-700);
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--accent);
+}
+.metricLabel {
+  font-size: var(--fs-200);
+  color: var(--ink);
+  margin-top: var(--sp-2);
+}
+.metricHint {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.cardTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.cardSub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+  max-width: 80ch;
+}
+.empty {
+  font-size: var(--fs-200);
+  color: var(--dim);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-300);
+  min-width: 720px;
+}
+.table thead th {
+  text-align: left;
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--line-control);
+  background: var(--panel-2);
+}
+.table tbody td {
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.numCol {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.nsnLink {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-control);
+  white-space: nowrap;
+  margin-inline-end: var(--sp-2);
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.nsnLink:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.nsnLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nsnPlain {
+  color: var(--dim);
+  white-space: nowrap;
+  margin-inline-end: var(--sp-2);
+}
+.partCell {
+  max-width: 28ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+}
+.pn {
+  color: var(--dim);
+  font-size: var(--fs-200);
+}
+.rivalCell {
+  max-width: 26ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+  font-size: var(--fs-200);
+}
+.tableFoot {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.unavailable {
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 70ch;
+}
+.unavailableTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.unavailable p {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+}
+.unavailable code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .metricN {
+    font-size: var(--fs-500);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes comp-fade-up {
+    from { opacity: 0; transform: translate3d(0, 12px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  .head { animation: comp-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .metricStrip { animation: comp-fade-up 0.5s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .card { animation: comp-fade-up 0.5s 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+}

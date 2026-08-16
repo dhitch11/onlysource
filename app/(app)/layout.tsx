@@ -63,6 +63,9 @@ const DESTINATIONS: NavDestination[] = [
   { href: '/monopoly', label: 'Monopoly Map', icon: 'map' },
   // The enriched distressed-supplier book of business (count = Tier-A tally, computed below).
   { href: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
+  // Competitor teardown — every part a company is approved to make, split into their monopolies vs
+  // where they compete. Loads from any <company>-parts.xlsx export.
+  { href: '/competitor', label: 'Competitor teardown', icon: 'competitor' },
   // ---- the working tools ----
   { href: '/board', label: 'The Board', icon: 'board', separatorBefore: true },
   { href: '/sales', label: 'Sales Hub', icon: 'sales', tag: 'CRM' },
