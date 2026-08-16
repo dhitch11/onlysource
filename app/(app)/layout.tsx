@@ -75,8 +75,8 @@ const DESTINATIONS: NavDestination[] = [
   // ---- admin, settings, internal (the bottom) ----
   { href: '/admin', label: 'Admin & Users', icon: 'admin', separatorBefore: true },
   { href: '/settings', label: 'Settings', icon: 'settings' },
-  // The design system reference. Internal.
-  { href: '/design', label: 'Design system', icon: 'design' },
+  // The Design system reference is internal (component gallery for builders), not an operator tool,
+  // so it is NOT in the nav. It stays reachable at /design by URL for whoever is building.
 ]
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -91,6 +91,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // the same trust cost as a fabricated number. buildAllDatasets is memoized, so this shares
   // the build with the Monopoly page on the same request rather than reading the files twice.
   const dataPresent = resolveDataRoot().present
+  // The feed day every surface is reading, shown once in the chrome so the operator always knows how
+  // fresh the data is. A real measured value from the corner map's provenance, or nothing.
+  const feedDay = dataPresent ? buildAllDatasets().cornerMap.provenance.feedDay : null
   const destinations = DESTINATIONS.map((d) => {
     if (!dataPresent) return d
     if (d.href === '/monopoly') return { ...d, count: buildAllDatasets().cornerMap.summary.candidateCorners }
@@ -108,6 +111,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       destinations={destinations}
       meta={
         <>
+          {feedDay ? (
+            <span className="pill pill--ok" title={`Government data for ${feedDay}`}>
+              <span className="vh">Government data as of </span>
+              Gov data · {feedDay}
+            </span>
+          ) : null}
           <span className="pill pill--attention">{environment}</span>
           {/*
            * A VISIBLE LABEL, NOT A `title` TOOLTIP. R3/R4 ban the title attribute: it is
