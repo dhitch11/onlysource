@@ -249,6 +249,18 @@
   .metricN {
     font-size: var(--fs-500);
   }
+  /* On mobile the picker takes its own full-width line and shrinks to fit rather than pushing the
+   * page wider (the fixed 300px select + label exceeded a 366px content box). */
+  .pickerLabel {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+  }
+  .picker {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes comp-fade-up {
