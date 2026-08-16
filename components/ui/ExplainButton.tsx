@@ -38,6 +38,7 @@
 import { useId, useRef, useState } from "react";
 import { getHelp, inferOwner } from "../help/registry";
 import styles from "./ExplainButton.module.css";
+import { useRelativeNow } from "./use-relative-now";
 
 /**
  * The live computation record: the second half of L2, and the half that gets opened for
@@ -76,10 +77,12 @@ export interface ExplainButtonProps {
   size?: "sm" | "md";
 }
 
-function ageFrom(iso: string): string {
+/* `nowMs` is passed IN. See components/ui/use-relative-now.ts: reading the clock during render
+   is what threw hydration error #418 across this app. */
+function ageFrom(iso: string, nowMs: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "unknown age";
-  const mins = Math.floor((Date.now() - then) / 60000);
+  const mins = Math.floor((nowMs - then) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
@@ -91,6 +94,8 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
   const panelId = useId();
   const anchorName = `--x${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [open, setOpen] = useState(false);
+  // The panel is opened, read and closed, so one read at mount is enough; no interval.
+  const nowMs = useRelativeNow();
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const record = getHelp(helpId);
@@ -218,7 +223,7 @@ export function ExplainButton({ helpId, computation, size = "md" }: ExplainButto
                 <p className={styles.stamp}>
                   <span className="mono">{computation.modelVersion}</span>
                   <span aria-hidden="true"> · </span>
-                  <span>as of {ageFrom(computation.asOf)}</span>
+                  <span>as of {ageFrom(computation.asOf, nowMs)}</span>
                 </p>
               </div>
             ) : null}

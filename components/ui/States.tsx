@@ -29,6 +29,7 @@
 
 import styles from "./states.module.css";
 import { Button } from "./Button";
+import { useRelativeNow } from "./use-relative-now";
 
 /* ------------------------------------------------------------------ 1. never had data */
 
@@ -176,8 +177,11 @@ export interface StaleBannerProps {
  * a number rendered without its as-of is a claim with the expiry removed.
  */
 export function StaleBanner({ asOf, onRefresh }: StaleBannerProps) {
+  // A staleness banner that froze its own clock would be the one component in the product whose
+  // lie is the exact thing it exists to report. Refreshed every minute.
+  const nowMs = useRelativeNow(60_000);
   const when = new Date(asOf);
-  const hrs = Math.floor((Date.now() - when.getTime()) / 3600000);
+  const hrs = Math.floor((nowMs - when.getTime()) / 3600000);
   return (
     <div className={styles.stale} role="status">
       <span>

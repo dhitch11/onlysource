@@ -154,7 +154,7 @@ describe('the rules the interface shows are re-decided here, so a client cannot 
   })
 
   it('refuses a duplicate email whatever its case', async () => {
-    const r = await post({ name: 'Impostor', email: 'DHitchman@OnlySource.ai', roleKey: 'operator' })
+    const r = await post({ name: 'Impostor', email: 'David@Reddenda.COM', roleKey: 'operator' })
     expect(r.status).toBe(400)
     expect(r.message).toContain('already uses that email')
   })
@@ -164,6 +164,8 @@ describe('the rules the interface shows are re-decided here, so a client cannot 
     const d = await list()
     const dh = d.users.find((u) => u.id === 'seed:hitchman') as unknown as { name: string; email: string }
     expect(dh.name).toBe('David Hitchman')
-    expect(dh.email).toBe('dhitchman@onlysource.ai')
+    // The seeded owner address was corrected to david@reddenda.com on 2026-08-16 by owner
+    // ruling. It is still a PRODUCT FACT the API cannot rewrite, which is what this asserts.
+    expect(dh.email).toBe('david@reddenda.com')
   })
 })

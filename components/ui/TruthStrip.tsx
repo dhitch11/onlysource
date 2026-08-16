@@ -18,6 +18,7 @@
 
 import styles from "./TruthStrip.module.css";
 import { ExplainButton } from "./ExplainButton";
+import { useRelativeNow } from "./use-relative-now";
 
 export interface TruthSource {
   /** What the source is called in the operator's language, not the table name. */
@@ -46,11 +47,14 @@ export interface TruthStripProps {
   partialCoverage?: { indexed: number; total: number; of: string };
 }
 
-function stamp(iso?: string): string {
+/* `nowMs` is passed IN rather than read here. Reading the clock during render made the server
+   and the browser disagree on this text node and threw a hydration error on every page that
+   rendered a provenance strip. See components/ui/use-relative-now.ts. */
+function stamp(iso: string | undefined, nowMs: number): string {
   if (!iso) return "not received";
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return "unknown";
-  const mins = Math.floor((Date.now() - t.getTime()) / 60000);
+  const mins = Math.floor((nowMs - t.getTime()) / 60000);
   const clock = t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   if (mins < 60) return `${clock} (${mins} min ago)`;
   if (mins < 1440) return `${clock} (${Math.floor(mins / 60)}h ago)`;
@@ -58,9 +62,12 @@ function stamp(iso?: string): string {
 }
 
 export function TruthStrip({ sources, orgName, partialCoverage }: TruthStripProps) {
+  // Refreshed every minute: this strip is exactly the thing an operator leaves on screen and
+  // glances back at, so its age has to keep moving.
+  const nowMs = useRelativeNow(60_000);
   const anyStale = sources.some((s) => {
     if (!s.receivedAt) return true;
-    return Date.now() - new Date(s.receivedAt).getTime() > 24 * 3600 * 1000;
+    return nowMs - new Date(s.receivedAt).getTime() > 24 * 3600 * 1000;
   });
 
   return (
@@ -96,7 +103,7 @@ export function TruthStrip({ sources, orgName, partialCoverage }: TruthStripProp
                   ) : (
                     <span className="mono">{s.count.toLocaleString()}</span>
                   )}{" "}
-                  <span className={styles.when}>{stamp(s.receivedAt)}</span>
+                  <span className={styles.when}>{stamp(s.receivedAt, nowMs)}</span>
                   {s.quarantined && s.quarantined > 0 ? (
                     <>
                       {" "}
