@@ -1,6 +1,8 @@
 import { env } from '@/lib/env'
 import { buildIdentity } from '@/lib/build-identity'
-import { requireGateSession } from '@/lib/session/require-gate'
+import { requireGateSession, readGateVerdict } from '@/lib/session/require-gate'
+import { ANONYMOUS_SUBJECT } from '@/lib/session/pre-release-gate'
+import { findAccountById } from '@/lib/auth/accounts'
 import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavGroup } from '@/components/shell/AppShell'
 import { FeedFreshnessPill } from '@/components/shell/FeedFreshnessPill'
@@ -74,6 +76,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Monopoly Map',
         icon: 'map',
         description: 'Parts only one company can make, where that company has gone quiet.',
+      },
+      {
+        href: '/groups',
+        label: 'Supply Groups',
+        icon: 'groups',
+        description: 'The same map cut by the government’s own part classes, so you can pick a lane.',
       },
       {
         href: '/goldmine',
@@ -192,9 +200,50 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }),
   }))
 
+  /*
+   * WHO IS ACTUALLY SIGNED IN. READ FROM THE SESSION, NEVER ASSUMED.
+   *
+   * This block used to be the literal `{ name: 'David Hitchman', role: 'Owner',
+   * title: 'ProjectX' }`, rendered in the shell and therefore on 100% of authenticated
+   * page views. Three separate fabrications in one object: it showed one man's name to
+   * every account, it told every account it held the `Owner` role when the server-side
+   * lockout that governs that role says otherwise, and it carried the old project
+   * codename in a product called ONLYSOURCE. None of it was a missing capability —
+   * `lib/auth/accounts.ts` has carried the real name, email and role all along, and the
+   * chrome printed over the top of it.
+   *
+   * The gate token's `sub` is the account id, so the identity is one lookup away. The
+   * only case with no account is the break-glass door (`ANONYMOUS_SUBJECT`), which is
+   * authenticated-but-anonymous by design and reachable only while no account has a
+   * credential. That case, and a session whose account was revoked mid-flight, both
+   * render the STATED ABSENCE of an identity. They never fall back to a name, because a
+   * plausible name is precisely how the original defect read as correct for weeks.
+   */
+  const verdict = await readGateVerdict()
+  const account =
+    verdict.valid && verdict.payload.sub !== ANONYMOUS_SUBJECT
+      ? findAccountById(verdict.payload.sub)
+      : null
+  const signedIn = account
+    ? {
+        name: account.name,
+        /*
+         * The role's OWN display name from the permission model, never a string built
+         * here. Note there are two `Role` types in this repo: the slug union in
+         * lib/auth/roles.ts and the permission-carrying object in lib/admin/permissions.ts.
+         * `accounts.ts` uses the latter, so `.name` is the authored label that sits beside
+         * the permission list the server actually enforces. Deriving a label locally would
+         * put a second name on an authorization concept and let the chrome drift from the
+         * model, which is the class of bug this whole block replaced.
+         */
+        role: account.role.name,
+        title: account.email,
+      }
+    : { name: 'No account', role: 'Break-glass session' }
+
   return (
     <AppShell
-      user={{ name: 'David Hitchman', role: 'Owner', title: 'ProjectX' }}
+      user={signedIn}
       org={{ name: 'ONLYSOURCE' }}
       groups={groups}
       meta={
@@ -238,16 +287,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        * authenticated surface and inherits this layout's gate: an unauthenticated visitor never
        * renders him at all, server-side, rather than being shown a widget that is merely hidden.
        *
-       * Fixed-position, so he sits beside {children} rather than in the meta bar, which is an
-       * inline row of small facts a floating panel would fight.
-       *
-       * NO `operator` PROP ON PURPOSE. The name in the `user` prop above is a hardcoded literal,
-       * not a session read, and another lane is mid-fix on exactly that. Feeding it to Thomas
-       * would have him greet every account by one man's name, which is the same fabrication
-       * wearing a friendlier voice. He says "the operator" until the real identity is wired.
-       * Added by @THOMAS-CONCIERGE, additively, per the lane claim.
+       * He is fixed-position, so he sits beside {children} rather than in the meta bar. The meta
+       * bar is an inline row of small facts; a floating panel placed inside it would inherit that
+       * row's layout and fight it. Added by @THOMAS-CONCIERGE, additively, per the lane claim.
        */}
-      <Thomas />
+      <Thomas operator={signedIn.name} />
     </AppShell>
   )
 }

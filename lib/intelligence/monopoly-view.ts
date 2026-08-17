@@ -1,4 +1,4 @@
-import { buildAllDatasets, DATA_PATHS } from '@/lib/intelligence/datasets'
+import { buildAllDatasets, type ServedFeedMeta } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
@@ -10,17 +10,19 @@ import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
  * THE MONOPOLY PAGE'S VIEW MODEL, BUILT ONCE PER FEED DAY, NOT ONCE PER REQUEST.
  *
  * /monopoly is where the daily loop starts, and it was paying ~2s of server time on every
- * visit to redo work whose inputs cannot change between visits: join 2,141 corner rows to
- * the award and forecast indexes and run CornerScore over every row. The underlying archive
- * is a pinned, hash-asserted snapshot (see datasets.ts SOURCE_ARCHIVE), and every input
- * builder below is itself memoized for exactly that reason, so re-deriving the join per
- * request bought no freshness, only latency.
+ * visit to redo work whose inputs cannot change between visits: join every corner row to
+ * the award and forecast indexes and run CornerScore over each one. The underlying inputs
+ * are one resolved feed day's archived, byte-re-verified captures, and every input builder
+ * below is itself memoized for exactly that reason, so re-deriving the join per request
+ * bought no freshness, only latency.
  *
- * The memo is keyed by feed day plus the resolved input paths, the same discipline as
- * `datasetCache` in datasets.ts: a test pointing at custom paths, or a future second feed
- * day, gets its own entry rather than a stale hit. A new feed day arrives as a deploy plus
- * process restart, which clears the memo. Rendering stays force-dynamic in the page: the
- * gate check and the RSC render still run per request; only the pure computation is reused.
+ * THE MEMO KEY IS THE SERVED DAY'S IDENTITY, NOT A PINNED PATH (corrected 2026-08-17). It
+ * used to read `DATA_PATHS`, a module constant naming one hardcoded day, so the key could
+ * not change and a newly captured day would have hit a stale entry forever. It now keys on
+ * the resolution `buildAllDatasets` actually served — feed day plus both archived storage
+ * keys — so a capture landing produces a different key and a fresh view, with no clock or
+ * TTL involved. `buildAllDatasets` is itself memoised on the same identity, so calling it
+ * before the cache lookup costs a map read, not a rebuild.
  *
  * NOTHING here changes a number. The values are computed by the same functions, once,
  * and `test/intelligence/monopoly-view.test.ts` asserts the memo returns the identical
@@ -123,6 +125,13 @@ function slimForecast(f: ForecastSummary | null): GridForecast | null {
 
 export type MonopolyView = {
   feedDay: string
+  /**
+   * WHICH DAY IS BEING SERVED AND WHY, carried so a surface can say "serving 2026-08-13;
+   * 2026-08-14 is held but not servable because X" instead of silently rendering older
+   * data. `feed.feedDay` is the same string as `feedDay` and as `provenance.feedDay` by
+   * construction: all three read from one resolution, so they cannot name different days.
+   */
+  feed: ServedFeedMeta
   summary: CornerMap['summary']
   provenance: CornerMap['provenance']
   rows: EnrichedCornerRow[]
@@ -143,11 +152,14 @@ export type MonopolyView = {
 const viewCache = new Map<string, MonopolyView>()
 
 export function buildMonopolyView(): MonopolyView {
-  const key = `${DATA_PATHS.feedDay}|${DATA_PATHS.approvedSource}|${DATA_PATHS.index}`
+  // Resolve FIRST, then key: the served day is the only honest cache key, and it cannot be
+  // known without asking. buildAllDatasets is memoised on that same identity, so this is a
+  // map read on the warm path rather than a second build.
+  const { cornerMap, feed } = buildAllDatasets()
+  const key = `${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}`
   const hit = viewCache.get(key)
   if (hit) return hit
 
-  const { cornerMap } = buildAllDatasets()
   const awardIndex = buildNsnAwardIndex()
   const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null
   const forecastIndex = buildForecastIndex()
@@ -191,6 +203,7 @@ export function buildMonopolyView(): MonopolyView {
 
   const view: MonopolyView = {
     feedDay: cornerMap.provenance.feedDay,
+    feed,
     summary: cornerMap.summary,
     provenance: cornerMap.provenance,
     rows,

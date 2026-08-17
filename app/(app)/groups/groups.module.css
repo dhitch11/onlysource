@@ -1,0 +1,783 @@
+/*
+ * SUPPLY GROUPS. Every value below is a token. No raw hex, no raw px outside the two places
+ * the scale genuinely has no step for (a table min-width and a select's max-width), and no
+ * new token invented for this surface.
+ *
+ * THE TONE MAP, WHICH IS THE WHOLE POINT OF THE PAGE:
+ *   significant   olive   the measured / verified role, and the only state that may present
+ *                         a rate as a finding
+ *   indicative    steel   a real rate that is not distinguishable from the map average
+ *   insufficient  faint   the quietest, and the DOMINANT state on a one-day window, so it
+ *                         keeps the same row weight, the same padding and the same body size
+ *                         as every other row. A state that is most of the board must not be
+ *                         styled as an exception, or it teaches the operator to read
+ *                         exceptions as the norm.
+ * No amber and no red anywhere on this surface: both are reserved for the award clock. No
+ * accent either, because brass is the money signal and a class grade is not money.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-bottom: var(--sp-7);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.h1 {
+  font-size: var(--fs-600);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-tight);
+  color: var(--ink);
+}
+
+.sub {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  max-width: 78ch;
+  line-height: var(--lh-300);
+}
+
+.sub b {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+/* ------------------------------------------------------------------- the counted band */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--sp-3);
+}
+
+.stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-4);
+  min-width: 0;
+}
+
+/* The explainer sits over the tile's top-right corner so it never fights the column stack
+ * for layout, which is the same placement the dashboard metric cards use. */
+.statHelp {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+}
+
+.statN {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-700);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-700);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.statL {
+  font-size: var(--fs-200);
+  color: var(--ink);
+  margin-top: var(--sp-2);
+  padding-inline-end: var(--sp-5);
+}
+
+.statHint {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: var(--lh-100);
+  margin-top: var(--sp-1);
+}
+
+/* -------------------------------------------------------------------------- the verdict */
+
+/*
+ * "No class is distinguishable from the baseline" is a designed first-class answer, not an
+ * empty state. It is the loudest block on the page for exactly that reason: it is what the
+ * page was asked and what the page found.
+ */
+.verdict {
+  display: flex;
+  gap: var(--sp-4);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  padding: var(--sp-5);
+  min-width: 0;
+}
+
+.verdictRule {
+  flex: none;
+  inline-size: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--dim);
+}
+
+.verdictRuleFound {
+  background: var(--olive);
+}
+
+.verdictText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.verdictHead {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  line-height: var(--lh-500);
+}
+
+.verdictBody {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  line-height: var(--lh-300);
+  max-width: 82ch;
+}
+
+.verdictNote {
+  font-size: var(--fs-200);
+  color: var(--faint);
+  line-height: var(--lh-200);
+  max-width: 82ch;
+}
+
+/* The commercial read, attached to a class that actually cleared the bar. */
+.commercial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border: 1px solid var(--olive-dim);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--olive) 8%, transparent);
+  padding: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+
+.commercialHead {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--olive);
+}
+
+.commercialLine {
+  font-size: var(--fs-300);
+  color: var(--ink);
+  line-height: var(--lh-300);
+  max-width: 80ch;
+}
+
+/* The catalogue-unavailable band. The reason is the owning module's sentence, verbatim. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--sp-4);
+}
+
+.noticeHead {
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.noticeBody {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+  max-width: 80ch;
+}
+
+/* ---------------------------------------------------------------------------- the board */
+
+.board {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.boardHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.boardTitle {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.boardSub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+  max-width: 84ch;
+}
+
+/* ------------------------------------------------------------------------- the controls */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  padding-block: var(--sp-1);
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.controlLabel {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+}
+
+.select {
+  /* 16px, the iOS no-zoom threshold and the house floor for a form value. */
+  font-size: var(--fs-400);
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  min-block-size: var(--target-min);
+  /* An H2 group title runs long. Cap the control, never the page. */
+  max-inline-size: min(30rem, 100%);
+}
+
+.select:focus-visible,
+.check:focus-visible,
+.detailBtn:focus-visible,
+.clearBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-300);
+  color: var(--ink);
+  min-block-size: var(--target-min);
+  cursor: pointer;
+}
+
+.check {
+  inline-size: 1rem;
+  block-size: 1rem;
+  accent-color: var(--olive);
+  flex: none;
+  cursor: pointer;
+}
+
+.checkCount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+  font-size: var(--fs-200);
+}
+
+.showing {
+  font-size: var(--fs-200);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.showing b {
+  color: var(--dim);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------------------------------------------------------------------------- the table */
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  /* 15px: the table body floor. Density is bought with spacing and colour, never with size. */
+  font-size: var(--fs-300);
+  min-width: 62rem;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-control);
+  background: var(--panel-2);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  vertical-align: bottom;
+}
+
+.headCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.table tbody td {
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rowOpen td {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.numCol {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.zero {
+  color: var(--faint);
+}
+
+/* The class cell: the code stays a code, the title stays a title, and a class with no title
+ * in the government table says so instead of wearing its code as a name. */
+.classCell {
+  min-inline-size: 22ch;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.name {
+  display: block;
+  color: var(--dim);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  margin-top: var(--sp-0);
+  max-inline-size: 44ch;
+}
+
+.stated {
+  color: var(--faint);
+  font-style: italic;
+}
+
+.groupCell {
+  color: var(--dim);
+  font-size: var(--fs-200);
+  max-inline-size: 32ch;
+  line-height: var(--lh-200);
+}
+
+.groupCode {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------- the rate cell */
+
+.rateCell {
+  min-inline-size: 20ch;
+}
+
+/* Significant: olive, and the only state that carries a multiple. */
+.rateFinding {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  color: var(--olive);
+}
+
+.rateLift {
+  display: inline-block;
+  margin-inline-start: var(--sp-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  color: var(--olive);
+}
+
+/* Indicative: the same real rate, in steel, and NO multiple. The words carry the grade. */
+.rateMeasured {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-300);
+  color: var(--steel);
+  font-weight: var(--fw-semibold);
+}
+
+.rateNote {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: var(--lh-100);
+  margin-top: var(--sp-0);
+  max-inline-size: 34ch;
+}
+
+/*
+ * Insufficient: counts only, no percentage, and the word visible. Same font size and same
+ * padding as every other cell. The dashed square is the house insufficient glyph, and it is
+ * a SHARP square on purpose: shape carries the state so a greyscale print still reads.
+ */
+.untested {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-200);
+  color: var(--faint);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.untestedGlyph {
+  inline-size: 8px;
+  block-size: 8px;
+  border: 1px dashed var(--faint);
+  flex: none;
+  align-self: center;
+}
+
+.untestedWhy {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: var(--lh-100);
+  max-inline-size: 34ch;
+}
+
+/* ------------------------------------------------------------------------- the expander */
+
+.detailCol {
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+.detailBtn {
+  font: inherit;
+  font-size: var(--fs-200);
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-1) var(--sp-3);
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.detailBtn:hover {
+  /* Hover may change colour. Hover reveals nothing: the panel opens on click only. */
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.detailRow td {
+  padding: 0;
+  background: var(--panel-2);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.detailHeadRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.detailHead {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+  color: var(--faint);
+}
+
+.scope {
+  display: grid;
+  gap: var(--sp-2);
+  max-inline-size: 100ch;
+}
+
+.scopeItem {
+  display: grid;
+  grid-template-columns: 9ch 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
+}
+
+@media (max-width: 40rem) {
+  .scopeItem {
+    grid-template-columns: 1fr;
+    gap: var(--sp-1);
+  }
+}
+
+.scopeField {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+
+.scopeValue {
+  font-size: var(--fs-300);
+  color: var(--ink);
+  line-height: var(--lh-300);
+  overflow-wrap: anywhere;
+}
+
+.scopeAbsent {
+  color: var(--faint);
+  font-style: italic;
+}
+
+.testLine {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+  max-inline-size: 100ch;
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+
+/* -------------------------------------------------------------------- filtered to nothing */
+
+.noResults {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius);
+  padding: var(--sp-5);
+  background: var(--panel-2);
+}
+
+.noResultsTitle {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.noResultsBody {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  line-height: var(--lh-300);
+  max-width: 74ch;
+}
+
+.clearBtn {
+  font: inherit;
+  font-size: var(--fs-300);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-4);
+  min-block-size: var(--target-min);
+  cursor: pointer;
+}
+
+.clearBtn:hover {
+  border-color: var(--ink);
+}
+
+/* ------------------------------------------------------------------------ the truth block */
+
+.truth {
+  display: flex;
+  gap: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-4) var(--sp-5);
+  min-width: 0;
+}
+
+.truthDot {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  margin-top: var(--sp-2);
+  background: var(--olive);
+}
+
+.truthText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.truthText p {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-300);
+  max-width: 96ch;
+}
+
+.truthText b {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.truthProv {
+  color: var(--faint);
+}
+
+.truthProv code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.faint {
+  color: var(--faint);
+}
+
+/* --------------------------------------------------------------------- data not present */
+
+.unavailable {
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 74ch;
+}
+
+.unavailableTitle {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+}
+
+.unavailable p {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  line-height: var(--lh-300);
+}
+
+.pathList {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Motion: transform and opacity only, on entry only, and removed entirely under a reduced
+ * motion preference rather than shortened.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes groups-fade-up {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 10px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .head {
+    animation: groups-fade-up var(--dur-slow) var(--ease) both;
+  }
+
+  .stats {
+    animation: groups-fade-up var(--dur-slow) 60ms var(--ease) both;
+  }
+
+  .verdict {
+    animation: groups-fade-up var(--dur-slow) 120ms var(--ease) both;
+  }
+
+  .board {
+    animation: groups-fade-up var(--dur-slow) 180ms var(--ease) both;
+  }
+}

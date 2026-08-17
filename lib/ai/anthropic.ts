@@ -113,7 +113,35 @@ async function callOnce(
       .map((b) => b.text as string)
       .join('\n')
       .trim()
-    if (!text) return { ok: false, reason: 'AI returned an empty response.', retryable: true }
+    /*
+     * A REFUSAL IS AN ANSWER, NOT AN OUTAGE, AND IT IS NOT RETRYABLE.
+     *
+     * This function used to collapse every empty body into one retryable
+     * "AI returned an empty response". Two things went wrong with that, both costing real
+     * money on a live path. First, the operator could not tell a model declining to write
+     * something from the vendor being down from the dossier having no facts in it — three
+     * different situations, one sentence. Second, `generate()` treats retryable as
+     * permission to walk the rest of the chain, so a refusal was re-sent to every model in
+     * the slot and BILLED ONCE PER MODEL before failing anyway.
+     *
+     * Retrying a refusal on a weaker model is also the wrong thing to want: it is shopping
+     * the same prompt around until something answers it, which is exactly the behaviour a
+     * refusal signal exists to stop. So it fails here, once, in its own words.
+     */
+    if (data.stop_reason === 'refusal') {
+      return {
+        ok: false,
+        reason: 'The model declined to answer this request. This is a refusal, not an outage.',
+        retryable: false,
+      }
+    }
+    if (!text) {
+      return {
+        ok: false,
+        reason: `AI returned no text (stop_reason: ${data.stop_reason ?? 'unreported'}).`,
+        retryable: true,
+      }
+    }
     /*
      * A response that hit the token ceiling is a CLIPPED DELIVERABLE, not a success. The
      * portfolio brief shipped live ending mid-word ("…remain at INSUFFICIEN") with a 200 and a

@@ -1,0 +1,26 @@
+{
+  "accepted": {
+    "followed-redirect-read-as-ok|app/(app)/intelligence/PortfolioBrief.tsx": 1,
+    "followed-redirect-read-as-ok|app/api/thomas/voice/route.ts": 1,
+    "followed-redirect-read-as-ok|components/shell/NotificationCenter.tsx": 1,
+    "followed-redirect-read-as-ok|components/thomas/useVoice.ts": 2,
+    "home-path-literal|lib/compliance/citations.ts": 2,
+    "home-path-literal|lib/data-root.ts": 1,
+    "home-path-literal|lib/engine/eligibility/amsc.ts": 1,
+    "home-path-literal|lib/engine/eligibility/gate.ts": 3,
+    "home-path-literal|lib/engine/pricing/anchor.ts": 1,
+    "home-path-literal|lib/engine/pricing/config.ts": 5,
+    "home-path-literal|lib/engine/pricing/evaluated.ts": 2,
+    "home-path-literal|lib/ingest/db.ts": 1,
+    "model-sdk-outside-lib-ai|lib/thomas/claude.ts": 1,
+    "provenance-on-a-literal|app/(app)/design/page.tsx": 3,
+    "raw-clock-in-domain|lib/connectors/dibbs/consent.ts": 1,
+    "title-attribute-as-information|app/(app)/competitor/page.tsx": 2,
+    "title-attribute-as-information|app/(app)/goldmine/page.tsx": 1,
+    "title-attribute-as-information|app/(app)/hubzone/page.tsx": 1,
+    "title-attribute-as-information|app/(app)/intelligence/page.tsx": 2,
+    "title-attribute-as-information|app/(app)/monopoly/MonopolyGrid.tsx": 2,
+    "title-attribute-as-information|app/(app)/sales/PipelineBoard.tsx": 1,
+    "title-attribute-as-information|components/ui/HBars.tsx": 1
+  }
+}

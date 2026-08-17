@@ -103,19 +103,27 @@ const columns: GridColumn<BoardRow>[] = [
         ? { state: "unknown", reason: "not published" }
         : { state: "known", value: r.returnDate.trim(), provenance: "measured" },
   },
-  {
-    id: "price",
-    header: "Evaluated price",
-    align: "end",
-    width: "13ch",
-    // The column abstains on every row today; the explainer says what would fill it, so the
-    // stated gap stops reading as a rendering fault (census 2026-08-17).
-    helpId: "board.evaluated_price",
-    cell: (): Cell => ({
-      state: "unknown",
-      reason: "needs award history + availability",
-    }),
-  },
+  /*
+   * THE EVALUATED-PRICE COLUMN IS DELIBERATELY NOT HERE, AND ITS SENTENCE DID NOT GO ANYWHERE.
+   *
+   * It used to be the last column, and its cell function took no row argument: it returned the
+   * identical abstention for every row on every feed day. Measured on the serving path at 1440
+   * (2026-08-17, corner tab, 129 rows): 258 of the page's 258 dashed boxes came from that one
+   * column (the <InsufficientData> wrapper is dashed and so is its glyph), the reason wrapped to
+   * three lines inside a 13ch cell, and the row pitch was 78px instead of the compact 32px the
+   * density token asks for. One column with nothing in it was costing the operator more than
+   * half the rows on his screen.
+   *
+   * A fact that is true of the COLUMN does not belong in a CELL. It is now stated once in the
+   * truth strip above the grid, where the sentence "Price, availability and modeled lift are
+   * absent from this page because those files do not contain them" already said it, with the
+   * registered `board.evaluated_price` explainer mounted beside it; and it is repeated per row
+   * in the expansion below, in full, where the sentence has room. Clip at the cell, overflow to
+   * row detail. Nothing the operator could read before is unreadable now.
+   *
+   * WHEN AWARD HISTORY IS JOINED INTO buildBoard, THIS COLUMN COMES BACK, keyed on the row, and
+   * it will abstain per row instead of per page. /monopoly already renders exactly that shape.
+   */
 ];
 
 export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: number }) {
@@ -187,6 +195,13 @@ export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: numb
                 : r.standing.kind === "multiple"
                   ? String(r.standing.count)
                   : `unknown: ${r.standing.why}`,
+          },
+          // The stated gap the grid used to repeat in a cell on every row, kept per row and in
+          // full. The two files this page is built from carry no price of any kind.
+          {
+            field: "Evaluated price",
+            value:
+              "not published in either file this page reads; it needs award history + availability, and it is not estimated here",
           },
         ]}
       />

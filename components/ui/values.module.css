@@ -22,10 +22,26 @@
   flex: none;
 }
 
-/* measured: filled square */
+/*
+ * THE THREE SHAPES CARRY THE MEANING, SO THEY ARE DRAWN AS FAR APART AS 8px ALLOWS.
+ *
+ * measured = SHARP square. modelled = full circle. insufficient = dashed sharp square.
+ *
+ * The two squares used to carry `border-radius: 2px`. That was the single largest source of
+ * geometry drift in the product: this file plus states.module.css rendered 15,232 stray 2px
+ * corners across ten routes, measured on the serving path, against a four-value radius scale
+ * that does not contain 2px. It was also the wrong drawing. At 8px, 2px is a quarter of the
+ * box, so the square was travelling toward the circle at precisely the size where a reader
+ * can least afford the two to converge.
+ *
+ * --radius-sm would be worse, not better: CSS clamps a 5px radius on an 8px box to 4px,
+ * which IS the circle, and a three-shape vocabulary collapses to two. Sharp is correct here,
+ * and sharp is not a new radius value.
+ */
+
+/* measured: filled sharp square */
 .measured .glyph {
   background: var(--olive);
-  border-radius: 2px;
 }
 .measured {
   color: var(--olive);
@@ -44,7 +60,6 @@
 .insufficient .glyph {
   background: transparent;
   border: 1px dashed var(--faint);
-  border-radius: 2px;
 }
 .insufficient {
   color: var(--faint);

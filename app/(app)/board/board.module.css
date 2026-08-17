@@ -28,48 +28,11 @@
   font-weight: 600;
 }
 
-/* ---------- measured counts ---------- */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--sp-3);
-}
-.stat {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: var(--sp-4);
-  background: var(--panel);
-}
-.statHot {
-  border-color: var(--accent-2);
-  background: var(--accent-soft);
-}
-.statN {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-600);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-.statHot .statN {
-  color: var(--accent);
-}
-.statL {
-  font-size: var(--fs-200);
-  color: var(--dim);
-  margin-top: var(--sp-2);
-  line-height: 1.4;
-}
-.statL b {
-  color: var(--ink);
-}
-.statHint {
-  display: block;
-  color: var(--faint);
-  font-size: var(--fs-100);
-  margin-top: 2px;
-}
+/* ---------- measured counts ----------
+ * There is no .stats/.stat block here any more. The counts render with the shared
+ * .metricGrid/.metricCard tiles from globals.css, which are the same tiles the dashboard
+ * uses, so the two surfaces cannot drift apart and the hover-lift this file used to add is
+ * gone with it. If you are about to write a private stat card, use the shared one. */
 
 /* ---------- the honesty strip ---------- */
 .truth {
@@ -89,6 +52,10 @@
 }
 .truth b {
   color: var(--ink);
+}
+/* The explainer sits on the baseline of the sentence it explains, not floating above it. */
+.truth :global(button) {
+  vertical-align: -0.2em;
 }
 .truthDot {
   width: 9px;
@@ -174,10 +141,4 @@
 }
 .note {
   color: var(--faint) !important;
-}
-
-@media (max-width: 640px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }

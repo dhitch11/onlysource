@@ -43,7 +43,15 @@ export type ApprovedSourceIndex = {
 }
 
 export function readApprovedSourceFile(path: string): ApprovedSourceIndex {
-  const text = readFileSync(path, 'utf8')
+  return parseApprovedSourceText(readFileSync(path, 'utf8'))
+}
+
+/**
+ * The text form, so the approved-source member can be parsed straight out of the archived
+ * zip in memory (lib/intelligence/feed-day.ts) with NO derived file in the provenance
+ * chain. Byte-for-byte the same parse as the path form: the path form delegates here.
+ */
+export function parseApprovedSourceText(text: string): ApprovedSourceIndex {
   const entries: ApprovedSourceEntry[] = []
   const byNiin = new Map<Niin, Set<Cage>>()
   const byCage = new Map<Cage, Set<Niin>>()
@@ -122,7 +130,11 @@ export type DailyIndex = {
 }
 
 export function readDailyIndex(path: string): DailyIndex {
-  const text = readFileSync(path, 'utf8')
+  return parseDailyIndexText(readFileSync(path, 'utf8'))
+}
+
+/** The text form of the index parse. See parseApprovedSourceText for why it exists. */
+export function parseDailyIndexText(text: string): DailyIndex {
   const rows: IndexRow[] = []
   const byNiin = new Map<Niin, IndexRow[]>()
   let offWidthRows = 0

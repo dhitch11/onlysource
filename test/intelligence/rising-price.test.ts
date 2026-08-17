@@ -22,13 +22,26 @@ import { buildAllDatasets, checkDataAvailability } from '@/lib/intelligence/data
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 
 /*
- * TIMEOUT BUDGET RAISED 2026-08-17, and the reason is a real change in the world, not a flaky test.
- * These cases read the REAL archive. On 2026-08-16 that archive held ONE feed day; the backfill
- * landed 20 days and 1.4 GB, so a cold `buildAllDatasets()` now costs ~7.6s measured, and several
- * of these files paying that concurrently under vitest's parallelism blew a 30s budget set when
- * the data was 20x smaller. The PRODUCT is unaffected: the build is memoized (second call 0ms) and
- * the archive scan is memoized on manifest identity, so a request pays this once per process.
- * Raising the budget is the honest fix; lowering the assertion would not be.
+ * TIMEOUT BUDGET 120s -- CORRECTED 2026-08-17. An earlier version of this comment blamed
+ * archive growth (1 feed day -> 20 days, 1.4 GB). That diagnosis was wrong: this chain reads
+ * exactly TWO archive files (both literals under one feed day) plus four seed workbooks, so
+ * 1 day -> 20 days changed its input by ZERO BYTES.
+ *
+ * THE MEASURED CAUSE: this file, datasets.test.ts, alerts-route.test.ts and
+ * monopoly-view.test.ts all call buildAllDatasets()/buildPortfolio()/buildNsnAwardIndex(),
+ * whose memoization is per module graph. Vitest's default `forks` pool ran the four files in
+ * four SEPARATE child processes, so the same ~15MB of source xlsx got parsed up to four times
+ * concurrently, contending for the same CPUs -- not a data-volume problem. On three
+ * consecutive runs of byte-identical code, THIS test alone measured 13.9s / 23.3s / 126s.
+ * A plain tsx process runs the same chain once, cold, in 4.0s.
+ *
+ * FIX (see vitest.config.mts): these four files now share one `isolate:false,
+ * fileParallelism:false` project, so the memoized builders actually memoize across files
+ * instead of re-parsing per fork. Re-measured post-fix, three consecutive full-suite runs:
+ * this test's own duration was 1ms / 0ms / 1ms -- whichever file lands first in the shared
+ * group pays the one real parse, every file after it hits the memo. The 120s budget stays as
+ * a margin for that first-payer under real machine contention (observed once at 25.7s for
+ * monopoly-view.test.ts in the same group), not because this test is expected to take long.
  */
 
 describe('the shared rising-price predicate', () => {

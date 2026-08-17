@@ -94,7 +94,14 @@ a {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 2px;
+  /*
+   * NO `border-radius` HERE, and it is not an omission. `:focus-visible { border-radius: 2px }`
+   * does not shape the outline: it overrides the FOCUSED ELEMENT'S OWN radius, so an 11px card
+   * snapped to 2px corners the instant a keyboard reached it. That is a geometry change on
+   * focus, which is the one thing position permanence forbids. Modern engines already follow
+   * the element's own border-radius when they draw the outline, so the correct rule is to say
+   * nothing about radius at all.
+   */
 }
 
 /* ------------------------------------------------------------------ type utilities */
@@ -348,7 +355,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 2px var(--sp-2);
+  padding: var(--sp-0) var(--sp-2);
   border-radius: var(--radius-pill);
   font-size: var(--fs-100);
   font-weight: var(--fw-semibold);
@@ -503,7 +510,7 @@ a {
 }
 
 .bullets li {
-  margin-block-end: 2px;
+  margin-block-end: var(--sp-0);
 }
 
 /* ============================================================== OPERATOR COMMAND CENTER (dashboard) */
@@ -515,18 +522,22 @@ a {
 .metricCard {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-0);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: var(--sp-4);
   background: var(--panel);
   text-decoration: none;
   color: inherit;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 220ms ease;
+  /* Colour and border only. NOTHING MOVES ON HOVER: this tile carries a live count that an
+   * operator reads fifty times a day, and a card that lifts under the cursor is the exact
+   * position-permanence failure the density research names. Transform is reserved for motion
+   * that explains causality, and a hover does not. */
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 .metricCard:hover {
-  transform: translateY(-2px);
   border-color: var(--line-control);
+  background: var(--panel-2);
 }
 .metricCard--hot {
   border-color: var(--accent-2);
@@ -548,7 +559,7 @@ a {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-0);
   padding: var(--sp-4);
   color: inherit;
   text-decoration: none;
@@ -565,7 +576,7 @@ a {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -577,7 +588,7 @@ a {
   font-size: var(--fs-300);
   color: var(--ink);
   margin-top: var(--sp-2);
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
 }
 .metricHint {
   font-size: var(--fs-100);
@@ -586,17 +597,17 @@ a {
 .topCorner {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-0);
   border: 1px solid var(--accent-2);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: var(--sp-4) var(--sp-5);
   background: linear-gradient(180deg, var(--accent-soft), transparent);
   text-decoration: none;
   color: inherit;
-  transition: transform 180ms ease, box-shadow 220ms ease;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur-slow) var(--ease);
 }
 .topCorner:hover {
-  transform: translateY(-2px);
+  /* A shadow may bloom. The card may not move. */
   box-shadow: 0 10px 34px -16px var(--accent);
 }
 .topCorner__eyebrow {
@@ -608,9 +619,9 @@ a {
 }
 .topCorner__nsn {
   font-size: var(--fs-600);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.01em;
-  margin-top: 2px;
+  margin-top: var(--sp-0);
 }
 .topCorner__item {
   font-size: var(--fs-400);
@@ -636,7 +647,7 @@ a {
 .topCorner__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-0);
   padding: var(--sp-4) var(--sp-5);
   color: inherit;
   text-decoration: none;
@@ -717,7 +728,7 @@ a {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   padding: var(--sp-4);
   gap: var(--sp-3);
@@ -747,8 +758,8 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--sp-2) 2px;
+  gap: var(--sp-0);
+  padding: var(--sp-2) var(--sp-0);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   text-decoration: none;
@@ -766,7 +777,7 @@ a {
 }
 .stageStrip__n {
   font-size: var(--fs-500);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
@@ -781,15 +792,25 @@ a {
   color: var(--faint);
   margin-block-start: auto;
 }
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes cc-fade-up { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
-  .metricCard { animation: cc-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .metricGrid .metricCard:nth-child(1) { animation-delay: 0.06s; }
-  .metricGrid .metricCard:nth-child(2) { animation-delay: 0.14s; }
-  .metricGrid .metricCard:nth-child(3) { animation-delay: 0.22s; }
-  .metricGrid .metricCard:nth-child(4) { animation-delay: 0.3s; }
-  .topCorner { animation: cc-fade-up 0.55s 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-}
+/*
+ * THE STAGGERED ENTRANCE ANIMATION WAS REMOVED, AND IT IS WORTH SAYING WHY.
+ *
+ * It was `animation: cc-fade-up ... both` with delays up to 0.32s on the dashboard tiles.
+ * `both` fill mode means the element HOLDS THE `from` KEYFRAME DURING THE DELAY, so every
+ * tile rested at `opacity: 0` for up to a third of a second, and the top corner for longer.
+ * Two things follow from that, and both are house rules:
+ *
+ *   1. A reveal that rests at opacity 0 has made invisibility its default state. If the
+ *      animation never runs (a dropped stylesheet, an engine that skips offscreen work, a
+ *      paint the tab never got round to), the fallback IS the product and the product is
+ *      blank. This estate has shipped that defect before.
+ *   2. The first screen an operator opens is the one place layout must be finished on the
+ *      first paint. Motion that arrives before the data has been read explains no causality;
+ *      it just delays the number.
+ *
+ * There is nothing to replace it with. The correct entrance for an operator console is the
+ * content, already there.
+ */
 
 /* ============================================================ dashboard signals
  * The command-center "what needs your attention today" block. Each card is the same
@@ -797,17 +818,17 @@ a {
 .signalBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3, 0.75rem);
+  gap: var(--sp-3);
 }
 .signalBlock__title {
-  font-size: var(--fs-500, 1.125rem);
-  font-weight: 650;
+  font-size: var(--fs-500);
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .signalGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--s-3, 0.75rem);
+  gap: var(--sp-3);
 }
 /* The card chrome lives on a wrapper DIV; the link fills it and the Pursue control (when
  * the signal names one stock number) is the link's SIBLING, never its child, same contract
@@ -815,22 +836,22 @@ a {
 .signalCard {
   display: flex;
   flex-direction: column;
-  padding: var(--s-4, 1rem);
+  padding: var(--sp-4);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg, 11px);
+  border-radius: var(--radius-lg);
   background: var(--panel);
   text-decoration: none;
-  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 .signalCard:hover {
-  transform: translateY(-2px);
   border-color: var(--accent-2);
+  background: var(--panel-2);
 }
 .signalCard__link {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
   min-inline-size: 0;
   color: inherit;
   text-decoration: none;
@@ -850,14 +871,14 @@ a {
 }
 .signalCard__sev {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--fs-100);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
   align-self: flex-start;
-  padding: 2px 7px;
+  padding: var(--sp-0) var(--sp-2);
   border: 1px solid var(--line-control);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 .signalCard--high .signalCard__sev {
   color: var(--accent);
@@ -869,18 +890,18 @@ a {
   border-color: color-mix(in srgb, var(--olive) 45%, transparent);
 }
 .signalCard__title {
-  font-size: var(--fs-400, 1rem);
-  font-weight: 650;
+  font-size: var(--fs-400);
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .signalCard__body {
-  font-size: var(--fs-200, 0.875rem);
+  font-size: var(--fs-200);
   color: var(--dim);
   line-height: 1.5;
 }
 .signalCard__go {
   margin-top: auto;
-  font-size: var(--fs-200, 0.875rem);
-  font-weight: 600;
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
   color: var(--accent);
 }

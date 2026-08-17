@@ -87,6 +87,10 @@
    * 4px base. Dense tables need small consistent steps. Continues @T1's scale so the
    * shell and the design system do not disagree about what "one step" means.
    */
+  /* The 2px half-step. It exists because the alternative was 14 raw `2px` declarations
+   * scattered through the modules, and a raw px is how a scale stops being a scale. It is a
+   * SPACING step only: it is not a type size and it is not a radius. */
+  --sp-0: 0.125rem; /* 2px */
   --sp-1: 0.25rem; /*  4px */
   --sp-2: 0.5rem; /*   8px */
   --sp-3: 0.75rem; /* 12px */
@@ -106,17 +110,40 @@
    * The floor arithmetic: WCAG 2.5.8 wants 24x24 CSS px for a pointer target, and
    * 24 + 4 + 4 = 32, which leaves nothing for a border. 42px is the AG Grid Quartz
    * default and the industry anchor for the middle setting.
+   *
+   * MEASURED, not asserted (headless Chrome 151, 2026-08-17): a div at font-size 15px /
+   * line-height 1.5 with `block-size: var(--row-h)` computes to 38.5px, and the SAME
+   * declaration at line-height 1.2 computes to 34px. That is the whole point: `1lh` is
+   * substituted as a token and resolved in the USING element's context, so a user stylesheet
+   * that raises line-height raises the row instead of clipping the text inside it. A fixed
+   * 32px row with 14px text at 1.2 fails 1.4.12; this cannot.
+   *
+   * WHAT EACH DENSITY LANDS ON, with the 1px row rule included in the pitch:
+   *   compact      1lh(22.5) + 2*4  = 30.5 + 1 = 31.5px   target 32
+   *   default      1lh(22.5) + 2*8  = 38.5 + 1 = 39.5px   target 40 (AG Grid Quartz 42 anchor)
+   *   comfortable  1lh(22.5) + 2*14 = 50.5 + 1 = 51.5px   target 52
    */
   --row-lines: 1;
   --row-pad-y: 0.5rem;
   --row-h: calc(var(--row-lines) * 1lh + var(--row-pad-y) * 2);
+  /* The clip box inside the cell: exactly the text box, with the padding taken off. This is
+   * what makes a cell CLIP instead of the ROW GROW. Never `overflow:hidden` on the <tr>. */
+  --row-text-h: calc(var(--row-lines) * 1lh);
 
   --row-pad-y-compact: 0.25rem;
   --row-pad-y-comfortable: 0.875rem;
 
   /* ============================================================== GEOMETRY
-   * Consistent radii and hairline borders. Sloppy spacing is the fastest way to look
-   * cheap (Vercel steal 3).
+   * FOUR RADII. There is no fifth, and adding one is how a system stops reading as one system.
+   *
+   * The rule for nesting is inner = outer minus the inset between them, so a chip inside a
+   * card takes --radius-sm inside --radius-lg with --sp-1 of padding, and a card inside a card
+   * at equal radii reads visibly wrong.
+   *
+   * WHAT TO REACH FOR WHEN YOU WANT A SMALLER NUMBER: --radius-sm. CSS clamps a radius that
+   * exceeds its box (a 5px radius on a 3px-tall progress bar renders as a 1.5px cap), so the
+   * small step covers the hairline cases without inventing a value. It was 14 raw `2px`
+   * declarations before this note existed.
    */
   --radius-sm: 5px;
   --radius: 7px;

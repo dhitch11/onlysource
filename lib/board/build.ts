@@ -20,32 +20,35 @@
  * false absence in this product is the raw material of a sole-source corner somebody
  * would quote against.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { readDailyIndex, readApprovedSourceFile } from "@/lib/intelligence/seed/feed";
 import { parseSolicitation } from "@/lib/intelligence/niin";
-import { archivePath } from "@/lib/data-root";
+import { resolveServedFeedDay, type SkippedFeedDay } from "@/lib/intelligence/feed-day";
 
-const FEED_DAY = "2026-08-11";
-
-/**
- * The INDEX is fixed-width and lives under the dated capture directory. The `bq` file beside
- * it is the CSV quoting file and is a different shape entirely; joining against it produces
- * 3,274 unreadable rows that look like data.
+/*
+ * WHICH DAY THE BOARD SHOWS: THE ONE EVERY OTHER SURFACE SHOWS. NOT A CONSTANT HERE.
  *
- * The capture directory is pinned, NOT resolved as "the newest". A later capture of this day
- * is a 141-byte fixture of X characters, written by a truncation test, and taking the newest
- * timestamp silently loads it. A guard below refuses any index that fails the published shape.
+ * Until 2026-08-17 this module pinned `FEED_DAY = "2026-08-11"` and two literal paths, one of
+ * them the DERIVED extraction `derived/.../as260811.txt`. Two things were wrong with that and
+ * both were live:
  *
- * Paths resolve through lib/data-root at call time: the data directory is gitignored and
- * shipped out of band, so the location is asked for at runtime rather than hardcoded to a home
- * directory. The retrieval subtree shape is preserved because it is part of the provenance.
+ *  1. THE CHROME AND THE TABLE COULD NAME DIFFERENT DAYS. The shell's freshness pill reads the
+ *     served feed day out of the corner map's provenance. The moment that map started
+ *     discovering the newest archived day, this page would still have printed "Feed day
+ *     2026-08-11" over counts built from 2026-08-11 while the pill overhead said otherwise. A
+ *     pill that names one day beside a table built from another is worse than staying pinned
+ *     forever, because the operator has no way to tell which one to believe.
+ *  2. THE 500-ROW FLOOR WOULD HAVE REFUSED EVERY REAL FRIDAY. `MIN_PLAUSIBLE_ROWS = 500` was
+ *     calibrated on one mid-week day and described a working day as running "into the
+ *     thousands". Measured across the whole 20-day archive that is only true Monday to
+ *     Thursday (1,071 to 5,488 rows). All four archived Fridays publish 231, 313, 228 and 331
+ *     rows. Under the old floor this page would have refused Friday's real government file as
+ *     "truncated or substituted" every single week.
+ *
+ * So the day is resolved by lib/intelligence/feed-day.ts, the single resolution the corner
+ * map, the monopoly view, the provenance lines and the pill all read, and the row floor is
+ * that module's own MIN_SERVABLE_INDEX_ROWS (200, aligned with the ingest content gate) so
+ * the instruments cannot disagree about what a real day is. The approved-source list is the
+ * member read straight out of the archived zip, so no derived file sits in this chain either.
  */
-const INDEX_FILE = archivePath("dibbs-rfq-daily", FEED_DAY, "20260812T225616Z", "in260811.txt");
-const SOURCE_FILE = archivePath("derived", "dibbs-rfq-daily", FEED_DAY, "as260811.txt");
-
-/** A working DLA day runs roughly 1,960 to 3,095 requirement lines. Well below that is a
- *  truncated or substituted file, and it must fail loudly rather than render as a quiet day. */
-const MIN_PLAUSIBLE_ROWS = 500;
 
 export type SourceStanding =
   /** Exactly one company is approved. Buying the shelf makes us the only source. */
@@ -72,6 +75,15 @@ export interface BoardRow {
 export interface BoardData {
   ok: true;
   feedDay: string;
+  /**
+   * Newer COMPLETE days the archive holds that would not parse-verify, by name and reason.
+   * Empty means this IS the newest day the archive holds. Rendered, never hidden: the
+   * difference between "nothing newer exists" and "something newer exists and we refused it"
+   * is the whole difference between current data and silently stale data.
+   */
+  heldButNotServable: SkippedFeedDay[];
+  /** How many feed days the archive verifiably holds, for the operator's sense of depth. */
+  daysHeld: number;
   rows: BoardRow[];
   /** Every number here is a count of real published lines, never an estimate. */
   counts: {
@@ -93,45 +105,50 @@ export interface BoardUnavailable {
   missing: string[];
 }
 
-let cache: BoardData | BoardUnavailable | null = null;
+/**
+ * KEYED ON THE SERVED DAY, not a bare boolean. The old `let cache` had no key at all, which
+ * was harmless while the day was a literal and would have been a defect the moment it stopped
+ * being one: the first request of the process would have pinned the board to whatever day was
+ * newest then, and a capture landing later in the same process could never have displaced it.
+ */
+const cache = new Map<string, BoardData>();
 
 export function buildBoard(): BoardData | BoardUnavailable {
-  if (cache) return cache;
+  const resolution = resolveServedFeedDay();
 
-  const missing = [INDEX_FILE, SOURCE_FILE].filter((f) => !existsSync(f));
-  if (missing.length > 0) {
-    cache = {
+  if (!resolution.ok) {
+    /*
+     * NOT CACHED, deliberately: an absent or unusable archive can become a usable one while
+     * the process is running (a capture lands, a volume mounts), and a cached absence would
+     * outlive the condition that caused it. Every candidate tried is named, so this reads as
+     * an actionable statement rather than an empty page.
+     */
+    return {
       ok: false,
       reason:
-        "The daily government feed for this day is not on disk. The Board renders what DLA published, so with no file there is nothing to show, and nothing has been assumed in its place.",
-      missing,
+        `The Board renders what DLA published, and no archived feed day can be served right now: ${resolution.reason}. ` +
+        "Nothing has been assumed in its place.",
+      missing:
+        resolution.skipped.length > 0
+          ? resolution.skipped.map((s) => `${s.feedDay}: ${s.reason}`)
+          : ["no verified capture of any feed day is readable under the resolved data root"],
     };
-    return cache;
   }
 
-  const index = readDailyIndex(INDEX_FILE);
-  const sources = readApprovedSourceFile(SOURCE_FILE);
+  const served = resolution.served;
+  const key = `${served.feedDay}|${served.indexStorageKey}|${served.archive.storageKey}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
 
-  // Refuse a file that cannot be a real working day, rather than render it as a quiet one.
-  // A row-boundary truncation parses perfectly cleanly, so a short count is the only evidence.
-  if (index.rows.length < MIN_PLAUSIBLE_ROWS) {
-    cache = {
-      ok: false,
-      reason: `The index file for this day carries only ${index.rows.length} rows. A working DLA day runs into the thousands, so this file is truncated or substituted. It is being refused rather than shown as a quiet day.`,
-      missing: [INDEX_FILE],
-    };
-    return cache;
-  }
-  // Every row off-width means the file is not the fixed-width index at all.
-  if (index.rows.length > 0 && index.offWidthRows >= index.rows.length) {
-    cache = {
-      ok: false,
-      reason:
-        "Every line in the index file failed the published 140 character width, so this is not the fixed-width index. Nothing has been inferred from it.",
-      missing: [INDEX_FILE],
-    };
-    return cache;
-  }
+  /*
+   * The index and the approved-source list are ALREADY PARSED, once, by the resolution, and
+   * every surface shares that one read of those bytes. That is the point: the board and the
+   * corner map can no longer disagree about what the day's file said, because there is only
+   * one parse of it. The row floor and the fixed-width check ran there too — a day that
+   * resolves has passed both — so re-testing them here would be a guard that can never fire.
+   */
+  const index = served.index;
+  const sources = served.approved;
 
   const rows: BoardRow[] = index.rows.map((r) => {
     const form = parseSolicitation(r.solicitation);
@@ -186,9 +203,11 @@ export function buildBoard(): BoardData | BoardUnavailable {
     unjoined: rows.filter((r) => r.standing.kind === "unjoined").length,
   };
 
-  cache = {
+  const built: BoardData = {
     ok: true,
-    feedDay: FEED_DAY,
+    feedDay: served.feedDay,
+    heldButNotServable: served.skipped,
+    daysHeld: served.daysHeld,
     rows,
     counts,
     drift: {
@@ -197,5 +216,6 @@ export function buildBoard(): BoardData | BoardUnavailable {
       unparsedSourceLines: sources.unparsedLines,
     },
   };
-  return cache;
+  cache.set(key, built);
+  return built;
 }

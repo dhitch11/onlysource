@@ -21,79 +21,74 @@
 import { existsSync } from 'node:fs'
 import type { Cage, Niin } from './niin'
 import { parseNsn } from './niin'
-import { readApprovedSourceFile, readDailyIndex, type ApprovedSourceIndex, type DailyIndex } from './seed/feed'
+import type { ApprovedSourceIndex, DailyIndex } from './seed/feed'
 import { readSeedWorkbook, readDate, type SeedProvenance } from './seed/xlsx'
 import { buildCornerMap, type CornerMap } from './corner'
 import { buildNsnAwardIndex } from './awards/nsn-now'
-import { archivePath, seedPath } from '@/lib/data-root'
+import { seedPath } from '@/lib/data-root'
+import { resolveServedFeedDay, type ServedFeedDay, type SkippedFeedDay } from './feed-day'
 
 /* ------------------------------------------------------------------------------------ */
 /* WHERE THE REAL FILES LIVE                                                              */
 /* ------------------------------------------------------------------------------------ */
 
 /**
- * THE PROVENANCE WE CITE IS THE ARCHIVED ZIP, NEVER THE DERIVED FILE.
+ * THE FEED DAY IS DISCOVERED, NEVER PINNED HERE. lib/intelligence/feed-day.ts resolves the
+ * newest COMPLETE archived day whose bytes re-verify and whose two parser inputs actually
+ * parse, falling back LOUDLY (by name, with reasons) when a newer held day is unservable.
+ * The approved-source text is extracted from the archived `bq` zip in memory, so the chain
+ * from rendered number to government-published byte carries no derived file at all.
  *
- * A derived file is a convenience: it can be regenerated, moved, or replaced, and nothing
- * about it proves where it came from. The archived original is the artifact with a retrieval
- * record and a hash, so that is what every surface cites.
- *
- * The chain is verified rather than assumed. The archived zip hashes to the value its
- * manifest records, and each derived file hashes to the same value as the corresponding entry
- * extracted from that zip. `test/intelligence/datasets.test.ts` asserts both, so a derived
- * file that is silently swapped, truncated or regenerated from a different day fails the
- * suite instead of quietly changing every number on the map.
+ * The SEED workbooks are a different kind of input: point-in-time exports, not a daily
+ * feed. They stay pinned paths, and their absence renders as a stated empty state.
  */
-export const SOURCE_ARCHIVE = {
-  storageKey: 'dibbs-rfq-daily/2026-08-11/20260812T225617Z/bq260811.zip',
-  sha256: '491dad3652c4cca9ffc83006e23618d4822a72b848443902755ce0d7be2a5705',
-  byteLength: 119_233,
-  sourceUrl: 'https://dibbs2.bsm.dla.mil/Downloads/RFQ/Archive/bq260811.zip',
-  retrievedAt: '2026-08-12T22:56:17.334Z',
-  retrievedAtBasis: 'origin_file_mtime',
-} as const
-
-/** Hashes of the derived extractions, so the chain from the archive can be asserted. */
-export const DERIVED_SHA256 = {
-  approvedSource: '844c8677da9206f3543ba1ec4eab8f96c58ca0b81a43bcfd838d13e7c690b409',
-  quoting: 'be5a1104a538d96966f5693106ed28b1a98246e5c1dd54285b60bf897d086d3e',
-} as const
-
-/**
- * All paths resolve through lib/data-root at call time, never from a hardcoded home directory.
- *
- * This is what makes the product deployable: the data directory is gitignored (this repo is
- * public) and shipped out of band, so the code must ask WHERE it is at runtime rather than
- * assume a developer's Downloads folder. The archive subtree keeps its exact retrieval shape
- * because SOURCE_ARCHIVE cites it; the seed workbooks moved from a loose Downloads folder into
- * data/seed/ under the resolved root, byte-identical (hashes verified on relocation 2026-08-14).
- *
- * The capture directory 20260812T225616Z is still PINNED, not "newest": a later capture of the
- * same day is a 141-byte truncation-test fixture, and taking the newest timestamp silently loads
- * it. The board's build guard refuses a short file, but the honest fix is to name the real one.
- */
-export const DATA_PATHS = {
-  feedDay: '2026-08-11',
-  approvedSource: archivePath('derived', 'dibbs-rfq-daily', '2026-08-11', 'as260811.txt'),
-  index: archivePath('dibbs-rfq-daily', '2026-08-11', '20260812T225616Z', 'in260811.txt'),
+export const SEED_PATHS = {
   awardSilence: seedPath('no awards in past 2 years (1).xlsx'),
   awardSilenceEnriched: seedPath('no awards in past 2 years.xlsx'),
   noQuotes: seedPath('NO QUOTES.xlsx'),
   noQuoteMatches: seedPath('no_quote_matches.xlsx'),
 } as const
 
+export type SeedPaths = typeof SEED_PATHS
+
 export type DatasetAvailability = { path: string; present: boolean }
 
-/** Report what is readable BEFORE computing, so an absent input is a stated fact. */
-export function checkDataAvailability(paths = DATA_PATHS): DatasetAvailability[] {
+/**
+ * Report what is readable BEFORE computing, so an absent input is a stated fact.
+ *
+ * THE FEED ENTRIES NAME THE DAY ACTUALLY CHOSEN, not a pinned one. Two entries, always, so
+ * the shape is stable for the callers that gate a whole suite on "every input present": the
+ * resolved index capture and the archived zip member the approved-source list is parsed from.
+ * A day that was HELD but refused is not an availability failure — the product is serving a
+ * real day — so it is carried on `IntelligenceDatasets.feed.skipped` by name and reason
+ * rather than turned into a false absent-input reading here.
+ */
+export function checkDataAvailability(seeds: SeedPaths = SEED_PATHS): DatasetAvailability[] {
+  const feed = resolveServedFeedDay()
+  const feedEntries: DatasetAvailability[] = feed.ok
+    ? [
+        { path: feed.served.indexPath, present: true },
+        { path: `${feed.served.archive.storageKey}!${feed.served.archive.member}`, present: true },
+      ]
+    : [
+        // Every candidate tried is named here, because "no data" with no reason is the state
+        // an operator cannot act on. This branch means the archive itself is unusable.
+        {
+          path: `no servable feed day: ${feed.reason}${
+            feed.skipped.length > 0
+              ? ` (tried ${feed.skipped.map((s) => `${s.feedDay}: ${s.reason}`).join('; ')})`
+              : ''
+          }`,
+          present: false,
+        },
+        { path: 'archive quoting zip: unresolved because no feed day resolved', present: false },
+      ]
   return [
-    paths.approvedSource,
-    paths.index,
-    paths.awardSilence,
-    paths.awardSilenceEnriched,
-    paths.noQuotes,
-    paths.noQuoteMatches,
-  ].map((path) => ({ path, present: existsSync(path) }))
+    ...feedEntries,
+    ...[seeds.awardSilence, seeds.awardSilenceEnriched, seeds.noQuotes, seeds.noQuoteMatches].map(
+      (path) => ({ path, present: existsSync(path) }),
+    ),
+  ]
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -153,10 +148,10 @@ export type DistressedDataset = {
  *
  * Nothing here calls a firm distressed. The publishable statement is the measurement.
  */
-export function buildDistressed(paths = DATA_PATHS): DistressedDataset {
-  const candidates = readSeedWorkbook(paths.awardSilence)
-  const hasEnrichment = existsSync(paths.awardSilenceEnriched)
-  const enrichment = hasEnrichment ? readSeedWorkbook(paths.awardSilenceEnriched) : null
+export function buildDistressed(seeds: SeedPaths = SEED_PATHS): DistressedDataset {
+  const candidates = readSeedWorkbook(seeds.awardSilence)
+  const hasEnrichment = existsSync(seeds.awardSilenceEnriched)
+  const enrichment = hasEnrichment ? readSeedWorkbook(seeds.awardSilenceEnriched) : null
 
   const enrichmentByCage = new Map<string, Record<string, string | null>>()
   for (const row of enrichment?.rows ?? []) {
@@ -258,9 +253,9 @@ export type NoQuoteDataset = {
  * case, and that is the class the customer sized at millions precisely because a human cannot
  * work it: each one burns a couple of hours and usually ends with no path to the part.
  */
-export function buildNoQuoteGoldmine(paths = DATA_PATHS): NoQuoteDataset {
-  const solicitations = readSeedWorkbook(paths.noQuotes)
-  const availability = readSeedWorkbook(paths.noQuoteMatches)
+export function buildNoQuoteGoldmine(seeds: SeedPaths = SEED_PATHS): NoQuoteDataset {
+  const solicitations = readSeedWorkbook(seeds.noQuotes)
+  const availability = readSeedWorkbook(seeds.noQuoteMatches)
 
   const holdersBySolicitation = new Map<string, NoQuoteRow['holders']>()
   for (const row of availability.rows) {
@@ -382,36 +377,66 @@ export function reverseCompetitor(
 /* 4. THE ASSEMBLY                                                                        */
 /* ------------------------------------------------------------------------------------ */
 
+export type ServedFeedMeta = {
+  feedDay: string
+  daysHeld: number
+  /** Newer complete days held but not servable, by name with reasons. Empty = newest served. */
+  skipped: SkippedFeedDay[]
+  archive: ServedFeedDay['archive']
+  indexPath: string
+  indexStorageKey: string
+}
+
 export type IntelligenceDatasets = {
   cornerMap: CornerMap
   noQuote: NoQuoteDataset
   distressed: DistressedDataset
   approved: ApprovedSourceIndex
   index: DailyIndex
+  /** Which day is being served and why, one resolution shared by every surface. */
+  feed: ServedFeedMeta
 }
 
 /**
- * Memoized per resolved input set. The feed-day files are static within a deployment, and both
- * the nav (for its candidate-corner count) and the Monopoly page call this on the same request;
- * rebuilding twice would read six files twice for no new information. Keyed on the paths object
- * so a test passing custom paths, or a future second feed day, gets its own entry rather than a
- * stale hit. Cleared implicitly on process restart, which is when new data is deployed.
+ * Memoized per served feed day + seed paths. The feed inputs are static until a new capture
+ * lands (the resolution itself invalidates on manifest change), and both the nav (for its
+ * candidate-corner count) and the Monopoly page call this on the same request; rebuilding
+ * twice would read the files twice for no new information. Keyed so a test passing explicit
+ * feed inputs or seed paths gets its own entry rather than a stale hit.
  */
 const datasetCache = new Map<string, IntelligenceDatasets>()
 
-export function buildAllDatasets(paths = DATA_PATHS): IntelligenceDatasets {
-  const cacheKey = `${paths.approvedSource}|${paths.index}|${paths.awardSilence}|${paths.noQuotes}`
+export function buildAllDatasets(
+  feedOverride?: ServedFeedDay,
+  seeds: SeedPaths = SEED_PATHS,
+): IntelligenceDatasets {
+  const feed = feedOverride ?? resolveServedOrThrow()
+  const cacheKey = `${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}|${seeds.awardSilence}|${seeds.noQuotes}`
   const hit = datasetCache.get(cacheKey)
   if (hit) return hit
-  const built = buildAllDatasetsUncached(paths)
+  const built = buildAllDatasetsUncached(feed, seeds)
   datasetCache.set(cacheKey, built)
   return built
 }
 
-function buildAllDatasetsUncached(paths: typeof DATA_PATHS): IntelligenceDatasets {
-  const approved = readApprovedSourceFile(paths.approvedSource)
-  const index = readDailyIndex(paths.index)
-  const distressed = buildDistressed(paths)
+/**
+ * An unservable archive is an EXCEPTIONAL state, not an empty state: the callers of this
+ * function already gated on the data root being present, so reaching here with no servable
+ * day means the archive itself is broken. The throw names every candidate tried and why,
+ * so the failure is actionable rather than mysterious.
+ */
+function resolveServedOrThrow(): ServedFeedDay {
+  const resolution = resolveServedFeedDay()
+  if (resolution.ok) return resolution.served
+  const tried = resolution.skipped.map((s) => `${s.feedDay}: ${s.reason}`).join('; ')
+  throw new Error(
+    `no servable feed day: ${resolution.reason}${tried ? ` (tried ${tried})` : ''}`,
+  )
+}
+
+function buildAllDatasetsUncached(feed: ServedFeedDay, seeds: SeedPaths): IntelligenceDatasets {
+  const { approved, index } = feed
+  const distressed = buildDistressed(seeds)
   const awardSilentCages = new Set<Cage>(distressed.firms.map((f) => f.cage))
 
   /*
@@ -441,17 +466,49 @@ function buildAllDatasetsUncached(paths: typeof DATA_PATHS): IntelligenceDataset
     awardSilentCages,
     availabilityByNsn,
     provenance: {
-      feedDay: paths.feedDay,
-      sourceArchiveKey: SOURCE_ARCHIVE.storageKey,
-      sourceArchiveSha256: SOURCE_ARCHIVE.sha256,
-      approvedSourceFile: paths.approvedSource,
-      indexFile: paths.index,
-      silenceListFile: paths.awardSilence,
-      computedAt: new Date().toISOString(),
+      feedDay: feed.feedDay,
+      // The archived original, exactly as the manifest records it. Never a derived file.
+      sourceArchiveKey: feed.archive.storageKey,
+      // Non-null on every capture in this archive (measured: 20 of 20 `bq` rows carry
+      // content_sha256). The fallback is a stated absence, never a fabricated hash, and it
+      // is deliberately a word rather than hex so a truncated render cannot read as one.
+      sourceArchiveSha256: feed.archive.sha256 ?? 'unrecorded',
+      // THE MEMBER INSIDE THE ARCHIVED ZIP, not the derived extraction beside it. The chain
+      // from a rendered number to a government-published byte now has no derived file in it.
+      approvedSourceFile: `${feed.archive.storageKey}!${feed.archive.member}`,
+      indexFile: feed.indexStorageKey,
+      silenceListFile: seeds.awardSilence,
+      /*
+       * NOT A CLOCK READ, DELIBERATELY. `new Date().toISOString()` stood here until
+       * 2026-08-17. Nothing in the tree renders this field today (the only references are
+       * this assignment and the type in corner.ts), but a wall-clock string riding on a
+       * server-rendered object is one `toLocale*` away from the React #418 class this repo
+       * has already been burned by three times. It was also wrong on its own terms:
+       * buildAllDatasets is memoised per served feed day, so the value named the first
+       * request of the process rather than "now", and it changed on every restart while the
+       * data did not. The map is a pure function of the captured bytes plus the pinned seed
+       * workbooks, so the only instant that carries information is the capture instant, and
+       * it is labelled as what it is rather than posing as a build clock.
+       */
+      computedAt: `archive capture ${feed.archive.retrievedAt}`,
     },
   })
 
-  return { cornerMap, noQuote: buildNoQuoteGoldmine(paths), distressed, approved, index }
+  return {
+    cornerMap,
+    noQuote: buildNoQuoteGoldmine(seeds),
+    distressed,
+    approved,
+    index,
+    feed: {
+      feedDay: feed.feedDay,
+      daysHeld: feed.daysHeld,
+      skipped: feed.skipped,
+      archive: feed.archive,
+      indexPath: feed.indexPath,
+      indexStorageKey: feed.indexStorageKey,
+    },
+  }
 }
 
 function toNumber(value: string | null | undefined): number | null {

@@ -64,6 +64,18 @@ import { T2_ENTRIES } from "@/lib/ingest/help";
 // surfaces that display it; the block below stopped being hypothetical the same day.
 import { T3_ENTRIES } from "@/lib/intelligence/scoring/help";
 
+// GROUPS (@WARROOM-AUDIT). The FSC/FSG supply-class rollup: the map, a class, the evidence
+// grades, the baseline rate, and the insufficient-sample state that 190 of 220 classes sit in.
+// Import and register added together, in one edit, because this file's own header records two
+// lanes breaking the build by shipping one half of the pair.
+import { GROUPS_ENTRIES } from "@/lib/intelligence/groups/help";
+
+// MANUFACTURERS (@WARROOM-AUDIT). The CAGE-to-operator resolver: what an operator is, the
+// government-recorded corporate complex, the weaker same-operator inference, and the
+// unresolved state. Two codes owned by one firm is a corner the map currently reads as a
+// market, so these entries explain a correction to the number the whole board ranks on.
+import { MANUFACTURER_ENTRIES } from "@/lib/intelligence/manufacturers/help";
+
 /** The lanes that can own a help entry. Used by the panel to name who owes a missing one. */
 export type HelpOwner =
   | "T1 FOUNDATION"
@@ -221,6 +233,12 @@ register(T2_ENTRIES);
 
 // T3 ENGINE. Entries live in lib/intelligence/scoring/help.ts, same pattern as every lane.
 register(T3_ENTRIES);
+
+// GROUPS. Entries live in lib/intelligence/groups/help.ts and belong to @WARROOM-AUDIT.
+register(GROUPS_ENTRIES);
+
+// MANUFACTURERS. Entries live in lib/intelligence/manufacturers/help.ts, same lane.
+register(MANUFACTURER_ENTRIES);
 
 /*
  * Other lanes: register your entries here, in your own block. Keep the array in a file your

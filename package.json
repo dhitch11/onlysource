@@ -18,9 +18,11 @@
     "gate:r0:selftest": "node scripts/lint-gates.mjs --selftest",
     "gate:r0:secrets": "node scripts/secret-scan.mjs",
     "gate:r1": "vitest run test/r1-time",
-    "gate:all": "npm run gate:r0 && npm run typecheck && npm run test",
+    "gate:all": "npm run gate:r0 && npm run gate:reachability && npm run typecheck && npm run test",
     "ingest:capture": "npx tsx scripts/ingest/capture-day.mts",
-    "ingest:backfill": "npx tsx scripts/ingest/backfill.mts"
+    "ingest:backfill": "npx tsx scripts/ingest/backfill.mts",
+    "gate:reachability": "node scripts/reachability-census.mjs",
+    "gate:reachability:list": "node scripts/reachability-census.mjs --list"
   },
   "dependencies": {
     "@sentry/nextjs": "10.70.0",

@@ -280,15 +280,34 @@ export default function DesignPage() {
               truncated upstream. No copy control, no false promise
             </span>
           </div>
+          {/*
+           * SPECIMEN VALUES, SAID OUT LOUD.
+           *
+           * These four are swatches showing what each provenance state LOOKS like, which is
+           * the only way to show them side by side. But the glyph's whole job is to certify
+           * that a figure was measured, so a specimen wearing it with nothing nearby saying
+           * so teaches a reader that `measured` is decoration — on the very page that
+           * teaches the design system. The ExplainButton section above already solves this
+           * for its own examples by carrying `modelVersion: "reference-values-only"`; this
+           * row now says the same thing in the same voice. It is a caption rather than a
+           * fourth ProvenanceKind because "specimen" is a fact about this PAGE, not a state
+           * a real figure can ever be in, and widening the union would let it become one.
+           */}
           <div className={styles.row}>
             <Money amount={9827} provenance="measured" />
             <Money amount={23} provenance="measured" precision={2} />
             <Money amount={412000} provenance="modelled" />
             <Money amount={null} provenance="insufficient" absentReason="no award history" />
+            <span className={styles.caption}>
+              reference values only. Specimens of each state, not readings from the data
+            </span>
           </div>
           <div className={styles.row}>
             <Money amount={41200} provenance="measured" emphasis />
-            <span className={styles.caption}>headline treatment. A stored vetted field, never a client-side re-sum</span>
+            <span className={styles.caption}>
+              headline treatment, reference value only. In the product this is a stored
+              vetted field, never a client-side re-sum
+            </span>
           </div>
           <div className={styles.row}>
             <ScoreRing value={94} label="Corner-ability" />

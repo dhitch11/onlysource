@@ -129,14 +129,26 @@ export function NotConnected({ source, wouldAdd, whoCanConnect, connectHref }: N
 export interface InsufficientDataProps {
   /** Exactly what is missing. Never a generic "not enough data". */
   missing: string;
+  /**
+   * The grid form: one line, glyph first, reason clipped at the cell edge.
+   *
+   * CLIPPED IS NOT TRUNCATED, and the difference is the whole reason this prop is safe. The
+   * full sentence stays in the DOM, so find-in-page and a screen reader read all of it, and
+   * <DataGrid> renders the same component again WITHOUT `dense` in the row detail panel, so
+   * the operator is never more than one keystroke from the complete answer. No information
+   * is removed to buy the row height back.
+   *
+   * Off by default. Panel and page contexts have the room, and there the reason wraps.
+   */
+  dense?: boolean;
 }
 
 /** An answer, not a failure. Never a zero, never a dash. */
-export function InsufficientData({ missing }: InsufficientDataProps) {
+export function InsufficientData({ missing, dense }: InsufficientDataProps) {
   return (
-    <span className={styles.insufficient}>
+    <span className={`${styles.insufficient}${dense ? ` ${styles.insufficientDense}` : ""}`}>
       <span className={styles.insufficientGlyph} aria-hidden="true" />
-      <span>insufficient inputs</span>
+      <span className={styles.insufficientLabel}>insufficient inputs</span>
       <span className={styles.insufficientWhy}>{missing}</span>
     </span>
   );

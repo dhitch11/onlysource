@@ -66,8 +66,9 @@ export const AWARD_CLOCK_PROVENANCE = {
   offset: {
     grade: 'CITED' as EvidenceGrade,
     value: '3 business days after issue',
-    citation: 'DLA Master Solicitation Part I para 2(h) (Rev-81 = Rev-104)',
-    note: 'DIBBS FAQ 31 "1 business day" is a non-contractual paraphrase and is NOT the deadline. It is retained only as the operational scheduling margin.',
+    citation:
+      'DLA Master Solicitation Rev-104, Part I para 2(h), quoted: "Fast Auto Evaluation commences at 3:00 P.M., 3 business days after the issue date, and continues every day thereafter at 3:00 P.M. until the return date." (Rev-81 = Rev-104 for this paragraph.)',
+    note: 'DIBBS FAQ 31 "1 business day" is a non-contractual paraphrase and is NOT the deadline. It is retained only as the operational scheduling margin. VERBATIM QUOTE ADDED 2026-08-17: the grade was already CITED, but the citation named the paragraph without reproducing it, so a reader had to take the reading on trust. It now carries the sentence, from research/dla-procurement-mechanics.md:231 where it is recorded VERIFIED against a full read of the current Rev 104. Provenance a reader can check beats provenance a reader must believe. NOTE WHAT THIS DOES NOT SETTLE: the sentence says "3 business days after the issue date" and is silent on whether the issue day itself counts, so `countingConvention` below stays UNVERIFIED. The quote strengthens the OFFSET and does not touch the CONVENTION; treating one as evidence for the other is how a citation gets stretched past what it says.',
   },
   timezone: {
     grade: 'CITED' as EvidenceGrade,

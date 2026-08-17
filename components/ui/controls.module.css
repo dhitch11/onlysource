@@ -106,11 +106,30 @@
 
 /* ------------------------------------------------------------------------ status chip */
 
+/*
+ * THE CHIP FITS THE LINE BOX. This is a geometry contract, not a taste call.
+ *
+ * MEASURED before this rule: 25.5px tall, from `padding: 2px` + a 1px border + a 13px label
+ * inheriting the body's 1.5 line-height (19.5 + 4 + 2). One line of 15px table text is
+ * 22.5px. So every chip in a grid cell was 3px taller than the row it sat in, and a row
+ * carrying two chips could not hold a fixed pitch no matter what the row-height token said.
+ * The chip was quietly setting the row height of the whole product.
+ *
+ * AFTER: the block padding goes to zero and the label takes the tight line height, which
+ * lands the chip at 19.55px (13 x 1.35 + 2 border) and leaves 3px of clearance inside a
+ * one-line cell. Nothing is lost: the horizontal padding, the dot, the word, the tone and
+ * the pill are all unchanged, and the chip reads QUIETER, which is what this component's own
+ * rule 2 asked for and its call sites had drifted away from.
+ *
+ * A chip is not a pointer target, so WCAG 2.5.8 does not reach it. If you ever make one
+ * clickable it needs its own 24px target and it is no longer this component.
+ */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 2px var(--sp-2);
+  padding: 0 var(--sp-2);
+  line-height: var(--lh-100);
   border-radius: var(--radius-pill);
   font-size: var(--fs-100);
   font-weight: var(--fw-semibold);

@@ -72,19 +72,44 @@
   gap: var(--sp-1) var(--sp-2);
   font-size: var(--fs-100);
   color: var(--faint);
-  padding: 2px var(--sp-2);
+  padding: var(--sp-0) var(--sp-2);
   border: 1px dashed var(--line-control);
   border-radius: var(--radius-lg);
   max-inline-size: 100%;
   min-inline-size: 0;
 }
 
+/*
+ * THE GLYPH IS A SHARP SQUARE, AND THE 2px RADIUS IT USED TO CARRY IS GONE.
+ *
+ * Two reasons, and the second is the one that matters.
+ *
+ *   1. 2px was not on the four-value radius scale, and it was not a rounding error in the
+ *      census: this glyph and its two siblings in values.module.css rendered 15,232 stray
+ *      2px corners across ten routes, measured. One declaration, three call sites, the
+ *      single largest source of geometry drift in the product.
+ *   2. SHAPE CARRIES THE MEANING HERE, so the shapes have to be maximally far apart. The
+ *      provenance vocabulary is square = measured, circle = modelled, dashed square =
+ *      insufficient. At 8px a 2px radius is already a quarter of the box; the square was
+ *      drifting toward the circle at exactly the size where the reader can least afford it.
+ *      Sharp corners against a full round is a distinction that survives a bad monitor, a
+ *      greyscale print and a 70-year-old eye.
+ *
+ * Reaching for --radius-sm here would be worse than either: CSS clamps a 5px radius on an
+ * 8px box to 4px, which IS a circle, and the vocabulary collapses to two shapes.
+ */
 .insufficientGlyph {
   inline-size: 8px;
   block-size: 8px;
   border: 1px dashed var(--faint);
-  border-radius: 2px;
   flex: none;
+}
+
+/* The constant half of the answer ("insufficient inputs"). It carries nothing of its own in
+ * the panel form; it is named so the dense form below can hold it fixed while the variable
+ * half gives way. */
+.insufficientLabel {
+  min-inline-size: 0;
 }
 
 .insufficientWhy {
@@ -93,6 +118,57 @@
   padding-inline-start: var(--sp-2);
   min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * THE DENSE FORM. This is the one that ships inside a grid cell, and it is the reason the
+ * grid can hold a fixed row pitch at all.
+ * ---------------------------------------------------------------------------------------
+ * MEASURED, before this variant existed: on /monopoly three abstaining cells in one row
+ * rendered at 88px, 88px and 119.5px because the reason sentence wrapped to three lines
+ * inside a 146px column. The row was 134.5px tall. Seven rows fitted in a 900px viewport.
+ * The abstention was not the problem; its LAYOUT was.
+ *
+ * WHAT CHANGES, AND WHAT DELIBERATELY DOES NOT:
+ *   - The glyph is `flex: none` and comes first, so it is the one thing that can never be
+ *     clipped away. A blank abstaining cell reads as a broken render, which is fabrication
+ *     by omission, so the glyph is not negotiable at any width.
+ *   - The reason keeps its words in the DOM in full. It is CLIPPED, not truncated: nothing
+ *     is removed, so find-in-page and a screen reader still read the whole sentence, and
+ *     DataGrid repeats it unclipped in the row detail panel one keystroke away.
+ *   - The dashed BOX goes. The dashed GLYPH is the vocabulary; the box around it was
+ *     decoration doing a job typography already does through the faint ink, and it cost a
+ *     border, a radius and two pixels of row height on every abstaining cell in the product.
+ */
+.insufficientDense {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  inline-size: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.insufficientDense .insufficientLabel,
+.insufficientDense .insufficientWhy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+/* The label is the constant half and the reason is the variable half, so when the column is
+ * narrow the reason is what gives way. `flex: none` on the label, everything else shrinks. */
+.insufficientDense .insufficientLabel {
+  flex: none;
+}
+.insufficientDense .insufficientWhy {
+  flex: 1 1 auto;
+  overflow-wrap: normal;
 }
 
 /* ---------------------------------------------------------------------------- partial */

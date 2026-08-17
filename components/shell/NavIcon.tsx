@@ -25,6 +25,7 @@ export type NavIconName =
   | "admin"
   | "intelligence"
   | "goldmine"
+  | "groups"
   | "competitor"
   | "hubzone"
   | "settings"
@@ -77,6 +78,15 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
     <>
       <path d="M6 3h12l3 5-9 13L3 8z" />
       <path d="M3 8h18M9 3 7.5 8 12 21M15 3l1.5 5L12 21" />
+    </>
+  ),
+  // Supply groups: a classification tag, the shape of a thing being filed into a class.
+  // Deliberately not another grid of rectangles: `board` already owns that silhouette, and
+  // two nav rows drawn alike is how an operator clicks the wrong one twice a day.
+  groups: (
+    <>
+      <path d="M12.4 3H21v8.6l-9.4 9.4L3 12.4z" />
+      <circle cx="16.9" cy="7.1" r="1.4" />
     </>
   ),
   // The intelligence dashboard: ascending bars, a chart read at a glance.

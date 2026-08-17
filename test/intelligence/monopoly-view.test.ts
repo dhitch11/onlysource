@@ -19,13 +19,26 @@ import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 
 /*
- * TIMEOUT BUDGET RAISED 2026-08-17, and the reason is a real change in the world, not a flaky test.
- * These cases read the REAL archive. On 2026-08-16 that archive held ONE feed day; the backfill
- * landed 20 days and 1.4 GB, so a cold `buildAllDatasets()` now costs ~7.6s measured, and several
- * of these files paying that concurrently under vitest's parallelism blew a 30s budget set when
- * the data was 20x smaller. The PRODUCT is unaffected: the build is memoized (second call 0ms) and
- * the archive scan is memoized on manifest identity, so a request pays this once per process.
- * Raising the budget is the honest fix; lowering the assertion would not be.
+ * TIMEOUT BUDGET 120s -- CORRECTED 2026-08-17. An earlier version of this comment blamed
+ * archive growth (1 feed day -> 20 days, 1.4 GB). That diagnosis was wrong: buildAllDatasets
+ * reads exactly TWO archive files (both literals under one feed day) plus four seed
+ * workbooks, so 1 day -> 20 days changed its input by ZERO BYTES.
+ *
+ * THE MEASURED CAUSE: this file, rising-price.test.ts, datasets.test.ts and
+ * alerts-route.test.ts all call buildAllDatasets()/buildForecastIndex()/buildNsnAwardIndex(),
+ * whose memoization is per module graph. Vitest's default `forks` pool ran the four files in
+ * four SEPARATE child processes, so the same ~15MB of source xlsx got parsed up to four times
+ * concurrently, contending for the same CPUs -- not a data-volume problem.
+ * rising-price.test.ts alone measured 13.9s / 23.3s / 126s on three consecutive runs of
+ * byte-identical code.
+ *
+ * FIX (see vitest.config.mts): these four files now share one `isolate:false,
+ * fileParallelism:false` project, so the memoized builders actually memoize across files
+ * instead of re-parsing per fork. This file is usually the one that lands first in the
+ * shared group and pays the real cold parse (3736ms / 2116ms / 25730ms measured across three
+ * consecutive post-fix full-suite runs -- the 25.7s outlier is real machine contention from
+ * other concurrently running work, not this file's own cost). The 120s budget stays as a
+ * margin for that first-payer cost, not because the memoized path itself is ever slow.
  */
 
 const ALL_PRESENT = checkDataAvailability().every((i) => i.present)

@@ -47,6 +47,15 @@
   inline-size: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  /*
+   * TABULAR FIGURES ON THE WHOLE TABLE, not opt-in per column.
+   *
+   * Opt-in was the old contract and it lost: a column carries numbers whether or not the lane
+   * that added it remembered a flag, and a quantity column whose digits change width between
+   * renders costs a reader real time on every scan. Making it a property of the grid means a
+   * new column cannot be born wrong. `.mono` sets it too; setting it twice is free.
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------------------------------------------------------ header */

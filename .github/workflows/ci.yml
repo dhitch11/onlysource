@@ -1,0 +1,63 @@
+# THE BUILD THAT REQUIREMENTS CAN FAIL.
+#
+# Until this file existed there was no CI at all, and `npm run gate:all` invoked two scripts
+# that were never written. So every requirement in the corpus phrased as "a build-failing
+# assertion" had no build to fail, and 149 modules accumulated that nothing reaches.
+#
+# Ordered cheapest-first so a typo fails in seconds rather than after a full Next build.
+name: gate
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The secret scan diffs against HEAD~1, which needs more than a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # R0.1 — the lints, and the proof they are alive. The self-test runs FIRST: a green
+      # lint run means nothing until the lints have been shown to reject their known-bad
+      # fixtures, and this repo has shipped several controls that inspected nothing.
+      - name: R0.1 lint self-test (prove the gate can fail)
+        run: npm run gate:r0:selftest
+
+      - name: R0.1 lints
+        run: npm run gate:r0:lints
+
+      # R0.2 — secrets on the diff, plus the canary.
+      - name: R0.2 secret scan
+        run: npm run gate:r0:secrets
+
+      # Reachability. A ratchet: existing debt is recorded in .reachability-baseline.json and
+      # this fails only when a NEW orphan appears. 35% of a 424-finding audit, in one second.
+      - name: reachability census (no new orphans)
+        run: npm run gate:reachability
+
+      - name: typecheck
+        run: npm run typecheck
+
+      # TZ=UTC is not decoration. A runner sharing the browser's timezone CANNOT reproduce
+      # the React #418 hydration class this repo has been burned by three times.
+      - name: tests
+        run: npm test
+        env:
+          TZ: UTC
+
+      - name: build
+        run: npm run build
+        env:
+          TZ: UTC
