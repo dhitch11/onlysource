@@ -93,6 +93,12 @@
   letter-spacing: var(--track-label);
   color: var(--faint);
 }
+/* The caption plus its explainer, on one centered row inside the score box. */
+.scoreCaptionRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 
 /* ---------------------------------------------------------------- card grid */
 .cards {

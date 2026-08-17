@@ -55,7 +55,10 @@ export function assemblePursuitPackage(nsnRaw: string): AssembledPackage {
   const fcIx = buildForecastIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
-  const score = scoreCorner(row, award, forecast)
+  const score = scoreCorner(row, award, forecast, {
+    awardIndexLoaded: awardIx.ok,
+    forecastIndexLoaded: fcIx.ok,
+  })
   const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
 
   const book = buildDistressedSuppliers()

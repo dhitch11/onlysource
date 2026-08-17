@@ -39,7 +39,15 @@ export async function POST() {
     )
   }
   const dossier = buildPortfolioDossier(pf)
-  const result = await generate(SYSTEM_PROMPT, `PORTFOLIO DOSSIER\n\n${JSON.stringify(dossier, null, 2)}`, 1200, 'portfolio_brief')
+  /*
+   * 2600 tokens is HEADROOM, not a target: the prompt caps the brief at ~300 words. The old
+   * 1200 cap served two independent live generations truncated MID-WORD as successes
+   * ("…availability are un", "…remain at INSUFFICIEN"), because this number-dense output
+   * tokenizes far past its word count. Same lesson the pursuit-package route already carries:
+   * the cap exists so a runaway generation cannot bill forever, never as the editor. The
+   * client also refuses to serve any stop_reason=max_tokens response (lib/ai/anthropic.ts).
+   */
+  const result = await generate(SYSTEM_PROMPT, `PORTFOLIO DOSSIER\n\n${JSON.stringify(dossier, null, 2)}`, 2600, 'portfolio_brief')
   if (!result.ok) {
     return Response.json({ error: 'ai_failed', message: result.reason }, { status: 502 })
   }

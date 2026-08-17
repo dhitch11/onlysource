@@ -9,11 +9,44 @@
 
 import pg from 'pg'
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
+// RELATIVE import, deliberately: `scripts/ingest/load-dibbs-day.ts` runs under plain
+// `node --import ./scripts/ingest/ts-resolve.mjs`, whose resolve hook appends extensions to
+// relative specifiers only. An `@/` alias here would typecheck and then fail at runtime for
+// the one consumer that loads real data.
+import { archivePath, resolveDataRoot } from '../data-root'
+
+/**
+ * DATA_ROOT feeds the LOCAL embedded-Postgres location only. It keeps the historical
+ * home-directory default because the development pg cluster genuinely lives there, and
+ * moving a database by renaming a constant would silently init a second empty cluster.
+ */
 export const DATA_ROOT = process.env.ONLYSOURCE_DATA_ROOT ?? '/Users/user/onlysource-data'
-export const ARCHIVE_ROOT = process.env.INGEST_ARCHIVE_ROOT ?? join(DATA_ROOT, 'archive')
+
+/**
+ * THE ARCHIVE RESOLVES THROUGH lib/data-root, NEVER THROUGH A HARDCODED HOME DIRECTORY.
+ *
+ * The old default (`/Users/user/onlysource-data/archive`) does not exist on the droplet, so
+ * every deployed read of the manifest silently saw an empty archive: the built-and-wired-
+ * but-never-fed failure, at the layer whose entire job is knowing what has been fed.
+ * `resolveDataRoot()` picks the operator-configured directory, then the bundled `<cwd>/data`
+ * shape that deployments actually ship, then the development default, and REPORTS which.
+ * `INGEST_ARCHIVE_ROOT` stays as the explicit test-and-operator override.
+ */
+export const ARCHIVE_ROOT = process.env.INGEST_ARCHIVE_ROOT ?? archivePath()
+
+/** Where the archive resolution came from, for operator surfaces. Measured, not assumed. */
+export function archiveRootResolution(): { root: string; basis: string; present: boolean } {
+  if (process.env.INGEST_ARCHIVE_ROOT) {
+    return { root: ARCHIVE_ROOT, basis: 'INGEST_ARCHIVE_ROOT', present: existsSync(ARCHIVE_ROOT) }
+  }
+  const r = resolveDataRoot()
+  return { root: archivePath(), basis: r.basis, present: existsSync(archivePath()) }
+}
+
 export const PG_DIR = process.env.ONLYSOURCE_PG_DIR ?? join(DATA_ROOT, 'pg')
 export const PG_PORT = Number(process.env.ONLYSOURCE_PG_PORT ?? 55432)
 export const PG_HOST = process.env.ONLYSOURCE_PG_HOST ?? 'localhost'

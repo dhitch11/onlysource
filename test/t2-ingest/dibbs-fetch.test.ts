@@ -7,8 +7,9 @@
  * between testing the guard and testing a mock of the guard.
  */
 
-import { describe, expect, it } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { readFileSync, existsSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -26,6 +27,16 @@ const ARCHIVE = process.env.INGEST_ARCHIVE_ROOT ?? archivePath()
 const FIXED_NOW = '2026-08-13T12:00:00.000Z'
 const now = (): string => FIXED_NOW
 
+/**
+ * Every fetch in this file runs against a SCRATCH archive root. The content gate now writes
+ * a manifest row for every refusal, and before this isolation existed, one of these very
+ * tests wrote the 141-byte X file into the REAL archive as a pipeline fetch.
+ */
+let scratch: string
+beforeEach(() => {
+  scratch = mkdtempSync(join(tmpdir(), 'dibbs-fetch-'))
+})
+
 function capturedBanner(): Buffer {
   const manifestPath = join(ARCHIVE, 'MANIFEST.jsonl')
   if (!existsSync(manifestPath)) {
@@ -41,6 +52,15 @@ function capturedBanner(): Buffer {
   const row = rows.find((r) => r.storage_key.includes('consent-banner-at-in260811-url.html'))
   if (!row) throw new Error('the captured consent banner is not in the archive')
   return readFileSync(join(ARCHIVE, row.storage_key))
+}
+
+/** The real 439,490-byte index, for the recovery case: the gate only accepts real shape. */
+function capturedRealIndex(): Buffer {
+  const path = join(ARCHIVE, 'dibbs-rfq-daily/2026-08-11/20260812T225616Z/in260811.txt')
+  if (!existsSync(path)) {
+    throw new Error(`the real captured index is not present at ${path}`)
+  }
+  return readFileSync(path)
 }
 
 /** A client that serves whatever the test tells it to, and counts refreshes. */
@@ -96,7 +116,7 @@ describe('the consent banner served with HTTP 200 at the data URL', () => {
       response({ body: banner, status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } }),
     ])
 
-    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now)
+    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now, { archiveRoot: scratch })
 
     expect(outcome.status).toBe('consent_expired')
     expect(outcome.storageKey).toBeNull() // NOTHING went into the archive
@@ -105,16 +125,22 @@ describe('the consent banner served with HTTP 200 at the data URL', () => {
   })
 
   it('recovers when the refresh works, proving the guard is not simply always-refusing', async () => {
-    const realIndex = Buffer.from('X'.repeat(140) + '\n', 'utf8')
+    // The REAL index, because the content gate now refuses anything less. The old version
+    // of this test fed 140 X characters here, and the gate archiving that body is exactly
+    // the incident the gate exists to end.
+    const realIndex = capturedRealIndex()
     const { provider, refreshes } = fakeClient([
       response({ body: banner, headers: { 'content-type': 'text/html; charset=utf-8' } }),
-      response({ body: realIndex, headers: { 'content-type': 'text/plain' } }),
+      response({
+        body: realIndex,
+        headers: { 'content-type': 'text/plain', 'content-length': String(realIndex.length) },
+      }),
     ])
 
-    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now)
+    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now, { archiveRoot: scratch })
 
     expect(refreshes()).toBe(1)
-    expect(outcome.status).not.toBe('consent_expired')
+    expect(outcome.status).toBe('archived')
   })
 
   it('is caught by a redirect to dodwarning even when the body would pass', async () => {
@@ -132,7 +158,7 @@ describe('the consent banner served with HTTP 200 at the data URL', () => {
       }),
     ])
 
-    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now)
+    const outcome = await fetchDailyFile(provider, 'in', '2026-08-11', now, { archiveRoot: scratch })
     expect(outcome.status).toBe('consent_expired')
   })
 })
@@ -140,7 +166,7 @@ describe('the consent banner served with HTTP 200 at the data URL', () => {
 describe('a day the publisher never posted', () => {
   it('is a NAMED state, not a gap and not a zero', async () => {
     const { provider } = fakeClient([response({ body: Buffer.alloc(0), status: 404 })])
-    const outcome = await fetchDailyFile(provider, 'in', '2026-01-01', now)
+    const outcome = await fetchDailyFile(provider, 'in', '2026-01-01', now, { archiveRoot: scratch })
     expect(outcome.status).toBe('not_published')
     expect(outcome.storageKey).toBeNull()
   })

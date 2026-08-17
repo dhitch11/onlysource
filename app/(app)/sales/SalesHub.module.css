@@ -427,7 +427,8 @@
   font-size: var(--fs-100);
 }
 
-/* A server refusal, in the server's own words. Not the clock, so not red. */
+/* A server refusal, in the server's own words. Not the clock, so not red. Laid out as a
+ * row so the dismiss control sits beside the text instead of under it. */
 .cardRefusal {
   font-size: var(--fs-100);
   line-height: 1.45;
@@ -436,6 +437,9 @@
   border-radius: var(--radius-sm);
   background: var(--panel);
   padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
 }
 .cardNote {
   font-size: var(--fs-100);
@@ -443,6 +447,32 @@
   color: var(--olive);
   border-inline-start: 2px solid var(--olive-dim);
   padding-inline-start: var(--sp-2);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.cardMsgText {
+  min-width: 0;
+  flex: 1;
+}
+/* Dismiss hides the MESSAGE only; the server-side gate still refuses the next attempt. */
+.cardMsgDismiss {
+  flex: none;
+  min-width: 24px;
+  min-height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  font: inherit;
+  cursor: pointer;
+}
+.cardMsgDismiss:hover {
+  color: var(--ink);
+}
+.cardMsgDismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* The inline close / attestation form. */
@@ -460,6 +490,12 @@
   font-weight: var(--fw-semibold);
   color: var(--ink);
 }
+/* The form title with its explainer beside it. */
+.closeFormTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
 .closeField {
   display: flex;
   flex-direction: column;
@@ -476,6 +512,17 @@
   display: flex;
   gap: var(--sp-2);
   align-items: center;
+  flex-wrap: wrap;
+}
+/*
+ * A WORD-bearing secondary button inside the close/attest forms. The bare .moveBtn square
+ * was sized for the arrow glyphs (30px, no horizontal padding), so the "Cancel" label
+ * rendered pressed against the border and read as clipped at 1440 (audit 2026-08-17).
+ * Same height as the primary beside it, real padding, one visual family.
+ */
+.closeActions .moveBtn {
+  min-height: 40px;
+  padding: 0 var(--sp-3);
 }
 
 /* The per-card deliverable tools. */

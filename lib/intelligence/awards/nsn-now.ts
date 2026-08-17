@@ -23,7 +23,7 @@
  */
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { readWorkbookSheets, usDateToIso, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
+import { readWorkbookSheets, usDateToIso, distinctWorkbookPaths, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
 
 /** Where the batch exports land. Gitignored; shipped out of band. */
@@ -298,10 +298,16 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
     return cache
   }
 
-  const files = readdirSync(dir)
-    .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~'))
-    .map((f) => path.join(dir, f))
-    .sort()
+  // Distinct BY CONTENT, so a workbook present under two filenames is read and reported
+  // once. The deployed directory really did hold one export twice under different names,
+  // which inflated the provenance disclosure's file count by one (the row dedup below kept
+  // every NUMBER right; the claim about the evidence base was the lie).
+  const { files } = distinctWorkbookPaths(
+    readdirSync(dir)
+      .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~'))
+      .map((f) => path.join(dir, f))
+      .sort(),
+  )
 
   if (files.length === 0) {
     cache = { ok: false, reason: 'The NSN-Now directory exists but holds no .xlsx export yet.', dir }

@@ -46,6 +46,7 @@ import { usePathname } from "next/navigation";
 import { Reticle } from "./Reticle";
 import { NavIcon, type NavIconName } from "./NavIcon";
 import { NavGuide } from "./NavGuide";
+import { useScrollHint } from "../ui/Scrollable";
 import styles from "./AppShell.module.css";
 
 export interface NavDestination {
@@ -105,6 +106,8 @@ function initials(name: string): string {
 
 export function AppShell({ children, user, org, groups, meta }: AppShellProps) {
   const pathname = usePathname();
+  // Live overflow measurement for the phone-width nav strip; zero on the desktop column.
+  const { ref: navRef, more: navMore } = useScrollHint<HTMLElement>();
 
   return (
     <div className={styles.app}>
@@ -125,7 +128,17 @@ export function AppShell({ children, user, org, groups, meta }: AppShellProps) {
           </span>
         </div>
 
-        <nav className={styles.nav} aria-label="Sections">
+        {/*
+         * OVERFLOW HONESTY FOR THE NAV STRIP. Below 60rem the nav becomes a horizontally
+         * scrolling strip, and it was hiding ten of thirteen destinations with no fade, no
+         * hint, nothing saying more existed (audit 2026-08-17: clientWidth 476 vs scrollWidth
+         * 1992 at 500px, hard-clipped after three items). Same live-measured affordance the
+         * data grids already use: a right-edge fade plus plain words, rendered ONLY while
+         * content actually overflows to the right, so it can never cry wolf. On desktop the
+         * frame is display:contents and the hook measures zero overflow, so nothing renders.
+         */}
+        <div className={styles.navFrame}>
+        <nav ref={navRef} className={styles.nav} aria-label="Sections">
           {groups.map((g) => {
             const labelId = g.label ? `navgroup-${g.id}` : undefined;
             return (
@@ -185,6 +198,15 @@ export function AppShell({ children, user, org, groups, meta }: AppShellProps) {
               reachable, opening the plain-language guide. */}
           <NavGuide groups={groups} />
         </nav>
+        {navMore ? (
+          <>
+            <div className={styles.navFade} aria-hidden="true" />
+            <span className={styles.navHint} aria-hidden="true">
+              Scroll for more tools →
+            </span>
+          </>
+        ) : null}
+        </div>
 
         <div className={styles.sideFoot}>
           {/*

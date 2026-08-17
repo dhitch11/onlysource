@@ -73,6 +73,7 @@ Your ONLY source of fact is the OUTREACH DOSSIER in the user message. Absolute r
 - Greet by first name ONLY if the dossier's target.book.person names the person the email goes to; otherwise greet with no name. Never greet one person while writing to another's address.
 - Write stock numbers exactly as the dossier carries them: contiguous digits, no hyphens.
 - You may say the government has an open requirement only when liveRequirement is present; quote its quantity only as given. Stock they list is "listed", never "confirmed".
+- NEVER quote an award price, an award value, or what the government paid to the recipient. This is buy-side email: handing the seller the last award price hands them the anchor to price against. The open requirement and their own listed quantity are the useful facts; the trader's price knowledge stays theirs.
 - Structure: SUBJECT: on the first line, then a blank line, then the body. Under 140 words of body. Short paragraphs.
 - The body ends with a one-line easy ask (a quick reply gets it moving) and then exactly "Thanks," on its own line. NOTHING after "Thanks," - no name, no company, no title. The operator signs it themselves.
 - No hype, no pressure tactics, no em dashes.`

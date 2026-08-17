@@ -22,6 +22,16 @@ import path from 'node:path'
 
 import { checkDataAvailability } from '@/lib/intelligence/datasets'
 
+/*
+ * TIMEOUT BUDGET RAISED 2026-08-17, and the reason is a real change in the world, not a flaky test.
+ * These cases read the REAL archive. On 2026-08-16 that archive held ONE feed day; the backfill
+ * landed 20 days and 1.4 GB, so a cold `buildAllDatasets()` now costs ~7.6s measured, and several
+ * of these files paying that concurrently under vitest's parallelism blew a 30s budget set when
+ * the data was 20x smaller. The PRODUCT is unaffected: the build is memoized (second call 0ms) and
+ * the archive scan is memoized on manifest identity, so a request pays this once per process.
+ * Raising the budget is the honest fix; lowering the assertion would not be.
+ */
+
 // The gate is stubbed to ALLOW: this file is about what the handler does with a request it is
 // permitted to serve. The 401 path is measured against the live server by the .probe scripts.
 vi.mock('@/lib/session/require-gate', () => ({
@@ -88,7 +98,7 @@ describe('POST /api/alerts/send', () => {
 
   // 30s: the first call in this worker cold-parses the NSN-Now workbooks for the signal
   // engine, which takes seconds under parallel test CPU. Same allowance as the data suites.
-  it('answers 200 with sent:false while the deployment is deliberately disarmed', { timeout: 30_000 }, async () => {
+  it('answers 200 with sent:false while the deployment is deliberately disarmed', { timeout: 120_000 }, async () => {
     const r = await post()
     expect(r.status).toBe(200)
     expect(r.ok).toBe(true)

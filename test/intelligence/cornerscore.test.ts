@@ -149,3 +149,64 @@ describe("scoreCorner abstention discipline", () => {
     expect(strong.scoreV0).toBeGreaterThan(weak.scoreV0);
   });
 });
+
+/*
+ * SOURCE-STATE HONESTY. The scorer used to tell one lie in two places: an NSN absent from a
+ * LOADED index read "not loaded"/"not connected", contradicting the very memo it appeared in
+ * (the neighbouring sentence quoted live forecast data), and the same real-world state scored
+ * PRIOR 0.5 or measured 0 depending on which sheet happened to mention the NSN. These pin the
+ * fix: a checked absence is a measurement, and only a truly unloaded source leaves a prior.
+ */
+describe("scoreCorner source-state honesty: checked absence versus unloaded source", () => {
+  it("forecast index loaded + NSN absent → forward demand is a MEASURED zero, and no 'not loaded' gap", () => {
+    const r = scoreCorner(baseRow(), awardWith(), null, { forecastIndexLoaded: true, awardIndexLoaded: true });
+    expect(r.legs.forwardDemand.state).toBe("MEASURED");
+    expect(r.legs.forwardDemand.value).toBe(0);
+    expect(r.dataGaps.join("\n")).not.toContain("DLA Forecast not loaded");
+    expect(r.reasons.some((rc) => rc.plain.includes("checked absence"))).toBe(true);
+  });
+
+  it("PARITY: absent-from-export and onForecast:false are the same state and score the same", () => {
+    const absent = scoreCorner(baseRow(), awardWith(), null, { forecastIndexLoaded: true, awardIndexLoaded: true });
+    const seenButOff = scoreCorner(
+      baseRow(),
+      awardWith(),
+      { nsn: "5325015619853", onForecast: false, forecast: [], totalForecastQty: 0, supplyChains: [], solicitationCount: 1, lastSolicitation: null, specCount: 0, endItems: [] },
+      { forecastIndexLoaded: true, awardIndexLoaded: true },
+    );
+    expect(absent.legs.forwardDemand.state).toBe(seenButOff.legs.forwardDemand.state);
+    expect(absent.legs.forwardDemand.value).toBe(seenButOff.legs.forwardDemand.value);
+    expect(absent.scoreV0).toBe(seenButOff.scoreV0);
+  });
+
+  it("forecast index NOT loaded keeps the honest prior and the 'not loaded' gap", () => {
+    const r = scoreCorner(baseRow(), awardWith(), null, {});
+    expect(r.legs.forwardDemand.state).toBe("PRIOR");
+    expect(r.dataGaps.join("\n")).toContain("DLA Forecast not loaded");
+  });
+
+  it("award index loaded + no awards → the pricing gap names a checked absence, never 'not ingested/loaded'", () => {
+    const r = scoreCorner(baseRow(), null, null, { awardIndexLoaded: true });
+    expect(r.legs.priceAnchor.state).toBe("UNAVAILABLE");
+    const gaps = r.dataGaps.join("\n");
+    expect(gaps).toContain("carries no price for this stock number");
+    expect(gaps).not.toContain("award history not loaded");
+    expect(gaps).not.toContain("not ingested");
+  });
+
+  it("award index loaded + no availability row → feasibility says so, and never claims the sheet is unconnected", () => {
+    const r = scoreCorner(baseRow(), awardWith({ holders: [] }), null, { awardIndexLoaded: true, forecastIndexLoaded: true });
+    expect(r.legs.feasibility.state).toBe("UNAVAILABLE");
+    expect(r.legs.feasibility.because).toContain("loaded export");
+    const gaps = r.dataGaps.join("\n");
+    expect(gaps).toContain("no company lists stock for this stock number");
+    expect(gaps).not.toContain("ILS availability not connected");
+  });
+
+  it("no flags at all preserves the original unconnected wording (an honest caller with no index in hand)", () => {
+    const r = scoreCorner(baseRow(), null);
+    const gaps = r.dataGaps.join("\n");
+    expect(gaps).toContain("ILS availability not connected");
+    expect(gaps).toContain("award history not loaded");
+  });
+});

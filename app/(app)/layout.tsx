@@ -1,7 +1,9 @@
 import { env } from '@/lib/env'
+import { buildIdentity } from '@/lib/build-identity'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavGroup } from '@/components/shell/AppShell'
+import { FeedFreshnessPill } from '@/components/shell/FeedFreshnessPill'
 import { NotificationCenter } from '@/components/shell/NotificationCenter'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
@@ -121,7 +123,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Pipeline',
         icon: 'sales',
         tag: 'CRM',
-        description: 'Your deals, moved stage by stage to won. Hunter Mode lives here.',
+        description: 'Your deals, moved stage by stage to won. Hunter Mode, the autonomous outreach engine, lives here; it is not running until you switch it on.',
       },
       {
         href: '/suppliers',
@@ -163,7 +165,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const e = env()
   const environment = e.APP_ENV ?? e.NODE_ENV
-  const commit = e.GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
+  // Resolved from the running tree, not the deploy-time stamp: the stamp went 52 commits
+  // stale on the live droplet while this badge kept naming it (audit 2026-08-17). See
+  // lib/build-identity.ts for the resolution order.
+  const commit = buildIdentity().commit?.slice(0, 7) ?? 'local'
 
   // A REAL nav count for the Monopoly Map, or none. Computed only when the data directory is
   // present, because a badge is a claim about how much work is waiting and a fabricated one is
@@ -193,12 +198,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       groups={groups}
       meta={
         <>
-          {feedDay ? (
-            <span className="pill pill--ok" title={`Government data for ${feedDay}`}>
-              <span className="vh">Government data as of </span>
-              Gov data · {feedDay}
-            </span>
-          ) : null}
+          {/*
+           * The freshness pill. Its tone is MEASURED from the served feed day's age in
+           * business days, never a hardcoded ok-state, and its eye button explains the
+           * feed day, the capture instant and what stale means. The old inline pill here
+           * carried `pill--ok` as a literal and a banned title tooltip; both are gone.
+           */}
+          <FeedFreshnessPill servedFeedDay={feedDay} />
           {/* A quiet fact, not an alert: amber stays reserved for the award clock. */}
           <span className="pill pill--off">{environment}</span>
           {/*

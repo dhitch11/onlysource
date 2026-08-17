@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AiLoader } from '@/components/ui/AiLoader'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import type { PursuitPackage } from '@/lib/intelligence/brief/package'
 import { packageMarkdown } from '@/lib/intelligence/brief/package'
 import styles from './pursuit-package.module.css'
@@ -148,7 +149,10 @@ export function PursuitPackagePanel({
     <section className={styles.panel} aria-label={`${heading} for ${nsn}`}>
       <div className={styles.head}>
         <div>
-          <h2 className={styles.title}>{heading}</h2>
+          <div className={styles.titleRow}>
+            <h2 className={styles.title}>{heading}</h2>
+            <ExplainButton helpId="pursuit.pursuit_package" size="sm" />
+          </div>
           <p className={styles.sub}>
             The engine assembles the measured facts: the corner case, the modeled economics with their
             basis, who holds or made the article, the named gaps. The analyst writes the memo from that

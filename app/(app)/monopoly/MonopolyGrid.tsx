@@ -64,6 +64,9 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     header: "CornerScore",
     width: "17ch",
     align: "end",
+    // The flagship 0-100 rank finally explains itself where it is ranked by (census
+    // 2026-08-17: the one major column with no eye was the one operators sort money by).
+    helpId: "score.corner_v0",
     sortValue: (r) => r.score.scoreV0,
     cell: (r): Cell => ({
       state: "known",

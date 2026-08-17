@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AiLoader } from '@/components/ui/AiLoader'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import type { OutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
 import type { EmailChannelState } from './PursuitPackagePanel'
 import styles from './pursuit-package.module.css'
@@ -111,7 +112,10 @@ export function OutreachDraftPanel({
     <div className={styles.draftWrap} aria-label={`Supplier outreach draft for ${nsn}`}>
       <div className={styles.head}>
         <div>
-          <p className={styles.draftTitle}>Draft supplier outreach</p>
+          <div className={styles.titleRow}>
+            <p className={styles.draftTitle}>Draft supplier outreach</p>
+            <ExplainButton helpId="pursuit.outreach_draft" size="sm" />
+          </div>
           <p className={styles.sub}>
             Buy-side, grounded in the measured facts for this stock number. You send it; the system
             never does.

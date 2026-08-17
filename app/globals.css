@@ -370,6 +370,22 @@ a {
   color: var(--amber);
 }
 
+/* The feed-freshness pill's measured tones. Olive stays the measured-good state
+ * (.pill--ok). Aging and stale are deliberately NOT amber or red: those two hues are
+ * reserved for auto-award clock urgency (styles/tokens.css), and data age is a fact about
+ * the inputs, not a closing clock. Stale reads heavier than aging through ink and border,
+ * so the escalation is visible without spending the reserved hues. */
+.pill--aging {
+  background: color-mix(in srgb, var(--faint) 16%, transparent);
+  color: var(--dim);
+}
+
+.pill--stale {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
 .banner {
   display: flex;
   flex-wrap: wrap;
@@ -629,6 +645,8 @@ a {
 }
 .topCorner__act {
   display: flex;
+  align-items: center;
+  gap: var(--sp-1);
   padding: 0 var(--sp-5) var(--sp-4);
 }
 

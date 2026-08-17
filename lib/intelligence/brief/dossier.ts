@@ -32,6 +32,29 @@ export type CornerDossier = {
     approvedSourceCount: number
     approvedSources: string[]
     awardSilent: boolean
+    /**
+     * THE RECONCILED READ of the two approved-source counters, computed here ONCE.
+     *
+     * The corner row's source list (from the feed-day quoting package) and the export's
+     * cross-reference rows (one row per CAGE per part number) genuinely disagree on raw
+     * counts, and every served brief used to burn its word budget re-litigating the same
+     * arithmetic ("Note the internal disagreement… should be reconciled before hours go
+     * in"). The reconciliation is mechanical — distinct CAGEs, rows per CAGE, which CAGEs
+     * appear in only one source — so the engine does it and the brief quotes the resolved
+     * picture. Null when no cross-reference rows exist for this NSN.
+     */
+    crossReference: {
+      /** Cross-reference rows for this NSN (a CAGE can appear once per part number). */
+      rows: number
+      /** Distinct CAGEs across those rows. */
+      distinctCages: number
+      /** CAGEs the cross-reference names that the corner row's source list does not. */
+      cagesOnlyInCrossReference: string[]
+      /** CAGEs on the corner row's source list that the cross-reference does not carry. */
+      cagesOnlyInSourceList: string[]
+      /** The resolved read in words the brief can quote directly. */
+      note: string
+    } | null
   }
   awardPath: 'machine_award' | 'manual' | 'unknown'
   demandQuantity: { value: number | null; unitOfIssue: string }
@@ -71,6 +94,40 @@ export type CornerDossier = {
   openGaps: string[]
 }
 
+/** Reconcile the corner row's source list against the export's cross-reference rows. */
+function reconcileApprovedSources(
+  row: CornerRow,
+  award: NsnAwardSummary | null,
+): CornerDossier['source']['crossReference'] {
+  const xr = award?.approvedSources ?? []
+  if (xr.length === 0) return null
+  const xrCages = [...new Set(xr.map((s) => (s.cage ?? '').trim().toUpperCase()).filter(Boolean))]
+  const listCages = new Set(row.approvedSources.map((c) => c.trim().toUpperCase()))
+  const cagesOnlyInCrossReference = xrCages.filter((c) => !listCages.has(c))
+  const cagesOnlyInSourceList = [...listCages].filter((c) => !xrCages.includes(c))
+  const parts: string[] = [
+    `The cross-reference carries ${xr.length} row(s) resolving to ${xrCages.length} distinct CAGE(s); ` +
+      'a CAGE appears once per part number, so rows can outnumber companies.',
+  ]
+  if (cagesOnlyInCrossReference.length === 0 && cagesOnlyInSourceList.length === 0) {
+    parts.push('The two sources name the same companies.')
+  } else {
+    if (cagesOnlyInCrossReference.length > 0) {
+      parts.push(`In the cross-reference only: ${cagesOnlyInCrossReference.join(', ')}.`)
+    }
+    if (cagesOnlyInSourceList.length > 0) {
+      parts.push(`On the corner row's source list only: ${cagesOnlyInSourceList.join(', ')}.`)
+    }
+  }
+  return {
+    rows: xr.length,
+    distinctCages: xrCages.length,
+    cagesOnlyInCrossReference,
+    cagesOnlyInSourceList,
+    note: parts.join(' '),
+  }
+}
+
 function toPoint(a: AwardRecord): PricePoint {
   return {
     dateIso: a.awardDateIso,
@@ -106,6 +163,7 @@ export function buildCornerDossier(
       approvedSourceCount: row.approvedSourceCount,
       approvedSources: row.approvedSources,
       awardSilent: row.silentSourceCount > 0,
+      crossReference: reconcileApprovedSources(row, award),
     },
     awardPath:
       row.automatedSolicitation === true

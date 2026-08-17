@@ -9,6 +9,7 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import { PursueButton } from '@/components/sales/PursueButton'
 import { readDeals } from '@/lib/sales/deals-store'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import styles from './goldmine.module.css'
 
 export const metadata: Metadata = { title: 'No-Quote Goldmine · ONLYSOURCE' }
@@ -100,11 +101,16 @@ export default async function GoldminePage() {
   // The refs already in the pipeline, so a pursued row renders flipped on first paint.
   const pursued = new Set(readDeals().map((d) => normalizeDealRef(d.ref)).filter(Boolean))
 
-  const metrics: Array<{ display: string; label: string; hint: string; hot: boolean }> = [
-    { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false },
+  // The live provenance line each tile's explainer carries: the actual files this page's
+  // numbers were joined from, read from the dataset's own provenance object at render time.
+  const nqProv = noQuote.provenance
+  const nqSource = `Counted from ${nqProv.solicitations.path.split('/').pop()} joined to ${nqProv.availability.path.split('/').pop()}`
+
+  const metrics: Array<{ display: string; label: string; hint: string; hot: boolean; helpId?: string; sourceDetail?: string }> = [
+    { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false, helpId: 'capability.no_quote', sourceDetail: nqSource },
     { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
     { display: noQuote.summary.withHolder.toLocaleString(), label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
-    { display: makeSideValue > 0 ? usd0(makeSideValue) : '—', label: 'make-side size of buy', hint: 'last price times quantity, every make-side buy added up', hot: true },
+    { display: makeSideValue > 0 ? usd0(makeSideValue) : '—', label: 'make-side size of buy', hint: 'last price times quantity, every make-side buy added up', hot: true, helpId: 'capability.modeled_size_of_buy', sourceDetail: nqSource },
   ]
 
   return (
@@ -123,6 +129,11 @@ export default async function GoldminePage() {
       <section className={styles.metricStrip} aria-label="Goldmine totals">
         {metrics.map((m) => (
           <div key={m.label} className={`${styles.metric} ${m.hot ? styles.metricHot : ''}`}>
+            {m.helpId ? (
+              <div className={styles.metricHelp}>
+                <ExplainButton helpId={m.helpId} size="sm" sourceDetail={m.sourceDetail} />
+              </div>
+            ) : null}
             <span className={styles.metricN}>{m.display}</span>
             <span className={styles.metricLabel}>{m.label}</span>
             <span className={styles.metricHint}>{m.hint}</span>

@@ -163,6 +163,97 @@ export function classifyFeedResponse(facts: FeedResponseFacts, shape: FeedShape)
   return { kind: 'data', rows }
 }
 
+/**
+ * THE BLOCK-PAGE MARKERS, measured from the two real interception pages this host serves.
+ *
+ * 'Warning and Consent' appears twice in each captured DoD banner (the 9,152-byte pages in
+ * `data/archive/dibbs-consent-banner/`). 'Request Rejected' is the F5 ASM block page served
+ * when the WAF fingerprints the client, previously measured live on this estate at roughly
+ * 30 rapid requests. Neither phrase can appear in a fixed-width solicitation index, and a
+ * body carrying either is an interception page regardless of every other signal.
+ */
+export const BLOCK_PAGE_MARKERS = /Warning and Consent|Request Rejected/i
+
+/** The 4-byte zip local-file-header signature, PK\x03\x04, as raw bytes. */
+const ZIP_LOCAL_HEADER = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+
+/**
+ * Count zip local-file-header signatures in a BUFFER, never through a string. The reason is
+ * a measured production failure, not taste: the 2026-08-12 `ca` package is over 512 MB, and
+ * `body.toString('latin1')` on it dies on V8's string-length ceiling (ERR_STRING_TOO_LONG
+ * at 0x1fffffe8 characters). A native indexOf walk has no ceiling. On the real
+ * bq260811.zip this equals its member count; compressed bytes can in principle collide
+ * with the signature, so it is an entry-count measurement, not a parse.
+ */
+export function countZipLocalHeaders(body: Buffer): number {
+  let count = 0
+  let at = body.indexOf(ZIP_LOCAL_HEADER)
+  while (at !== -1) {
+    count += 1
+    at = body.indexOf(ZIP_LOCAL_HEADER, at + 4)
+  }
+  return count
+}
+
+/**
+ * Classify a ZIP feed response (the `bq` and `ca` daily files).
+ *
+ * The index classifier's fixed-width shape check would refuse every real zip, so binary
+ * files get their own ladder: redirect, status, content type, HTML-and-block markers in the
+ * decoded head, then the one property a zip cannot lack: the PK\x03\x04 local-file-header
+ * magic at byte zero.
+ *
+ * `facts.sample` here is a decoded HEAD of the body, deliberately: an interception page is
+ * small and its markers are in the first kilobytes or nowhere, compressed bytes further in
+ * are effectively random and would eventually collide with any short phrase, and a daily
+ * package can exceed V8's 512 MB string ceiling, so the whole body must never be decoded to
+ * a string at all. `localHeaderCount` is measured on the raw buffer by
+ * `countZipLocalHeaders` and passed in.
+ */
+export function classifyZipFeedResponse(
+  facts: FeedResponseFacts,
+  localHeaderCount: number,
+): FeedVerdict {
+  if (/dodwarning\.aspx/i.test(facts.finalUrl)) {
+    return {
+      kind: 'consent_redirect',
+      detail: `redirected to the consent page at ${facts.finalUrl}`,
+    }
+  }
+  if (facts.status !== 200) {
+    return { kind: 'assertion_failed', detail: `HTTP ${facts.status}` }
+  }
+  const ct = (facts.contentType ?? '').toLowerCase()
+  if (ct.includes('text/html')) {
+    return {
+      kind: 'consent_banner',
+      detail:
+        'the response is text/html, which a zip feed file never is. This is an interception ' +
+        'page served with HTTP 200.',
+    }
+  }
+  const head = facts.sample.slice(0, 65536)
+  if (/<html|<!doctype html|dodwarning/i.test(head) || BLOCK_PAGE_MARKERS.test(head)) {
+    return {
+      kind: 'consent_banner',
+      detail: 'the body opens with HTML or a block-page phrase, so it is a page, not a zip',
+    }
+  }
+  if (!facts.sample.startsWith('PK\u0003\u0004')) {
+    return {
+      kind: 'assertion_failed',
+      detail: 'the body does not begin with the zip local-file-header magic PK\\x03\\x04',
+    }
+  }
+  if (localHeaderCount < 1) {
+    return {
+      kind: 'assertion_failed',
+      detail: 'no zip local-file-header signature was found in the body',
+    }
+  }
+  return { kind: 'data', rows: localHeaderCount }
+}
+
 /** Check a full-file row count against the band. Separate, because a sample cannot answer it. */
 export function checkCountBand(rows: number, shape: FeedShape): FeedVerdict {
   if (rows < shape.countBand.min || rows > shape.countBand.max) {

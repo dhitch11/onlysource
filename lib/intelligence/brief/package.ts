@@ -88,7 +88,9 @@ export type PursuitPackage = {
     approvedSources: PackageApprovedSource[]
     /** Distinct CAGEs on the recorded award history for this NSN. */
     pastAwardees: PackagePastAwardee[]
-    /** How many of the rows above carry at least one contact channel. */
+    /** DISTINCT CAGEs above with at least one contact channel on file. Distinct companies,
+     *  never rows: one contactable CAGE spanning two part-number rows is ONE supplier to
+     *  reach, and the memo's "reach the N suppliers" sentence quotes this number. */
     contactChannelsOnFile: number
   }
   /** Saved quote packets for this NSN in Documents. The traceability read lives there. */
@@ -197,9 +199,17 @@ export function buildPursuitPackage(args: {
     ...approvedSources,
     ...pastAwardees,
   ]
-  const contactChannelsOnFile = allRows.filter(
-    (r) => r.inBook && (r.inBook.email || r.inBook.phone),
-  ).length
+  /*
+   * Count DISTINCT CAGEs, never rows. A contactable CAGE can appear on several rows (an
+   * approved source with two part numbers, a holder who is also a past awardee), and a row
+   * count told the served memo to "reach the two suppliers with a contact channel" when only
+   * one reachable company existed. Same dedup the no-channel gap list below already uses.
+   */
+  const contactChannelsOnFile = new Set(
+    allRows
+      .filter((r) => r.inBook && (r.inBook.email || r.inBook.phone))
+      .map((r) => (r.cage ?? r.inBook!.cage).toUpperCase()),
+  ).size
 
   // ---- gaps: the dossier's own, plus what this package could not establish ----
   const gaps: string[] = [...dossier.openGaps]

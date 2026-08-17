@@ -31,7 +31,7 @@ export const T7_ENTRIES: HelpRecord[] = [
     owner: 'T7 ADMIN + API',
     title: 'Admin plane',
     what: 'The privileged console is a separate authorization domain from the daily operator surface.',
-    how: 'Only a role that is admin-plane AND holds at least one admin permission can reach it. An operator role cannot be given an admin permission at all.',
+    how: 'Give someone an admin role only when they must manage users, roles or connections. Do not try to add an admin permission to an operator role; the server refuses to build one, so plan the role split first.',
     why: 'One permission check shared between the two planes means both inherit the weaker one. That is the failure that ends a company rather than a sprint.',
     source: 'Enforced server-side on every request and structurally at role construction, which refuses to build an operator role holding an admin permission.',
   },

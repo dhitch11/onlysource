@@ -56,6 +56,14 @@ import { T5_ENTRIES } from "@/lib/compliance/help";
 // The pursuit wire + pipeline surfaces. Same pattern: entries live in lib/sales/help.ts.
 import { PURSUIT_ENTRIES } from "@/lib/sales/help";
 
+// T2 DATA. The feed-freshness pill and future ingest-owned surfaces.
+import { T2_ENTRIES } from "@/lib/ingest/help";
+
+// T3 ENGINE. The CornerScore, the disposition, the evaluated-price abstention. Written
+// 2026-08-17 after the explainer census found the flagship score unexplained on all four
+// surfaces that display it; the block below stopped being hypothetical the same day.
+import { T3_ENTRIES } from "@/lib/intelligence/scoring/help";
+
 /** The lanes that can own a help entry. Used by the panel to name who owes a missing one. */
 export type HelpOwner =
   | "T1 FOUNDATION"
@@ -207,15 +215,17 @@ register(T5_ENTRIES);
 // The pursuit wire (the Pursue action, the modeled buy value, the stage counts).
 register(PURSUIT_ENTRIES);
 
+// T2 DATA. Entries live in lib/ingest/help.ts; import above and call here in one edit, per
+// the two recorded half-shipped registrations this comment block already documents.
+register(T2_ENTRIES);
+
+// T3 ENGINE. Entries live in lib/intelligence/scoring/help.ts, same pattern as every lane.
+register(T3_ENTRIES);
+
 /*
- * Other lanes: register your entries here, in your own block.
- *
- *   register(T3_ENTRIES)   // scoring signals, the counterfactual, the abstain reasons
- *   register(T5_ENTRIES)   // compliance paths, the T-versus-U branch, the traceability gate
- *   ...
- *
- * Keep the array in a file your lane owns and import it, so this file does not become a
- * merge conflict every lane fights over.
+ * Other lanes: register your entries here, in your own block. Keep the array in a file your
+ * lane owns and import it, so this file does not become a merge conflict every lane fights
+ * over.
  */
 
 /** Look up an entry. Returns undefined when the owning lane has not written it yet, which
@@ -240,11 +250,16 @@ export function inferOwner(id: string): HelpOwner | undefined {
     ingest: "T2 DATA",
     feed: "T2 DATA",
     catalog: "T2 DATA",
+    // The live feed-freshness pill's namespace. Missing from this map, a pending sibling
+    // would have blamed "the lane that owns this number" instead of naming T2.
+    data: "T2 DATA",
     score: "T3 ENGINE",
     signal: "T3 ENGINE",
     board: "T3 ENGINE",
     monopoly: "T4 INTELLIGENCE",
     capability: "T4 INTELLIGENCE",
+    suppliers: "T4 INTELLIGENCE",
+    hubzone: "T4 INTELLIGENCE",
     compliance: "T5 DOCUMENTS",
     packet: "T5 DOCUMENTS",
     traceability: "T5 DOCUMENTS",

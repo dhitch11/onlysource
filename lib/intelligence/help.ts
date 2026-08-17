@@ -162,6 +162,68 @@ export const T4_ENTRIES: HelpRecord[] = [
     source: 'Computed from the last award unit price and the open quantity on this row. The flat adder is the standard surplus evaluation charge; the row states whether it is negligible or meaningful for this buy.',
   },
 
+  /* ------------------------------------------- the decide-surface charts and columns
+   * Added 2026-08-17 after the explainer census: the Board's award-path column, the
+   * Intelligence charts, the modeled dollar totals on Goldmine and HUBZone, and the
+   * Suppliers prospect score all rendered with no explanation anywhere. */
+  {
+    id: 'monopoly.award_path',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Award path',
+    what: 'Whether this buy is awarded by machine on price alone, or evaluated manually by a person. Read from the solicitation type character.',
+    how: 'Work machine-award rows with a sharp price, because nothing but the number competes. On manual rows, expect a person to read your quote and its paperwork before anything is won.',
+    why: 'A machine award is the shape a corner monetizes through: set the price, win the buy. Spending that effort on a manually evaluated buy misjudges who is listening.',
+    source: 'The ninth character of the solicitation number in the feed-day index; T and U mark the automated instruments. A row whose solicitation cannot name the character says unknown instead of guessing.',
+    whatThisDoesNotDo:
+      'It does not say the machine will pick you, and it says nothing about surplus eligibility, which turns on the T versus U branch separately.',
+  },
+  {
+    id: 'monopoly.supply_chain',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Supply chains',
+    what: 'Which DLA supply chains the cornered parts belong to, counted from the forecast records those corners matched.',
+    how: 'Work the biggest chain first. One credentialed relationship or one line of stock often serves many corners inside the same chain.',
+    why: 'Concentration is leverage. Ten corners in one chain can share suppliers, paperwork and a buyer; ten corners in ten chains are ten separate jobs.',
+    source: 'The supply chain named on the DLA Forecast rows for each cornered stock number, counted once per corner per chain. Corners with no forecast rows contribute nothing.',
+  },
+  {
+    id: 'monopoly.price_escalation',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Price escalation',
+    what: 'How much the sole source has raised the unit price across this part\'s own award history, first recorded award to latest.',
+    how: 'Read it as the rent an uncontested lane charges. Open the row and check the dates and quantities behind the two prices before quoting against the trend.',
+    why: 'A steep escalation on a machine-award buy is the clearest money signal on these surfaces: the incumbent is pricing without competition, and a sharper price can take the lane.',
+    source: 'Computed from the first and latest recorded award unit prices in the loaded procurement history for this stock number. A part with fewer than two priced awards carries no escalation figure.',
+    whatThisDoesNotDo:
+      'It does not say why the price rose. Quantity changes, spec changes and inflation all move unit prices, and none of them is a corner. Two awards make a line, not a law.',
+    explainsAScore: true,
+  },
+  {
+    id: 'capability.modeled_size_of_buy',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Modeled size of buy',
+    what: 'The last recorded government price times the quantity asked for, added up. A model of how much money the buys represent, not a quote.',
+    how: 'Use it to rank which lanes deserve the hour. Before quoting any single row, open it and check the price history behind the model.',
+    why: 'A ranked dollar model is how a two-person shop picks its lane. A modeled total mistaken for promised revenue is how it overcommits capital.',
+    source: 'Measured per row from the government files: the last recorded price times the quantity on the solicitation line. A row with a price but no stated quantity contributes the price alone, and a row with no recorded price contributes nothing.',
+    whatThisDoesNotDo:
+      'It does not promise the next award will price or size the same. The government can buy fewer, pay less, or not buy at all, and rows with no recorded price are honestly absent from the total.',
+    modelled: true,
+    explainsAScore: true,
+  },
+  {
+    id: 'suppliers.prospect_score',
+    owner: 'T4 INTELLIGENCE',
+    title: 'Prospect score',
+    what: 'The researcher\'s rank of how likely this company is to hold dead inventory worth buying, carried through from the workbook unchanged.',
+    how: 'Sort by it and call the top band first. Read the rationale on the row before an approach, and mark a company contacted so the next pass skips it.',
+    why: 'An hour of calls placed by rank finds stock an alphabetical pass misses. Treating the rank as a fact about inventory, rather than a bet on where to look, buys positions nobody verified.',
+    source: 'The researched supplier workbook on disk, score and tier exactly as the researcher recorded them. Nothing in this build rescored the rows.',
+    whatThisDoesNotDo:
+      'It does not measure inventory and it is not a company health record. Silence is a signal, not proof a company is gone, and a high score confirms nothing until a person reaches the company.',
+    explainsAScore: true,
+  },
+
   /* --------------------------------------- the dashboard command-center tiles (T4 numbers) */
   {
     id: 'monopoly.forecast_nsns',
@@ -170,7 +232,7 @@ export const T4_ENTRIES: HelpRecord[] = [
     what: 'How many stock numbers in the loaded export appear on the DLA Forecast, the government list of parts it plans to buy again.',
     how: 'Treat forecast presence as stated forward demand. Filter the Monopoly Map to "On forecast" to work the corners the buyer has already said it will return for.',
     why: 'A corner with stated future demand is worth holding; one without it may never be bought again. This split decides where inventory dollars wait and where they die.',
-    source: 'Counted from the DLA Forecast sheets inside the NSN-Now export on disk, keyed by stock number. The panel below names the files and the feed day.',
+    source: 'Counted from the DLA Forecast sheets inside the NSN-Now export on disk, keyed by stock number. The line under this sentence names the exact files and the feed day this count was read from.',
     whatThisDoesNotDo:
       'It does not promise a purchase. A forecast line is a plan, not an order, and absence from the forecast is not proof demand is gone.',
   },
@@ -181,7 +243,7 @@ export const T4_ENTRIES: HelpRecord[] = [
     what: 'How many stock numbers carry at least one real recorded award in the loaded export, giving a price the government actually paid.',
     how: 'Use these rows to anchor any quote: the price history and its trend are measured, not modeled. Rows outside this count abstain on price rather than guessing.',
     why: 'A real paid price is the anchor every margin calculation stands on. Quoting without one is guessing against the one party who knows the number.',
-    source: 'Counted from the procurement history sheets of the NSN-Now export on disk, one row per recorded award. The panel below names the files and the feed day.',
+    source: 'Counted from the procurement history sheets of the NSN-Now export on disk, one row per recorded award. The line under this sentence names the exact files and the feed day this count was read from.',
     whatThisDoesNotDo:
       'History does not bind the next award. A price paid before is evidence, not a ceiling or a floor.',
   },
@@ -192,7 +254,7 @@ export const T4_ENTRIES: HelpRecord[] = [
     what: 'The hottest researched band of companies that stopped winning DLA awards: likely dead inventory, with verified ways to reach them.',
     how: 'Open Suppliers and work the Tier A tab first. Each row carries the researcher\'s rationale and contacts; mark a company contacted as you go.',
     why: 'A quiet company sitting on stock the government still buys is the cheapest way into a position. The tier ranks where an hour of calls is most likely to find it.',
-    source: 'The researched supplier workbook on disk, tier and score carried through from the researcher unchanged. The panel below names the file.',
+    source: 'The researched supplier workbook on disk, tier and score carried through from the researcher unchanged. The line under this sentence names the exact file this count was read from.',
     whatThisDoesNotDo:
       'The tier is the researcher\'s judgment, not a measurement of inventory. Silence is a signal, not proof a company is gone, and nothing here confirms what a company still holds.',
   },

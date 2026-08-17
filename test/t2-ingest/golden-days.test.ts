@@ -310,7 +310,14 @@ describe('date parsing states its century inference and refuses to guess', () =>
   })
 })
 
-describe('zip integrity fires on the TRUNCATED package, with no history required', () => {
+/*
+ * ZIP BUDGET, 2026-08-17. These cases parse the real captured packages, and `ca260811.zip` alone is
+ * 56,826,248 bytes (the 08-14 one is 66 MB). The default 5s budget was set when the archive held a
+ * single feed day; it now holds 20 days and 1.4 GB, so `captured()` resolves across a far larger
+ * tree before any parsing starts. The assertions are unchanged: this block still proves the
+ * truncated package goes RED.
+ */
+describe('zip integrity fires on the TRUNCATED package, with no history required', { timeout: 60_000 }, () => {
   it('goes RED on the real cut-off ca package. THE RED RUN', () => {
     const result = readZipMembers(captured('ca260811.zip'))
     const checks = assertZipIntegrity(result)

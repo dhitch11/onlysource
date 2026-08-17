@@ -159,6 +159,13 @@ export function ExplainButton({ helpId, computation, sourceDetail, size = "md" }
             {/* L1. One line, in the operator's language. */}
             <p className={styles.lead}>{record.what}</p>
 
+            {/* The modelled flag, IN WORDS. The registry documents this field as "so the
+                panel can say so in words as well as through the provenance glyph"; it was
+                documented and never rendered, which made the promise a small fabrication. */}
+            {record.modelled ? (
+              <p className={styles.modelled}>A modeled estimate, not a measurement.</p>
+            ) : null}
+
             {/* L2, static half: the HelpRecord. */}
             <dl className={styles.dl}>
               <dt>How to use it</dt>

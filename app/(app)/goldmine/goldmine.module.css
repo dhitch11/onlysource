@@ -46,6 +46,16 @@
   background: var(--panel);
   padding: var(--sp-4);
   min-width: 0;
+  /* The frame for the explainer overlay below; harmless on tiles that carry none. */
+  position: relative;
+}
+
+/* The eye-in-circle explainer on a metric tile, same top-right overlay the dashboard's
+ * metric cards use, so it never fights the tile's column stack for layout. */
+.metricHelp {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
 }
 .metricHot {
   border-color: var(--accent-2);

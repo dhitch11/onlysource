@@ -62,6 +62,12 @@ export function NavGuide({ groups }: { groups: NavGroup[] }) {
           work it to a close in the pipeline. Closing happens in Pipeline and Documents,
           where a quote goes out and a purchase order comes back.
         </p>
+        {/* The help system teaches itself: this is the one place a brand-new operator is
+            told what the eye mark means before meeting one (census 2026-08-17). */}
+        <p className={styles.lead}>
+          Anywhere you see the small eye mark, press it: it says what that number means, what
+          to do with it, and exactly which government file it was read from.
+        </p>
 
         {groups.map((g) => (
           <section key={g.id} className={styles.section}>

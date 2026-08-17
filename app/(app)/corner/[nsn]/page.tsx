@@ -108,7 +108,10 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
   const fcIx = buildForecastIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
-  const score = scoreCorner(row, award, forecast)
+  const score = scoreCorner(row, award, forecast, {
+    awardIndexLoaded: awardIx.ok,
+    forecastIndexLoaded: fcIx.ok,
+  })
   const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
   const series = priceSeries(dossier)
 
@@ -154,6 +157,9 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
             ) : dossier.awardPath === 'manual' ? (
               <StatusChip tone="idle">Manual award</StatusChip>
             ) : null}
+            {dossier.awardPath !== 'unknown' ? (
+              <ExplainButton helpId="monopoly.award_path" size="sm" />
+            ) : null}
           </div>
           <div className={styles.pursueRow}>
             <PursueButton
@@ -168,7 +174,25 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
         </div>
         <div className={styles.scoreBox}>
           <span className={styles.scoreN}>{score.scoreV0}</span>
-          <span className={styles.scoreCaption}>CornerScore</span>
+          {/* A div row, not a span: the explainer's popover is a <div>, invalid inside a span. */}
+          <div className={styles.scoreCaptionRow}>
+            <span className={styles.scoreCaption}>CornerScore</span>
+            {/* The flagship score, explained where it is biggest: the entry plus this row's
+                real point decomposition and its named data gaps. */}
+            <ExplainButton
+              helpId="score.corner_v0"
+              size="sm"
+              sourceDetail={`Scored from the feed-day corner row joined to the NSN-Now export · feed day ${cornerMap.provenance.feedDay}`}
+              computation={{
+                factors: score.reasons
+                  .filter((x) => x.points !== 0)
+                  .map((x) => ({ label: x.plain, contribution: x.points })),
+                dataGaps: score.dataGaps,
+                modelVersion: 'cornerscore-v0',
+                asOf: cornerMap.provenance.feedDay,
+              }}
+            />
+          </div>
           <StatusChip tone={score.disposition === 'FLAG' ? 'verified' : 'idle'}>
             {dispositionLabel(score.disposition)} · {score.grade}
           </StatusChip>

@@ -172,7 +172,10 @@ export function buildMonopolyView(): MonopolyView {
       if (forecast?.onForecast) forecastCount += 1
       if ((award?.holders.length ?? 0) > 0) availCount += 1
     }
-    const score = scoreCorner(r, award, forecast)
+    const score = scoreCorner(r, award, forecast, {
+      awardIndexLoaded: awardIndex.ok,
+      forecastIndexLoaded: forecastIndex.ok,
+    })
     return {
       ...r,
       award: slimAward(award),

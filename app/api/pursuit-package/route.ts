@@ -83,6 +83,7 @@ Your ONLY source of fact is the PACKAGE supplied in the user message. Absolute r
 - Availability is "listed" or "self-reported", never "confirmed" or "in stock". Award silence is a signal, not proof the incumbent is gone; say "award-silent", never "abandoned".
 - The score is an ordinal watchlist rank, not a probability or a dollar.
 - Where the package names a gap, name it. A gap is part of the memo, not a blemish to smooth over.
+- The dossier's source.crossReference block, where present, is the RESOLVED read of the approved-source counters (rows versus distinct companies). State the resolved picture; do not report the raw counts as a conflict.
 - Quotes are filed on DIBBS by the operator, by hand. Never imply this product submits anything to a government system.
 - No hype, no guarantees. No em dashes.
 
@@ -93,7 +94,7 @@ THE SUPPLY  who lists stock, who is approved, who made it before, and which of t
 RISKS AND GAPS  the package's named gaps, verbatim in spirit.
 THE PLAN  the package's next steps, tightened into prose. The operator files on DIBBS themselves.
 
-Keep it under 420 words. Every sentence must be defensible from the package alone.`
+Keep it under 600 words. Every sentence must be defensible from the package alone.`
 
 function renderPackage(pkg: unknown): string {
   return `PURSUIT PACKAGE\n\n${JSON.stringify(pkg, null, 2)}`

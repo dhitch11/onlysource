@@ -40,19 +40,31 @@ export function PortfolioBrief({ configured }: { configured: boolean }) {
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [sections, setSections] = useState<Section[]>([])
   const [error, setError] = useState('')
+  // The two honesty fields every AI surface renders: which model ACTUALLY wrote this, and
+  // whether the grounding guard withheld anything. This panel used to discard both, so a
+  // stripped sentence here would have cut holes nobody was told about.
+  const [model, setModel] = useState<string | null>(null)
+  const [withheldCount, setWithheldCount] = useState(0)
 
   async function run() {
     setState('loading')
     setError('')
     try {
       const resp = await fetch('/api/portfolio-brief', { method: 'POST' })
-      const data = (await resp.json()) as { brief?: string; message?: string }
+      const data = (await resp.json()) as {
+        brief?: string
+        message?: string
+        model?: string
+        unverified?: string[]
+      }
       if (!resp.ok || !data.brief) {
         setError(data.message || 'The analyst could not complete this brief.')
         setState('error')
         return
       }
       setSections(parseSections(data.brief))
+      setModel(data.model ?? null)
+      setWithheldCount(data.unverified?.length ?? 0)
       setState('done')
     } catch {
       setError('The request could not reach the analyst. Check the connection and try again.')
@@ -110,6 +122,20 @@ export function PortfolioBrief({ configured }: { configured: boolean }) {
               {s.body ? <p className={styles.briefText}>{s.body}</p> : null}
             </div>
           ))}
+          {/* The honesty footer, same contract as the corner brief and the pursuit package:
+              the served model by name, and what the grounding guard withheld, if anything. */}
+          <p className={styles.briefProvenance}>
+            {model ? (
+              <>
+                Written by <span className="mono">{model}</span> from the measured portfolio dossier.
+              </>
+            ) : (
+              'Written from the measured portfolio dossier.'
+            )}
+            {withheldCount > 0
+              ? ` ${withheldCount} sentence${withheldCount === 1 ? '' : 's'} withheld: they carried numbers this build did not measure.`
+              : ' Nothing was withheld by the grounding guard.'}
+          </p>
         </div>
       ) : null}
     </section>

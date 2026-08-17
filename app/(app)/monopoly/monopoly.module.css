@@ -71,6 +71,12 @@
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+/* The page title with its explainer beside it, never inside the heading element. */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
 .sub {
   font-size: var(--fs-300);
   color: var(--dim);

@@ -310,6 +310,21 @@
   color: var(--ink);
   line-height: 1.6;
 }
+/* A chart title with its eye-in-circle explainer beside it, never inside the heading
+ * element (the explainer's popover is a div, invalid inside a heading's phrasing run). */
+.chartTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+/* The honesty footer: which model actually wrote it, and whether the guard cut anything.
+ * Spans the whole grid so it reads as the closing line of the brief, not of one column. */
+.briefProvenance {
+  grid-column: 1 / -1;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.5;
+}
 
 /* -------------------------------------------------------------- fallback */
 .unavailable {

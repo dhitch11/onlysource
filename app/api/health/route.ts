@@ -1,4 +1,5 @@
 import { configReport, env } from '@/lib/env'
+import { buildIdentity } from '@/lib/build-identity'
 import { LIMITER_KIND } from '@/lib/security/attempt-limiter'
 import { readGateVerdict } from '@/lib/session/require-gate'
 import { systemClock } from '@/lib/time/clock'
@@ -24,11 +25,19 @@ export async function GET(request: Request) {
   const report = configReport()
   const wantsDetail = new URL(request.url).searchParams.get('detail') === '1'
 
+  /*
+   * The commit is RESOLVED from the running tree (git first, env stamp second), never read
+   * straight from the env stamp: the stamp went 52 commits stale on the live droplet while
+   * this endpoint kept reporting it as the build, which is a wrong answer to the exact
+   * question a monitor asks. `commitSource` says which kind of answer this is.
+   */
+  const identity = buildIdentity()
   const base = {
     status: report.degraded ? ('degraded' as const) : ('ok' as const),
     service: 'onlysource',
     environment: e.APP_ENV ?? e.NODE_ENV,
-    commit: e.GIT_COMMIT_SHA?.slice(0, 8) ?? null,
+    commit: identity.commit?.slice(0, 8) ?? null,
+    commitSource: identity.source,
     server: e.SERVER_ID ?? null,
     time: new Date(systemClock.now()).toISOString(),
   }

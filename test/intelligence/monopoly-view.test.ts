@@ -18,6 +18,16 @@ import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 
+/*
+ * TIMEOUT BUDGET RAISED 2026-08-17, and the reason is a real change in the world, not a flaky test.
+ * These cases read the REAL archive. On 2026-08-16 that archive held ONE feed day; the backfill
+ * landed 20 days and 1.4 GB, so a cold `buildAllDatasets()` now costs ~7.6s measured, and several
+ * of these files paying that concurrently under vitest's parallelism blew a 30s budget set when
+ * the data was 20x smaller. The PRODUCT is unaffected: the build is memoized (second call 0ms) and
+ * the archive scan is memoized on manifest identity, so a request pays this once per process.
+ * Raising the budget is the honest fix; lowering the assertion would not be.
+ */
+
 const ALL_PRESENT = checkDataAvailability().every((i) => i.present)
 
 describe('the memoized monopoly view over the real files', () => {
@@ -29,7 +39,7 @@ describe('the memoized monopoly view over the real files', () => {
   }
 
   // 30s: the cold call parses the NSN-Now workbooks in this worker, seconds under test CPU.
-  it('warm equals cold: the memo returns the identical view, not a drifted one', { timeout: 30_000 }, () => {
+  it('warm equals cold: the memo returns the identical view, not a drifted one', { timeout: 120_000 }, () => {
     resetMonopolyViewCache()
     const cold = buildMonopolyView()
     const warm = buildMonopolyView()

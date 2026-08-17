@@ -10,6 +10,7 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import { PursueButton } from '@/components/sales/PursueButton'
 import { readDeals } from '@/lib/sales/deals-store'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import styles from '../goldmine/goldmine.module.css'
 
 export const metadata: Metadata = { title: 'HUBZone set-asides · ONLYSOURCE' }
@@ -99,6 +100,10 @@ export default async function HubzonePage() {
           <span className={styles.metricHint}>the close date has not passed</span>
         </div>
         <div className={`${styles.metric} ${styles.metricHot}`}>
+          {/* A modeled dollar figure carries its own explainer, fifth field included. */}
+          <div className={styles.metricHelp}>
+            <ExplainButton helpId="capability.modeled_size_of_buy" size="sm" />
+          </div>
           <span className={styles.metricN}>{hz.summary.totalValue > 0 ? usd0(hz.summary.totalValue) : '—'}</span>
           <span className={styles.metricLabel}>total size of buys</span>
           <span className={styles.metricHint}>last price times quantity, added up</span>
@@ -117,7 +122,13 @@ export default async function HubzonePage() {
             <thead>
               <tr>
                 <th>Stock number</th>
-                <th>Solicitation</th>
+                <th>
+                  Solicitation
+                  {/* The T versus U chips render in this column, and the branch they encode
+                      is the opposite of what most people assume; the trap explainer sits
+                      where the chips are read. */}
+                  <ExplainButton helpId="traceability.surplus_type_branch" size="sm" />
+                </th>
                 <th>Part</th>
                 <th className={styles.numCol}>Qty</th>
                 <th className={styles.numCol}>Last price</th>

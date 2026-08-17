@@ -220,6 +220,61 @@ describe('the supplier joins: holders, approved sources and past awardees, hones
     expect(pkg.suppliers.holders[0]?.inBook).toBeNull()
     expect(pkg.suppliers.contactChannelsOnFile).toBe(0)
   })
+
+  it('contactChannelsOnFile counts DISTINCT companies, never rows: one CAGE on three rows is ONE supplier to reach', () => {
+    // The live RIM defect (2026-08-17): a contactable CAGE on two approved-source part rows
+    // read as "reach the two suppliers with a contact channel" when one reachable company
+    // existed. Here 1YYB4 is the holder AND holds two approved-source part-number rows.
+    const pkg = build({
+      award: summary({
+        approvedSources: [
+          { nsn: '5325017053574', company: 'DMS AIRCRAFT SERVICES', cage: '1YYB4', partNumber: 'PA-100', amc: null, amsc: null, prints: null, rncc: null, rnvc: null, assignDateIso: null, munitions: null },
+          { nsn: '5325017053574', company: 'DMS AIRCRAFT SERVICES', cage: '1YYB4', partNumber: 'PA-200', amc: null, amsc: null, prints: null, rncc: null, rnvc: null, assignDateIso: null, munitions: null },
+        ],
+      }),
+    })
+    expect(pkg.suppliers.contactChannelsOnFile).toBe(1)
+    expect(pkg.nextSteps[0]).toContain('(1 with a contact channel on file)')
+  })
+})
+
+describe('the dossier reconciles the approved-source counters itself', () => {
+  it('rows versus distinct CAGEs is resolved in the dossier, with the one-side CAGEs named', () => {
+    const pkg = build({
+      award: summary({
+        approvedSources: [
+          { nsn: '5325017053574', company: 'PRECISION APPROVED CO', cage: '1SR57', partNumber: 'PA-100', amc: null, amsc: null, prints: null, rncc: null, rnvc: null, assignDateIso: null, munitions: null },
+          { nsn: '5325017053574', company: 'PRECISION APPROVED CO', cage: '1SR57', partNumber: 'PA-200', amc: null, amsc: null, prints: null, rncc: null, rnvc: null, assignDateIso: null, munitions: null },
+          { nsn: '5325017053574', company: 'NCB FINLAND', cage: 'A486G', partNumber: 'NCB-1', amc: null, amsc: null, prints: null, rncc: null, rnvc: null, assignDateIso: null, munitions: null },
+        ],
+      }),
+    })
+    const xr = pkg.dossier.source.crossReference
+    expect(xr).not.toBeNull()
+    expect(xr!.rows).toBe(3)
+    expect(xr!.distinctCages).toBe(2)
+    expect(xr!.cagesOnlyInCrossReference).toEqual(['A486G'])
+    expect(xr!.cagesOnlyInSourceList).toEqual([])
+    expect(xr!.note).toContain('rows can outnumber companies')
+    expect(xr!.note).toContain('A486G')
+  })
+
+  it('with no cross-reference rows the block is null, never an invented reconciliation', () => {
+    const pkg = build({ award: summary({ approvedSources: [] }) })
+    expect(pkg.dossier.source.crossReference).toBeNull()
+  })
+
+  it('agreement is stated as agreement', () => {
+    const pkg = build({}) // fixture: one xr row, CAGE 1SR57, same as the row's source list
+    const xr = pkg.dossier.source.crossReference
+    expect(xr!.note).toContain('The two sources name the same companies.')
+  })
+
+  it('the reconciliation numbers are grounded: a memo quoting them survives the guard', () => {
+    const pkg = build({})
+    const out = groundBrief('THE CORNER\nThe cross-reference carries 1 row resolving to 1 company.', pkg)
+    expect(out.stripped).toEqual([])
+  })
 })
 
 describe('the named gaps and the honest next steps', () => {

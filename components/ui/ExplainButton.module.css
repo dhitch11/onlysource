@@ -40,8 +40,11 @@
 /* ------------------------------------------------------------------------- the panel */
 
 .panel {
-  /* Top layer via popover="auto", so a table's overflow:hidden can never clip it. */
-  inline-size: min(30rem, calc(100vw - var(--sp-5)));
+  /* Top layer via popover="auto", so a table's overflow:hidden can never clip it. The width
+   * lives in a custom property because the anchored placement below needs the same value to
+   * clamp the panel inside the viewport. */
+  --panel-w: min(30rem, calc(100vw - var(--sp-5)));
+  inline-size: var(--panel-w);
   max-block-size: min(30rem, calc(100vh - var(--sp-6)));
   overflow-y: auto;
   padding: var(--sp-4);
@@ -73,6 +76,16 @@
  * of an explain button repeated across 26 column headers, where every panel would otherwise
  * try to resolve the same anchor name.
  *
+ * WHY EXPLICIT INSETS AND A CLAMP, NOT `position-area` (measured, 2026-08-17): the old
+ * `position-area: bottom span-right` + `position-try-fallbacks: flip-block, flip-inline`
+ * shipped panels that opened mostly PAST the right viewport edge and the flip never applied
+ * — measured live at 390 (dashboard panel rect left=349 right=715 in a 390 viewport, a
+ * 41px sliver readable) and at 1440 (a grid-header eye at x=1244 opened its 480px panel to
+ * right=1724). A top-layer popover with light dismiss cannot be scrolled into view, so the
+ * flagship affordance was unreadable on every phone-width surface. The horizontal position
+ * is therefore CLAMPED so the panel's right edge can never pass the viewport, which needs
+ * no fallback to fire at all; only the vertical flip is left to position-try.
+ *
  * HONEST LIMITATION, not yet closed: where anchor positioning is unsupported the panel
  * falls back to the popover's default centred placement rather than sitting next to its
  * trigger. That is legible and dismissible, so it is not broken, but it is not the designed
@@ -83,10 +96,24 @@
 @supports (anchor-name: --x) {
   .panel {
     position: absolute;
-    position-area: bottom span-right;
-    position-try-fallbacks: flip-block, flip-inline;
-    margin: var(--sp-1);
+    margin: 0;
+    inset: auto;
+    /* Below the trigger; the try rule flips it above when the bottom would overflow. */
+    top: calc(anchor(bottom) + var(--sp-1));
+    /* Start at the trigger's left edge, clamped to keep the whole panel on screen. */
+    left: clamp(
+      var(--sp-2),
+      anchor(left),
+      calc(100vw - var(--sp-2) - var(--panel-w))
+    );
+    position-try-fallbacks: --os-explain-above;
   }
+}
+
+/* Unknown at-rules are ignored where unsupported, so this sits outside the support check. */
+@position-try --os-explain-above {
+  top: auto;
+  bottom: calc(anchor(top) + var(--sp-1));
 }
 
 .lead {
@@ -94,6 +121,15 @@
   line-height: var(--lh-300);
   color: var(--ink);
   margin-block-end: var(--sp-3);
+}
+
+/* The one-line modelled marker, rendered when the record says the figure is modelled. Quiet
+ * and directly under the lead, because it qualifies the lead's claim before anything else. */
+.modelled {
+  margin-block-start: calc(-1 * var(--sp-2));
+  margin-block-end: var(--sp-3);
+  font-size: var(--fs-100);
+  color: var(--faint);
 }
 
 .dl {

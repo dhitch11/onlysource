@@ -181,6 +181,9 @@ export function SuppliersGrid({
         header: "Prospect",
         width: "15ch",
         align: "end",
+        // The researcher's score and tier, acted on financially, so the fifth-field entry
+        // rides the column header (census 2026-08-17: this page had zero explainers).
+        helpId: "suppliers.prospect_score",
         sortValue: (r) => r.prospectScore ?? -1,
         cell: (r): Cell =>
           r.prospectScore == null

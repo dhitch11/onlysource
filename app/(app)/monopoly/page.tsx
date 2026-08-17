@@ -4,6 +4,7 @@ import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
 import { resolveDataRoot } from "@/lib/data-root";
 import { readDeals } from "@/lib/sales/deals-store";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
+import { ExplainButton } from "@/components/ui/ExplainButton";
 import { MonopolyGrid } from "./MonopolyGrid";
 import styles from "./monopoly.module.css";
 
@@ -97,7 +98,12 @@ export default async function MonopolyPage() {
     <main className={styles.page}>
       <header className={styles.head}>
         <p className={styles.eyebrow}>Intelligence · feed day {provenance.feedDay}</p>
-        <h1 className={styles.h1}>Monopoly Map</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.h1}>Monopoly Map</h1>
+          {/* The page-level explainer for the whole tool, written and registered since the
+              first milestone and mounted nowhere until the 2026-08-17 census. */}
+          <ExplainButton helpId="monopoly.map" />
+        </div>
         <p className={styles.sub}>
           Every stock number DLA is buying from a single approved source, narrowed to the ones
           where that source has quietly stopped winning awards. These are positions to

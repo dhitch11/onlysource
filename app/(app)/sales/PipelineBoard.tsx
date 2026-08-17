@@ -12,6 +12,7 @@ import {
 } from '@/lib/sales/pipeline'
 import type { StoredDeal } from '@/lib/sales/deals-store'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import { PursuitPackagePanel, type EmailChannelState } from '@/components/sales/PursuitPackagePanel'
 import { OutreachDraftPanel } from '@/components/sales/OutreachDraftPanel'
 import styles from './SalesHub.module.css'
@@ -261,6 +262,10 @@ export function PipelineBoard({
                 <div className={styles.colTop}>
                   <span className={styles.dot} aria-hidden="true" />
                   <h2 className={styles.colName}>{STAGE_LABEL[stage]}</h2>
+                  {/* Every column head explains its gate; Won and Revenue explains the
+                      recorded close its total is made of. Both entries were written and
+                      registered since the pursuit build and mounted nowhere (census). */}
+                  <ExplainButton helpId={isWon ? 'pursuit.recorded_close' : 'pursuit.stage_guard'} size="sm" />
                 </div>
                 <span className={styles.colCount}>{stageDeals.length}</span>
                 <span className={styles.colValue}>
@@ -309,12 +314,30 @@ export function PipelineBoard({
                         {d.nextAction ? <p className={styles.cardNext}>{d.nextAction}</p> : null}
 
                         {msg ? (
-                          <p
+                          /* A div with a real dismiss control: the refusal used to replace the
+                             card's description with no way back short of satisfying the gate or
+                             deleting the deal. Dismissing hides the MESSAGE only; the gate
+                             itself still refuses on the next attempt, server-side. */
+                          <div
                             className={msg.kind === 'refusal' ? styles.cardRefusal : styles.cardNote}
                             role={msg.kind === 'refusal' ? 'alert' : 'status'}
                           >
-                            {msg.text}
-                          </p>
+                            <span className={styles.cardMsgText}>{msg.text}</span>
+                            <button
+                              type="button"
+                              className={styles.cardMsgDismiss}
+                              aria-label="Dismiss this message"
+                              onClick={() =>
+                                setCardMsg((m) => {
+                                  const next = { ...m }
+                                  delete next[d.id]
+                                  return next
+                                })
+                              }
+                            >
+                              ✕
+                            </button>
+                          </div>
                         ) : null}
 
                         {isPending && pending.kind === 'close' ? (
@@ -325,7 +348,10 @@ export function PipelineBoard({
                               void submitClose(d, pending)
                             }}
                           >
-                            <p className={styles.closeFormTitle}>Record the close</p>
+                            <div className={styles.closeFormTitleRow}>
+                              <p className={styles.closeFormTitle}>Record the close</p>
+                              <ExplainButton helpId="pursuit.recorded_close" size="sm" />
+                            </div>
                             <label className={styles.closeField}>
                               <span>Actual amount $</span>
                               <input
@@ -381,7 +407,10 @@ export function PipelineBoard({
 
                         {isPending && pending.kind === 'attest' ? (
                           <div className={styles.closeForm}>
-                            <p className={styles.closeFormTitle}>Move to Leads</p>
+                            <div className={styles.closeFormTitleRow}>
+                              <p className={styles.closeFormTitle}>Move to Leads</p>
+                              <ExplainButton helpId="pursuit.stage_guard" size="sm" />
+                            </div>
                             <p className={styles.closeHint}>
                               Leads means a supplier pursuit is actually running. Your confirmation is
                               recorded in the audit trail as an attestation.

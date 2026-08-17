@@ -146,6 +146,22 @@ export function assertRowCountBand(
  *
  * Revisit once daily capture gives a trailing 20-business-day distribution. Until then this is
  * a defensible floor, not a measured threshold, and it says so.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * THE DISTRIBUTION NOW EXISTS, AND IT FALSIFIES THE 500 (measured 2026-08-17, backfill of
+ * 20 real feed days, every file Content-Length-complete and uniformly 140-wide):
+ *
+ *   rows per day: min 228 (07-31) · p50 1,828 · max 5,488 (08-06)
+ *   FOUR of the twenty real days sit UNDER this floor: 228, 231, 313, 331.
+ *
+ * So at 500 the floor rejects a fifth of real publishing days, and the half-to-double
+ * median band above is unusable at this variance (914..3,656 would reject the same days).
+ * The constant is deliberately NOT changed here: it was set by a conductor ruling with a
+ * binding test written around it (truncation-cold-start), and the fetch gate now runs its
+ * own measured-floor ladder plus Content-Length before anything reaches the archive, so no
+ * bytes are lost while the parse lane re-rules. What a 500 floor costs today is a refused
+ * LOAD of a real light day, which the run ledger will name loudly. Re-rule with this table.
+ * ─────────────────────────────────────────────────────────────────────────────────────────
  */
 export function assertAbsoluteFloor(
   id: string,

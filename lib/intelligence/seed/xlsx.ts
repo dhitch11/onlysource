@@ -298,6 +298,36 @@ function buildProvenance(path: string, buf: Buffer, stat: { mtime: Date }): Seed
   }
 }
 
+/**
+ * Drop paths whose BYTES duplicate an earlier path in the list, keeping first-by-sort-order.
+ *
+ * Why this exists (audit 2026-08-17): the deployed NSN-Now directory held the same workbook
+ * under two filenames (BatchExport_69817.xlsx and a renamed copy), so the dashboard's
+ * provenance disclosure claimed one more independent export than actually existed. The row
+ * dedup sets absorbed the duplicate rows, so no COUNT was wrong, but a provenance string
+ * that inflates its evidence base is still a false claim. Content hash, not filename,
+ * because the duplicate was the same bytes wearing a different name.
+ */
+export function distinctWorkbookPaths(paths: string[]): {
+  files: string[]
+  droppedDuplicates: Array<{ kept: string; dropped: string }>
+} {
+  const byHash = new Map<string, string>()
+  const files: string[] = []
+  const droppedDuplicates: Array<{ kept: string; dropped: string }> = []
+  for (const p of paths) {
+    const hash = createHash('sha256').update(readFileSync(p)).digest('hex')
+    const kept = byHash.get(hash)
+    if (kept) {
+      droppedDuplicates.push({ kept, dropped: p })
+      continue
+    }
+    byHash.set(hash, p)
+    files.push(p)
+  }
+  return { files, droppedDuplicates }
+}
+
 export function readSeedWorkbook(path: string): SeedTable {
   const buf = readFileSync(path)
   const stat = statSync(path)

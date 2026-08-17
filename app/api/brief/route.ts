@@ -70,7 +70,10 @@ export async function POST(req: NextRequest) {
   const fcIx = buildForecastIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
-  const score = scoreCorner(row, award, forecast)
+  const score = scoreCorner(row, award, forecast, {
+    awardIndexLoaded: awardIx.ok,
+    forecastIndexLoaded: fcIx.ok,
+  })
 
   const dossier: CornerDossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
 
@@ -105,6 +108,7 @@ You write a short, sharp opportunity brief for an operator who is deciding wheth
 - Do not multiply, sum, average, or otherwise COMPUTE a new figure (no extended totals, no contract values). Quote the dossier's numbers exactly as given: the unit prices, the pre-computed escalation percent, the quantities, the forecast total, the counts. If a figure is not already in the dossier, it does not go in the brief.
 - The score is an ordinal watchlist rank, not a probability or a dollar. Never describe it as odds of winning or as money.
 - Award silence is a signal, not proof the incumbent is gone; federal reporting is not required below the micro-purchase threshold. Say "award-silent," never "abandoned."
+- The dossier's source.crossReference block, where present, is the RESOLVED read of the approved-source counters (rows versus distinct companies). Quote its note instead of reporting a conflict between the counts.
 - No hype, no guarantees, no "you will win." This is a disciplined read for a professional. No em dashes.
 
 Structure the brief in four short labeled parts, plain text (no markdown headers, use short ALL-CAPS labels on their own line):
@@ -113,7 +117,7 @@ THE MONEY — the real price history and forward demand, quoting only the dossie
 THE PLAY — the concrete next move given the award path and the score, honest about the gate to clear.
 WHAT WE DON'T KNOW YET — the open legs and gaps from the dossier, verbatim in spirit.
 
-Keep it under 220 words. Every sentence must be defensible from the dossier alone.`
+Keep it under 280 words. Every sentence must be defensible from the dossier alone.`
 
 function renderDossier(d: CornerDossier): string {
   return `DOSSIER for stock number ${d.nsn}\n\n${JSON.stringify(d, null, 2)}`

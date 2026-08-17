@@ -61,6 +61,7 @@ const columns: GridColumn<BoardRow>[] = [
     // Tightened (16ch -> 15ch, with the price column 17ch -> 15ch) so the whole grid fits a
     // 1440 viewport with the insufficient-inputs chips visible at rest instead of 19px cut.
     width: "15ch",
+    helpId: "monopoly.award_path",
     sortValue: (r) => (r.automated === true ? 0 : r.automated === false ? 1 : 2),
     cell: (r): Cell => {
       if (r.automated === null) {
@@ -107,6 +108,9 @@ const columns: GridColumn<BoardRow>[] = [
     header: "Evaluated price",
     align: "end",
     width: "13ch",
+    // The column abstains on every row today; the explainer says what would fill it, so the
+    // stated gap stops reading as a rendering fault (census 2026-08-17).
+    helpId: "board.evaluated_price",
     cell: (): Cell => ({
       state: "unknown",
       reason: "needs award history + availability",

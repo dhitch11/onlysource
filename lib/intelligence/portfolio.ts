@@ -113,7 +113,14 @@ export function buildPortfolio(): Portfolio {
     const key = r.nsn.replace(/[^0-9]/g, '')
     const award = awardBy?.get(key) ?? null
     const forecast = fcBy?.get(key) ?? null
-    candidates.push(enrich(r, award, forecast, scoreCorner(r, award, forecast)))
+    candidates.push(
+      enrich(
+        r,
+        award,
+        forecast,
+        scoreCorner(r, award, forecast, { awardIndexLoaded: awardIx.ok, forecastIndexLoaded: fcIx.ok }),
+      ),
+    )
   }
 
   // Supply-chain mix (a corner can touch more than one chain; count each once per chain).

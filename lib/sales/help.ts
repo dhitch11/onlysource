@@ -29,6 +29,11 @@ export const PURSUIT_ENTRIES: HelpRecord[] = [
     how: 'Use it to rank which pursuits are worth the hour. Check the award history on the dossier before you trust it with real money.',
     why: 'Ranking pursuits by size is how a two-person shop spends its day on the biggest lanes. Treating this model as a promised price is how a quote loses money.',
     source: 'Both legs are read from the government files: the quantity from the solicitation line, the unit price from the recorded award history. When either is unread the deal carries no value at all.',
+    whatThisDoesNotDo:
+      'It does not promise the next award\'s price or quantity. The government can buy fewer, pay less, or not buy at all, and a deal with either leg unread honestly carries no value rather than a guess.',
+    // A dollar figure operators rank pursuits by IS a figure acted on financially, which is
+    // exactly the scope the explainsAScore flag documents, so the fifth-field gate fires here.
+    explainsAScore: true,
     modelled: true,
   },
   {

@@ -16,6 +16,16 @@
  * deliberately outside the git repository: it grows about 57 MB per business day, roughly
  * 1.2 GB a month, forever, as append-only binary. Git is the wrong shape for that
  * permanently, not merely at today's size.
+ *
+ * ---------------------------------------------------------------------------------------
+ * THE MANIFEST NOW CARRIES REFUSALS AS WELL AS DATA (2026-08-17).
+ * ---------------------------------------------------------------------------------------
+ * A fetch that was REFUSED, by the origin (404 on a day outside the retention window) or by
+ * our own content gate (a consent banner wearing a 200, a 141-byte file of X characters), is
+ * recorded as a `kind: "rejected"` row naming the reason and the HTTP status. Silence about
+ * a refusal is how this estate once logged a WAF banner as a successful fetch. Data rows
+ * keep their original shape with no `kind` field, so every existing reader keeps working;
+ * `readArchiveManifest()` returns data rows only, and `readManifestEntries()` returns both.
  */
 
 import { createHash } from 'node:crypto'
@@ -43,11 +53,51 @@ export type ArchiveRecord = {
   note: string
 }
 
+/**
+ * A refusal, recorded rather than silenced. `content_sha256` and `byte_len` describe what
+ * arrived when something did (the rejected body is hashed so a repeat of the same wrong
+ * bytes is recognisable); both are null when the origin sent no body worth describing.
+ * NOTHING from a rejected response is written under a data storage key.
+ */
+export type RejectionRecord = {
+  kind: 'rejected'
+  source_key: string
+  logical_date: string
+  filename: string
+  source_url: string
+  http_status: number | null
+  content_type: string | null
+  byte_len: number | null
+  content_sha256: string | null
+  /** Why, in words an operator can act on. Also the idempotency key's fourth leg. */
+  reason: string
+  /** The classifier verdict or refusal class: consent_banner, waf_block, not_published... */
+  verdict: string
+  retrieved_at: string
+  recorded_at: string
+  retrieval_method: RetrievalMethod
+  retrieved_by: string
+  note: string
+}
+
+export type ManifestEntry = ArchiveRecord | RejectionRecord
+
 export type ArchiveOutcome =
   | { status: 'archived'; record: ArchiveRecord }
   | { status: 'already_present'; record: ArchiveRecord }
 
-const MANIFEST = join(ARCHIVE_ROOT, 'MANIFEST.jsonl')
+export type RejectionOutcome =
+  | { status: 'recorded'; record: RejectionRecord }
+  | { status: 'already_recorded'; record: RejectionRecord }
+
+/**
+ * Every function below takes an optional `root`, defaulting to the resolved ARCHIVE_ROOT.
+ * Tests point it at a scratch directory so exercising the gate can never append test rows
+ * to the real manifest; the pipeline never passes it and gets the real archive.
+ */
+export function manifestPath(root: string = ARCHIVE_ROOT): string {
+  return join(root, 'MANIFEST.jsonl')
+}
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -58,13 +108,35 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export async function readArchiveManifest(): Promise<ArchiveRecord[]> {
-  if (!(await exists(MANIFEST))) return []
-  const text = await readFile(MANIFEST, 'utf8')
+function isRejection(entry: ManifestEntry): entry is RejectionRecord {
+  return (entry as RejectionRecord).kind === 'rejected'
+}
+
+/** EVERY manifest row, refusals included. The freshness and audit surfaces read this. */
+export async function readManifestEntries(root: string = ARCHIVE_ROOT): Promise<ManifestEntry[]> {
+  const path = manifestPath(root)
+  if (!(await exists(path))) return []
+  const text = await readFile(path, 'utf8')
   return text
     .split('\n')
     .filter((l) => l.trim() !== '')
-    .map((l) => JSON.parse(l) as ArchiveRecord)
+    .map((l) => JSON.parse(l) as ManifestEntry)
+}
+
+/**
+ * DATA rows only. Every pre-existing consumer (the loader, the backfill dedupe, the golden
+ * tests) means "what bytes do we hold" when it reads the manifest, and a refusal is not
+ * bytes we hold. Refusals are read through `readManifestEntries`.
+ */
+export async function readArchiveManifest(root: string = ARCHIVE_ROOT): Promise<ArchiveRecord[]> {
+  const entries = await readManifestEntries(root)
+  return entries.filter((e): e is ArchiveRecord => !isRejection(e))
+}
+
+/** The refusal rows alone, for surfaces that report what was attempted and refused. */
+export async function readRejections(root: string = ARCHIVE_ROOT): Promise<RejectionRecord[]> {
+  const entries = await readManifestEntries(root)
+  return entries.filter(isRejection)
 }
 
 /** UTC instant compacted for a filesystem path: 2026-08-12T00:19:04Z -> 20260812T001904Z */
@@ -80,25 +152,33 @@ function compactInstant(iso: string): string {
  *
  * VERIFIES BY RE-HASHING THE DESTINATION. A copy is not evidence that a copy worked, and a
  * write that silently truncates is exactly the quiet failure this layer exists to refuse.
+ *
+ * THIS FUNCTION DOES NOT CLASSIFY. The gate lives in the fetch path (classifyFeedResponse
+ * plus the index content assertion) and runs BEFORE bytes reach here; keeping the archive
+ * layer verdict-free means a research capture with its own provenance can still be archived
+ * deliberately, the way the two consent banners were, under a source key that names them.
  */
-export async function archiveBytes(input: {
-  bytes: Buffer
-  sourceKey: string
-  logicalDate: string
-  filename: string
-  sourceUrl: string
-  retrievedAt: string
-  retrievedAtBasis: string
-  retrievalMethod: RetrievalMethod
-  retrievedBy: string
-  httpStatus?: number | null
-  contentType?: string | null
-  responseHeaders?: Record<string, string> | null
-  note?: string
-  archivedAt: string
-}): Promise<ArchiveOutcome> {
+export async function archiveBytes(
+  input: {
+    bytes: Buffer
+    sourceKey: string
+    logicalDate: string
+    filename: string
+    sourceUrl: string
+    retrievedAt: string
+    retrievedAtBasis: string
+    retrievalMethod: RetrievalMethod
+    retrievedBy: string
+    httpStatus?: number | null
+    contentType?: string | null
+    responseHeaders?: Record<string, string> | null
+    note?: string
+    archivedAt: string
+  },
+  root: string = ARCHIVE_ROOT,
+): Promise<ArchiveOutcome> {
   const sha = createHash('sha256').update(input.bytes).digest('hex')
-  const existing = await readArchiveManifest()
+  const existing = await readArchiveManifest(root)
   const already = existing.find(
     (r) =>
       r.source_key === input.sourceKey &&
@@ -113,7 +193,7 @@ export async function archiveBytes(input: {
     compactInstant(input.retrievedAt),
     input.filename,
   )
-  const destination = join(ARCHIVE_ROOT, storageKey)
+  const destination = join(root, storageKey)
   await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, input.bytes)
 
@@ -143,12 +223,73 @@ export async function archiveBytes(input: {
     archived_at: input.archivedAt,
     note: input.note ?? '',
   }
-  await appendFile(MANIFEST, JSON.stringify(record) + '\n', 'utf8')
+  await appendFile(manifestPath(root), JSON.stringify(record) + '\n', 'utf8')
   return { status: 'archived', record }
 }
 
+/**
+ * Record a refusal. One row per distinct (source_key, logical_date, filename, reason):
+ * re-running a backfill over a day the origin has expired re-observes the same 404 and must
+ * not grow the manifest by one row per attempt.
+ */
+export async function recordRejection(
+  input: {
+    sourceKey: string
+    logicalDate: string
+    filename: string
+    sourceUrl: string
+    httpStatus: number | null
+    contentType?: string | null
+    bytes?: Buffer | null
+    reason: string
+    verdict: string
+    retrievedAt: string
+    recordedAt: string
+    retrievalMethod: RetrievalMethod
+    retrievedBy: string
+    note?: string
+  },
+  root: string = ARCHIVE_ROOT,
+): Promise<RejectionOutcome> {
+  const existing = await readRejections(root)
+  const already = existing.find(
+    (r) =>
+      r.source_key === input.sourceKey &&
+      r.logical_date === input.logicalDate &&
+      r.filename === input.filename &&
+      r.reason === input.reason,
+  )
+  if (already) return { status: 'already_recorded', record: already }
+
+  const record: RejectionRecord = {
+    kind: 'rejected',
+    source_key: input.sourceKey,
+    logical_date: input.logicalDate,
+    filename: input.filename,
+    source_url: input.sourceUrl,
+    http_status: input.httpStatus,
+    content_type: input.contentType ?? null,
+    byte_len: input.bytes ? input.bytes.length : null,
+    content_sha256: input.bytes ? createHash('sha256').update(input.bytes).digest('hex') : null,
+    reason: input.reason,
+    verdict: input.verdict,
+    retrieved_at: input.retrievedAt,
+    recorded_at: input.recordedAt,
+    retrieval_method: input.retrievalMethod,
+    retrieved_by: input.retrievedBy,
+    note: input.note ?? '',
+  }
+  const path = manifestPath(root)
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, JSON.stringify(record) + '\n', 'utf8')
+  return { status: 'recorded', record }
+}
+
 /** Which logical dates of a source are already in the archive. The backfill reads this. */
-export async function archivedDates(sourceKey: string): Promise<Set<string>> {
-  const manifest = await readArchiveManifest()
+export async function archivedDates(
+  sourceKey: string,
+  root: string = ARCHIVE_ROOT,
+): Promise<Set<string>> {
+  const manifest = await readArchiveManifest(root)
   return new Set(manifest.filter((r) => r.source_key === sourceKey).map((r) => r.logical_date))
 }

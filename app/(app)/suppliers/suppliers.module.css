@@ -39,6 +39,14 @@
   padding: var(--sp-4);
   background: var(--panel);
   transition: transform 180ms ease, box-shadow 220ms ease;
+  /* Frame for the explainer overlay; harmless on tiles that carry none. */
+  position: relative;
+}
+/* The eye-in-circle explainer on a stat tile, top-right, same as the dashboard's tiles. */
+.statHelp {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
 }
 .stat:hover {
   transform: translateY(-2px);

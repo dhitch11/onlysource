@@ -67,13 +67,31 @@ export type CornerScoreResult = {
 };
 
 /**
+ * WHICH SOURCES WERE LOADED when this row was scored. Without it the scorer cannot tell
+ * "the index is not on disk" apart from "the index is loaded and this NSN is absent from it",
+ * and it shipped gap strings that lied about the build: an NSN missing from the loaded
+ * forecast read "DLA Forecast not loaded" while the forecast was serving 300-unit reads one
+ * row over, and the same memo carried both halves of the contradiction. A checked absence is
+ * a MEASUREMENT; only a truly unloaded source leaves a leg on a prior.
+ */
+export type ScoreSourceState = {
+  /** True when the NSN-Now award/availability index was loaded and this NSN was looked up in it. */
+  awardIndexLoaded?: boolean;
+  /** True when the NSN-Now forecast/RFQ index was loaded and this NSN was looked up in it. */
+  forecastIndexLoaded?: boolean;
+};
+
+/**
  * Score one corner. Pure: (row, its award history) -> result. No I/O, so it is trivially testable
- * and the surface can call it per row.
+ * and the surface can call it per row. `sources` says which indexes the caller actually loaded;
+ * omitted flags are treated as not-loaded, which keeps the prior/unavailable wording honest for
+ * a caller that genuinely had no index in hand.
  */
 export function scoreCorner(
   row: CornerRow,
   award: NsnAwardSummary | null,
   forecast: ForecastSummary | null = null,
+  sources: ScoreSourceState = {},
 ): CornerScoreResult {
   const reasons: ReasonCode[] = [];
   const dataGaps: string[] = [];
@@ -105,9 +123,16 @@ export function scoreCorner(
         calibration: "measured",
       });
       competition = measured(1, 0.85, "sole approved source and sole historical awardee");
+    } else if (award || sources.awardIndexLoaded) {
+      // The award index was consulted; this NSN just has too few (or zero) recorded awards.
+      competition = measured(0.7, 0.6, "sole approved source; too little recorded award history to read concentration");
+      if (!award)
+        dataGaps.push(
+          "no recorded award in the loaded export for this stock number, so sole-awardee concentration cannot be confirmed",
+        );
     } else {
-      competition = measured(0.7, 0.6, "sole approved source; award-concentration not yet loaded");
-      if (!award) dataGaps.push("award history not loaded, so sole-awardee concentration cannot be confirmed");
+      competition = measured(0.7, 0.6, "sole approved source; award history not loaded");
+      dataGaps.push("award history not loaded, so sole-awardee concentration cannot be confirmed");
     }
   } else {
     competition = measured(0.2, 0.5, `${row.approvedSourceCount} approved sources: competitive`);
@@ -162,9 +187,15 @@ export function scoreCorner(
         calibration: "measured",
       });
     }
+  } else if (sources.awardIndexLoaded) {
+    // A checked absence: the export is loaded and carries no priced award for this NSN.
+    priceAnchor = unavailable("no recorded award price in the loaded export for this NSN");
+    dataGaps.push(
+      "the loaded award history carries no price for this stock number, so the pricing leg abstains",
+    );
   } else {
-    priceAnchor = unavailable("no award history ingested for this NSN yet");
-    dataGaps.push("award price not ingested for this NSN, so the pricing leg abstains");
+    priceAnchor = unavailable("award history not loaded, so no price could be read for this NSN");
+    dataGaps.push("award history not loaded, so the pricing leg abstains");
   }
 
   // ---- FORWARD DEMAND (ρ_forward): MEASURED when the NSN is on the government's own DLA Forecast.
@@ -187,6 +218,22 @@ export function scoreCorner(
     });
   } else if (forecast) {
     forwardDemand = measured(0, 0.5, "not on the current DLA Forecast");
+    reasons.push({
+      leg: "forwardDemand",
+      plain: "not on the current DLA Forecast (a checked absence, not a gap)",
+      points: 0,
+      calibration: "measured",
+    });
+  } else if (sources.forecastIndexLoaded) {
+    /*
+     * The forecast index only materialises a summary for NSNs its sheets mention, so an NSN
+     * absent from the whole export arrives here as null EVEN THOUGH the forecast was loaded
+     * and checked. That is the same real-world state as the branch above (the government did
+     * not list it) and it scores the same measured zero. It used to fall to the prior branch
+     * below and claim "DLA Forecast not loaded" inside a memo whose neighbouring sentence
+     * read live forecast data, and to score 0.5 while its RFQ-seen sibling scored 0.
+     */
+    forwardDemand = measured(0, 0.5, "not on the current DLA Forecast (checked against the loaded export)");
     reasons.push({
       leg: "forwardDemand",
       plain: "not on the current DLA Forecast (a checked absence, not a gap)",
@@ -224,6 +271,13 @@ export function scoreCorner(
       points: 0,
       calibration: "measured",
     });
+  } else if (sources.awardIndexLoaded) {
+    // The availability sheet was loaded and checked; nobody lists stock for THIS NSN. ILS is a
+    // separate, genuinely unwired source, and the wording keeps the two facts apart.
+    feasibility = unavailable("no availability row for this NSN in the loaded export, and ILS is not wired");
+    dataGaps.push(
+      "no company lists stock for this stock number in the export, and ILS is not connected, so the feasibility leg abstains and a corner cannot be CONFIRMED",
+    );
   } else {
     feasibility = unavailable("no availability feed connected (ILS not wired)");
     dataGaps.push("ILS availability not connected, so the feasibility leg abstains and a corner cannot be CONFIRMED");

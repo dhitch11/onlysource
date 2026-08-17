@@ -19,7 +19,7 @@
  */
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { readWorkbookSheets, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
+import { readWorkbookSheets, distinctWorkbookPaths, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
 
 const NSN_NOW_DIR = 'nsn-now'
@@ -70,10 +70,14 @@ export function buildForecastIndex(): ForecastIndex | ForecastUnavailable {
     cache = { ok: false, reason: 'No NSN-Now export directory on disk; the DLA Forecast is read from it.', dir }
     return cache
   }
-  const files = readdirSync(dir)
-    .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~'))
-    .map((f) => path.join(dir, f))
-    .sort()
+  // Distinct BY CONTENT (same rule as the award index): a workbook present under two
+  // filenames is read and reported once, so the provenance file count cannot inflate.
+  const { files } = distinctWorkbookPaths(
+    readdirSync(dir)
+      .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~'))
+      .map((f) => path.join(dir, f))
+      .sort(),
+  )
   if (files.length === 0) {
     cache = { ok: false, reason: 'The NSN-Now directory holds no .xlsx export yet.', dir }
     return cache

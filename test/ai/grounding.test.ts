@@ -60,3 +60,56 @@ describe('grounding guard', () => {
     expect(allowed.has('21')).toBe(true)
   })
 })
+
+/*
+ * THE IDENTIFIER-POISONING HOLE, measured live on 2026-08-17: an end item named "AN/USQ190"
+ * blessed the bare number 190 and "recorded escalation above 190 percent" shipped through the
+ * guard. These tests pin the closure AND its symmetry: the same boundary rule runs on both
+ * sides, so quoting the identifier itself is never a false strip.
+ */
+describe('grounding guard: identifier boundaries and number words', () => {
+  const poisoned = {
+    ...dossier,
+    forecast: { ...dossier.forecast, endItems: ['MIDS JTRS AN/USQ190', 'B-52 STRATOFORTRESS'] },
+  }
+
+  it('a digit run embedded in a designator does NOT enter the allowed set', () => {
+    const allowed = allowedNumberSet(poisoned)
+    expect(allowed.has('190')).toBe(false)
+    expect(allowed.has('52')).toBe(false)
+  })
+
+  it('the live leak is closed: a bare number sourced only from a designator is stripped', () => {
+    const r = groundBrief('THE MONEY\nEscalation above 190 percent is recorded here.', poisoned)
+    expect(r.stripped).toHaveLength(1)
+    expect(r.stripped[0]).toContain('190')
+  })
+
+  it('SYMMETRY: quoting the designator itself is never a false strip', () => {
+    const r = groundBrief('THE CORNER\nThe part rides on MIDS JTRS AN/USQ190 and the B-52.', poisoned)
+    expect(r.stripped).toEqual([])
+  })
+
+  it('a date cannot bless its own fragments: day-of-month quoted as a quantity is stripped', () => {
+    // 2023-10-10 exists in the price history; the bare 10 as a count was never measured.
+    const r = groundBrief('THE MONEY\nDemand is 10 units.', dossier)
+    expect(r.stripped).toHaveLength(1)
+    // ...while quoting the full date passes untouched.
+    const ok = groundBrief('THE MONEY\nThe first award landed 2023-10-10 at $54.14.', dossier)
+    expect(ok.stripped).toEqual([])
+  })
+
+  it('numbers written in WORDS are caught: spelled magnitudes and multiplicative claims', () => {
+    const r = groundBrief(
+      'THE MONEY\nRoughly three hundred awards exist. The price doubled since then. The last award was $65.55.',
+      dossier,
+    )
+    expect(r.stripped).toHaveLength(2)
+    expect(r.text).toContain('$65.55')
+  })
+
+  it('control: an ordinary word containing a magnitude substring is untouched', () => {
+    const r = groundBrief('THE CORNER\nVermillion Industries is not in this dossier, and 213 units are.', dossier)
+    expect(r.stripped).toEqual([])
+  })
+})

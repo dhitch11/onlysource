@@ -65,7 +65,9 @@ export function primaryModel(slot: AiSlot): string {
   return MODEL_CHAINS[slot][0]
 }
 
-type OneShot = { ok: true; text: string } | { ok: false; reason: string; retryable: boolean }
+type OneShot =
+  | { ok: true; text: string; truncated: boolean }
+  | { ok: false; reason: string; retryable: boolean }
 
 async function callOnce(
   key: string,
@@ -102,14 +104,24 @@ async function callOnce(
       const retryable = resp.status === 404 || resp.status === 429 || resp.status >= 500
       return { ok: false, reason: `AI request failed (${resp.status}). ${detail.slice(0, 140)}`, retryable }
     }
-    const data = (await resp.json()) as { content?: Array<{ type: string; text?: string }> }
+    const data = (await resp.json()) as {
+      content?: Array<{ type: string; text?: string }>
+      stop_reason?: string
+    }
     const text = (data.content ?? [])
       .filter((b) => b.type === 'text' && b.text)
       .map((b) => b.text as string)
       .join('\n')
       .trim()
     if (!text) return { ok: false, reason: 'AI returned an empty response.', retryable: true }
-    return { ok: true, text }
+    /*
+     * A response that hit the token ceiling is a CLIPPED DELIVERABLE, not a success. The
+     * portfolio brief shipped live ending mid-word ("…remain at INSUFFICIEN") with a 200 and a
+     * bill, because this function used to discard stop_reason. The caller decides what to do
+     * with a truncated attempt (retry with headroom, then fail honestly); what it may never do
+     * is serve it as finished.
+     */
+    return { ok: true, text, truncated: data.stop_reason === 'max_tokens' }
   } catch (e) {
     // A timeout or a network fault is about the attempt, not the request, so the next model is
     // worth trying.
@@ -142,8 +154,21 @@ export async function generate(
 
   for (const model of chain) {
     tried.push(model)
-    const attempt = await callOnce(key, model, system, user, maxTokens)
-    if (attempt.ok) return { ok: true, text: attempt.text, model, attempts: tried.length }
+    let attempt = await callOnce(key, model, system, user, maxTokens)
+    if (attempt.ok && attempt.truncated) {
+      /*
+       * The clip is about the BUDGET, not the model, so the one retry stays on the same model
+       * with doubled headroom rather than burning a chain slot. If it clips again the output
+       * is running away from every stated length cap and is treated as a failure: a memo that
+       * ends mid-word must never be served as finished, whatever it cost to generate.
+       */
+      attempt = await callOnce(key, model, system, user, maxTokens * 2)
+    }
+    if (attempt.ok) {
+      if (!attempt.truncated) return { ok: true, text: attempt.text, model, attempts: tried.length }
+      lastReason = 'The model ran past its token budget twice; a clipped deliverable is never served.'
+      continue
+    }
     lastReason = attempt.reason
     if (!attempt.retryable) break
   }

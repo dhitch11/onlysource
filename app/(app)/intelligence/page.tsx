@@ -9,6 +9,7 @@ import { HBars } from '@/components/ui/HBars'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { ExplainButton } from '@/components/ui/ExplainButton'
 import { PortfolioBrief } from './PortfolioBrief'
 import styles from './intelligence.module.css'
 
@@ -81,24 +82,36 @@ export default async function IntelligencePage() {
       {/* -------------------------------------------------------------------- charts */}
       <section className={styles.chartGrid}>
         <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>Candidate corners by supply chain</h2>
+          <div className={styles.chartTitleRow}>
+            <h2 className={styles.chartTitle}>Candidate corners by supply chain</h2>
+            <ExplainButton helpId="monopoly.supply_chain" size="sm" />
+          </div>
           <p className={styles.chartSub}>Where the forward demand concentrates.</p>
           <HBars data={pf.bySupplyChain.slice(0, 8)} emptyNote="No forecast supply chains matched these corners yet." />
         </div>
         <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>CornerScore distribution</h2>
+          <div className={styles.chartTitleRow}>
+            <h2 className={styles.chartTitle}>CornerScore distribution</h2>
+            <ExplainButton helpId="score.corner_v0" size="sm" />
+          </div>
           <p className={styles.chartSub}>How the book spreads across the watchlist rank.</p>
           <HBars data={pf.scoreBuckets} />
         </div>
         <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>Disposition mix</h2>
+          <div className={styles.chartTitleRow}>
+            <h2 className={styles.chartTitle}>Disposition mix</h2>
+            <ExplainButton helpId="score.disposition_mix" size="sm" />
+          </div>
           <p className={styles.chartSub}>How many are actionable versus still waiting on evidence.</p>
           {/* Same enum, same label map as the Monopoly grid: a raw WATCHLIST token on one
               surface and "Watchlist" on another would be two spellings of one fact. */}
           <HBars data={pf.byDisposition.map((b) => ({ ...b, label: dispositionLabel(b.label) }))} />
         </div>
         <div className={styles.chartCard}>
-          <h2 className={styles.chartTitle}>Award path</h2>
+          <div className={styles.chartTitleRow}>
+            <h2 className={styles.chartTitle}>Award path</h2>
+            <ExplainButton helpId="monopoly.award_path" size="sm" />
+          </div>
           <p className={styles.chartSub}>Machine-award corners win on price alone.</p>
           <HBars data={pf.byAwardPath} />
         </div>
@@ -107,7 +120,10 @@ export default async function IntelligencePage() {
       {/* -------------------------------------------------------- escalation leaders */}
       {pf.escalationLeaders.length > 0 ? (
         <section className={styles.card}>
-          <h2 className={styles.chartTitle}>Price-escalation leaders</h2>
+          <div className={styles.chartTitleRow}>
+            <h2 className={styles.chartTitle}>Price-escalation leaders</h2>
+            <ExplainButton helpId="monopoly.price_escalation" size="sm" />
+          </div>
           <p className={styles.chartSub}>
             Cornered parts where the sole source has pushed the unit price up the most, measured across
             its own award history.
@@ -141,7 +157,10 @@ export default async function IntelligencePage() {
               <tr>
                 <th>Stock number</th>
                 <th>Item</th>
-                <th className={styles.numCol}>Score</th>
+                <th className={styles.numCol}>
+                  Score
+                  <ExplainButton helpId="score.corner_v0" size="sm" />
+                </th>
                 <th className={styles.numCol}>Last award</th>
                 <th>Trend</th>
                 <th>Signals</th>

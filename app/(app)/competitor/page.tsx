@@ -87,6 +87,9 @@ export default async function CompetitorPage({
         <p className={styles.eyebrow}>Intelligence · competitor teardown</p>
         <div className={styles.headRow}>
           <h1 className={styles.h1}>{co.company ?? `CAGE ${co.cage}`}</h1>
+          {/* The manufacturer-view explainer, written for exactly this page ("every position
+              behind one dead source at once") and mounted nowhere until the census. */}
+          <ExplainButton helpId="monopoly.inversion" />
           {pickerOptions.length > 1 ? <CompetitorPicker options={pickerOptions} current={co.cage} /> : null}
         </div>
         {/* A div, not a p: the explainer's popover renders a <div>, and a div inside a <p>

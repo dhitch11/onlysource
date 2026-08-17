@@ -28,6 +28,12 @@
   font-weight: 650;
   color: var(--ink);
 }
+/* A panel title with its eye-in-circle explainer beside it, never inside the heading. */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
 .sub {
   font-size: var(--fs-200);
   color: var(--dim);

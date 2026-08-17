@@ -82,6 +82,7 @@ export default async function WorkspacePage() {
     niin: string
     item: string
     score: number
+    scoreReasons: Array<{ plain: string; points: number }>
     onForecast: boolean
     price: number | null
     quantity: number | null
@@ -101,6 +102,12 @@ export default async function WorkspacePage() {
           niin: r.niin,
           item: r.nomenclature.trim(),
           score: r.score.scoreV0,
+          // The real per-row decomposition, for the score explainer's computation record:
+          // the factors that fired, with the points each contributed. Zero-point context
+          // reasons stay out so the panel reads as the arithmetic of the number shown.
+          scoreReasons: r.score.reasons
+            .filter((x) => x.points !== 0)
+            .map((x) => ({ plain: x.plain, points: x.points })),
           onForecast: !!r.forecast?.onForecast,
           price: r.award?.latestPrice ?? null,
           quantity: r.quantity,
@@ -234,8 +241,27 @@ export default async function WorkspacePage() {
       {present && topCorner ? (
         <section className="pipeMini" aria-label="The pipeline in miniature">
           <div className="topCorner topCorner--withAction">
+            {/* The card's visible metric is the CornerScore, so the card's eye explains the
+                score (with this row's real point decomposition). The modeled-buy-value eye
+                sits beside the Pursue action, which is the control that carries that value. */}
             <div className="metricHelp">
-              <ExplainButton helpId="pursuit.modeled_buy_value" size="sm" />
+              <ExplainButton
+                helpId="score.corner_v0"
+                size="sm"
+                sourceDetail={`Scored from the feed-day corner row joined to the NSN-Now export · ${feedNote}`}
+                computation={
+                  feedDay
+                    ? {
+                        factors: topCorner.scoreReasons.map((x) => ({
+                          label: x.plain,
+                          contribution: x.points,
+                        })),
+                        modelVersion: 'cornerscore-v0',
+                        asOf: feedDay,
+                      }
+                    : undefined
+                }
+              />
             </div>
             <Link href={`/corner/${topCorner.nsn.replace(/[^0-9]/g, '')}` as never} className="topCorner__body">
               <span className="topCorner__eyebrow">Strongest position nobody has pursued</span>
@@ -260,6 +286,7 @@ export default async function WorkspacePage() {
                 }
                 initiallyInPipeline={false}
               />
+              <ExplainButton helpId="pursuit.modeled_buy_value" size="sm" />
             </div>
           </div>
 

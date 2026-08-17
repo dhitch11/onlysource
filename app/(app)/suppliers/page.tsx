@@ -3,6 +3,7 @@ import { requireGateSession } from "@/lib/session/require-gate";
 import { buildDistressedSuppliers } from "@/lib/intelligence/suppliers/distressed";
 import { supplierNsnFacts } from "@/lib/intelligence/suppliers/outreach-dossier";
 import { resolveDataRoot } from "@/lib/data-root";
+import { ExplainButton } from "@/components/ui/ExplainButton";
 import { SuppliersGrid } from "./SuppliersGrid";
 import styles from "./suppliers.module.css";
 
@@ -76,6 +77,9 @@ export default async function SuppliersPage() {
 
       <section className={styles.stats} aria-label="Counts">
         <div className={`${styles.stat} ${styles.statHot}`}>
+          <div className={styles.statHelp}>
+            <ExplainButton helpId="monopoly.distressed_tier_a" size="sm" />
+          </div>
           <div className={styles.statN}>{counts.tierA.toLocaleString()}</div>
           <div className={styles.statL}>
             <b>Tier A prospects</b>
