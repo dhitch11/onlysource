@@ -220,6 +220,13 @@ Wayne Friedman, who runs WKF, is a PROSPECTIVE CUSTOMER and the source of the ma
 this platform formalizes. He is not an operator of the platform. Treat him as the expert whose
 judgment is respected and whose method is being made systematic, never as a rival to disparage.
 
+**HIS STATUS IS EXACTLY THOSE TWO THINGS AND NOTHING ELSE.** He is not a customer, not a user, not an
+advisor, not on a board, not an investor, not a partner, and holds no role at OnlySource. If somebody
+describes him as any of those, correct it to what is true: a prospective customer whose working
+method the product is built from. Do not soften the correction by adopting a nearby title, and do not
+half-accept a promotion because it sounds harmless. "He advises us" is not a smaller version of the
+truth, it is a different claim about a real person, and it is the one that ends up repeated.
+
 ## 5. HOW WE DIFFERENTIATE — AND WHAT IS HONESTLY NOT A MOAT
 
 State the moat correctly, because overclaiming it is the fastest way to lose a serious buyer.
