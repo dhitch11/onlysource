@@ -15,9 +15,23 @@ import styles from "./monopoly.module.css";
 /**
  * A corner row with its award history, DLA Forecast and CornerScore joined in, in the SLIM
  * wire shape lib/intelligence/monopoly-view builds: exactly the fields this grid renders,
- * because serializing the full records was a 26MB payload per visit.
+ * because serializing the full records was a 26MB payload per visit. Plus the acquisition
+ * codes, joined in `page.tsx` as five short fields for the same payload reason.
+ *
+ * `explanation` and `posture` are deliberately separate fields. `explanation` is DoD 4100.39-M
+ * Vol 10 Table 71 quoted verbatim and may be rendered as fact. `posture` is this estate's own
+ * grouping of those codes, graded ESTIMATED at source, and must render more quietly. One merged
+ * field would make that distinction impossible at the render layer, which is where it matters.
  */
-export type CornerRowWithAward = EnrichedCornerRow;
+export type RowEligibility = {
+  state: "determined" | "abstained_pica_does_not_publish" | "abstained_not_in_catalogue" | "index_absent";
+  amsc: string | null;
+  posture: string | null;
+  explanation: string | null;
+  reason: string;
+};
+
+export type CornerRowWithAward = EnrichedCornerRow & { eligibility?: RowEligibility };
 
 // Amber is the award clock's alone. Watchlist is a neutral in-progress state, not an alarm.
 const DISPOSITION_TONE: Record<string, "verified" | "active" | "idle"> = {
@@ -162,6 +176,59 @@ const columns: GridColumn<CornerRowWithAward>[] = [
       return r.automatedSolicitation
         ? { state: "known", provenance: "measured", value: <StatusChip tone="active">Machine award</StatusChip> }
         : { state: "known", provenance: "measured", value: <StatusChip tone="idle">Manual</StatusChip> };
+    },
+  },
+  {
+    /**
+     * CAN ANYONE ELSE LEGALLY MAKE THIS PART.
+     *
+     * The code is the government's own word and renders as a measured fact. What it MEANS
+     * commercially is our reading and lives in the next column, quieter, because the two carry
+     * different authority and a merged verdict would hide that.
+     *
+     * A blank AMSC is never rendered as "unrestricted". Fill is bimodal by managing activity:
+     * the activities that publish it publish on ~100% of their rows and the rest publish none,
+     * so an absence is a different PUBLISHER, not a permissive answer. Reading it the other way
+     * would invent permission to bid, which is the expensive direction of this error.
+     */
+    id: "amsc",
+    header: "Acquisition code",
+    helpId: "monopoly.legs",
+    width: "13ch",
+    sortValue: (r) => (r.eligibility?.amsc ? r.eligibility.amsc.charCodeAt(0) : 999),
+    cell: (r): Cell => {
+      const e = r.eligibility;
+      if (!e) return { state: "unknown", reason: "the acquisition-code index is not loaded" };
+      if (e.state !== "determined" || !e.amsc) return { state: "unknown", reason: e.reason };
+      return {
+        state: "known",
+        provenance: "measured",
+        value: <StatusChip tone="verified">{`AMSC ${e.amsc}`}</StatusChip>,
+      };
+    },
+  },
+  {
+    id: "posture",
+    header: "Who may make it",
+    width: "26ch",
+    sortValue: (r) => {
+      const p = r.eligibility?.posture ?? "";
+      return p === "open_to_surplus_dealer" ? 0 : p === "restricted_attackable" ? 1 : p === "restricted_closed_to_new_manufacturing_source" ? 2 : 3;
+    },
+    cell: (r): Cell => {
+      const e = r.eligibility;
+      if (!e) return { state: "unknown", reason: "the acquisition-code index is not loaded" };
+      if (e.state !== "determined") return { state: "unknown", reason: e.reason };
+      // ESTIMATED, not measured: this grouping is ours, so it never claims measured provenance.
+      const label =
+        e.posture === "open_to_surplus_dealer" ? "Open to a dealer"
+        : e.posture === "restricted_attackable" ? "Restricted, can be attacked"
+        : e.posture === "restricted_closed_to_new_manufacturing_source" ? "Closed to a new source"
+        : "Not grouped in the source";
+      if (e.posture === "unclassified_in_primary_source" || !e.posture) {
+        return { state: "unknown", reason: `${e.explanation ?? "the code is not one the digest groups"} (our grouping does not classify this code)` };
+      }
+      return { state: "known", value: label };
     },
   },
   {

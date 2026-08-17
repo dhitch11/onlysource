@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
+import { loadAmscIndex, resolveBidEligibility } from "@/lib/intelligence/eligibility/bid-eligibility";
 import { resolveDataRoot } from "@/lib/data-root";
 import { readDeals } from "@/lib/sales/deals-store";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
@@ -55,7 +56,39 @@ export default async function MonopolyPage() {
   // freshness, only ~2s of TTFB on the page the daily loop starts on. Rendering stays
   // force-dynamic; only the pure computation is reused.
   const view = buildMonopolyView();
-  const { summary, provenance, rows: enriched } = view;
+  const { summary, provenance, rows: baseRows } = view;
+
+  /**
+   * BID ELIGIBILITY, joined here rather than inside `monopoly-view` on purpose.
+   *
+   * The view builds a deliberately SLIM wire shape because serializing the full records was a
+   * 26 MB payload per visit, so this adds five short fields per row and nothing else. The whole
+   * catalogue lookup is a Map hit against a 1.7 MB derived index that is loaded once, not once
+   * per row.
+   *
+   * The two fields are kept SEPARATE and are not merged into one verdict, because they carry
+   * different authority: `explanation` is DoD 4100.39-M Vol 10 Table 71 verbatim, a government
+   * statement, while `posture` is this estate's own grouping of those codes and is graded
+   * ESTIMATED in `lib/engine/eligibility/amsc.ts`. Collapsing them into a single string would
+   * make it impossible for the grid to render one as fact and the other as a reading, which is
+   * the entire point of carrying both.
+   */
+  const amscIndex = loadAmscIndex();
+  const enriched = baseRows.map((r) => {
+    const e = resolveBidEligibility(r.nsn, amscIndex);
+    return {
+      ...r,
+      eligibility: {
+        state: e.state,
+        amsc: e.amsc,
+        posture: e.posture,
+        /** Verbatim government text, or null. Rendered as fact. */
+        explanation: e.amscEntry?.explanation ?? null,
+        /** Why we are abstaining, in words. Rendered instead of a blank, never as "unrestricted". */
+        reason: e.reason,
+      },
+    };
+  });
   // Two priced counts, two denominators, NEVER implied into one another: the map-wide figure
   // spans every enriched row, while the candidate figure is scoped to the funnel's own 115.
   // The strip sentence below names both denominators explicitly because a bare count directly
