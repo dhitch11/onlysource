@@ -314,8 +314,49 @@
   border-radius: var(--radius-lg);
   font-size: var(--fs-200);
   line-height: 1.55;
-  white-space: pre-wrap;
   overflow-wrap: anywhere; /* a long stock number must wrap, never widen the panel */
+}
+
+/*
+ * Thomas's replies are rendered markdown, so the block spacing lives here rather than in
+ * `white-space: pre-wrap`. The user's own turn stays plain text and keeps its line breaks.
+ */
+.bubble[data-role='user'] {
+  white-space: pre-wrap;
+}
+
+.bubble p {
+  margin: 0 0 var(--sp-2);
+}
+
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble ul,
+.bubble ol {
+  margin: 0 0 var(--sp-2);
+  padding-left: var(--sp-4);
+}
+
+.bubble ul:last-child,
+.bubble ol:last-child {
+  margin-bottom: 0;
+}
+
+.bubble li {
+  margin-bottom: var(--sp-0);
+}
+
+.bubble strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.bubble code {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  color: var(--accent);
 }
 
 .bubble[data-role='assistant'] {

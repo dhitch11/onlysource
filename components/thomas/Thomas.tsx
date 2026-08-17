@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useVoice } from './useVoice'
+import { RichText } from './RichText'
 import s from './thomas.module.css'
 
 type Msg = {
@@ -307,7 +308,12 @@ export default function Thomas({ operator }: { operator?: string }) {
             {msgs.map((m) => (
               <div key={m.id} className={s.turn} data-role={m.role}>
                 <div className={s.bubble} data-role={m.role}>
-                  {m.text || <span className={s.thinking}>Thinking</span>}
+                  {m.text ? (
+                    /* The operator's own words are never markdown; only Thomas writes it. */
+                    m.role === 'assistant' ? <RichText text={m.text} /> : m.text
+                  ) : (
+                    <span className={s.thinking}>Thinking</span>
+                  )}
                 </div>
                 {m.tools && m.tools.length > 0 && (
                   <div className={s.provenance}>
