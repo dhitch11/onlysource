@@ -249,6 +249,24 @@
   color: var(--accent);
 }
 
+/*
+ * Voice unavailable. Deliberately quiet: it is a fact about the environment, not an alarm, and
+ * amber stays reserved for the award clock.
+ */
+.voiceOff {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: var(--fs-100);
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.voiceOff strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 /* ---------------------------------------------------------------- transcript */
 
 .scroll {

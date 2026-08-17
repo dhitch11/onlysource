@@ -34,6 +34,46 @@ export async function GET() {
     )
   }
 
+  /*
+   * ==========================================================================================
+   * A CONTROL THAT RENDERS BUT CANNOT PLAY IS THE DEFECT THIS CHECK EXISTS TO PREVENT.
+   * ==========================================================================================
+   * Minting a signed URL is NOT proof that voice works, and on 2026-08-17 that gap was measured
+   * live: the mint returned 200 and the agent even spoke its pre-generated greeting, while
+   * speech-to-text returned `payment_required` because the account's latest invoice had failed.
+   * An operator would have pressed Talk, granted their microphone, heard Thomas say hello, and
+   * then been met with silence forever, with nothing anywhere telling them why.
+   *
+   * So the probe asks the question that actually matters: can this account still transcribe? A
+   * failed payment blocks the ear while leaving the mouth working, which is exactly the state
+   * that reads as "working" to every check upstream of this one.
+   */
+  try {
+    const sub = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: { 'xi-api-key': key },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (sub.ok) {
+      const s = (await sub.json()) as { status?: string }
+      const blocked = s.status === 'past_due' || s.status === 'unpaid' || s.status === 'incomplete'
+      if (blocked) {
+        return Response.json(
+          {
+            ok: false,
+            error: 'voice_billing_blocked',
+            message:
+              'Voice is paused: the ElevenLabs account has an unpaid invoice, which blocks speech recognition. Typed chat is unaffected.',
+          },
+          { status: 503 },
+        )
+      }
+    }
+    // A subscription endpoint that is merely unreachable is NOT treated as a failure. Voice may
+    // well be fine, and refusing on an inconclusive reading would take away a working feature.
+  } catch {
+    /* inconclusive, fall through and let the mint decide */
+  }
+
   try {
     const r = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`,

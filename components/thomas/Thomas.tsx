@@ -287,6 +287,18 @@ export default function Thomas({ operator }: { operator?: string }) {
             {live && <span className={s.liveDot}> · voice is live</span>}
           </div>
 
+          {/*
+           * An honest empty state for voice, not a hidden button. If speech is unavailable the
+           * operator is told so, once, in a quiet line, with the real reason. Silently removing
+           * the control would leave somebody who expects to talk to Thomas unable to tell whether
+           * the feature is missing, broken, or was never there.
+           */}
+          {voice.available === false && voice.reason && (
+            <div className={s.voiceOff}>
+              <strong>Voice is off.</strong> {voice.reason}
+            </div>
+          )}
+
           <div className={s.scroll} ref={scroller}>
             {msgs.length === 0 && (
               <div className={s.empty}>

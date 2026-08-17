@@ -37,6 +37,12 @@ export type VoiceEvents = {
 export function useVoice(events: VoiceEvents) {
   const [state, setState] = useState<VoiceState>('idle')
   const [available, setAvailable] = useState<boolean | null>(null)
+  /*
+   * WHY it is unavailable, in the operator's words. Hiding the button silently would leave
+   * somebody who expects to talk to Thomas wondering whether the feature exists, was removed, or
+   * is broken. A stated reason costs one line and answers all three.
+   */
+  const [reason, setReason] = useState<string | null>(null)
 
   const ws = useRef<WebSocket | null>(null)
   const ctx = useRef<AudioContext | null>(null)
@@ -49,12 +55,23 @@ export function useVoice(events: VoiceEvents) {
   const evt = useRef(events)
   evt.current = events
 
-  /** Probe whether voice is configured before showing a control that cannot connect. */
+  /** Probe whether voice can actually WORK before showing a control that cannot play. */
   useEffect(() => {
     let alive = true
     fetch('/api/thomas/voice', { method: 'GET' })
-      .then((r) => setAvailable(alive ? r.ok : false))
-      .catch(() => alive && setAvailable(false))
+      .then(async (r) => {
+        if (!alive) return
+        setAvailable(r.ok)
+        if (!r.ok) {
+          const body = await r.json().catch(() => null)
+          setReason(body?.message ?? 'Voice is not connected in this environment.')
+        }
+      })
+      .catch(() => {
+        if (!alive) return
+        setAvailable(false)
+        setReason('Voice could not be reached from this browser.')
+      })
     return () => {
       alive = false
     }
@@ -216,7 +233,7 @@ export function useVoice(events: VoiceEvents) {
 
   const stop = useCallback(() => teardown(), [teardown])
 
-  return { state, available, start, stop }
+  return { state, available, reason, start, stop }
 }
 
 function toBase64(buf: ArrayBuffer): string {
