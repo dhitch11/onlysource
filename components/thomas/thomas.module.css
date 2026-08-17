@@ -1,0 +1,424 @@
+/*
+ * THOMAS — the concierge surface.
+ *
+ * Every colour, space, radius and duration comes from a token. No raw hex, no raw px on anything
+ * that has a scale, and no raw z-index: the named layers exist so two floating things can never
+ * fight. Brass is the accent, as everywhere else. Amber and red are NOT used here at all, because
+ * on this platform they mean the award clock is running out, and borrowing that urgency for a chat
+ * panel would quietly devalue the one signal that has to mean something.
+ */
+
+/* ---------------------------------------------------------------- launcher */
+
+.launcher {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: var(--z-toast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-pill);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.45);
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+
+.launcher:hover {
+  border-color: var(--accent);
+  background: var(--raised);
+  transform: translateY(-1px);
+}
+
+.launcher:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.launcher[data-open] {
+  padding: var(--sp-2);
+}
+
+.launcherMark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font-weight: 700;
+  font-size: var(--fs-200);
+  line-height: 1;
+}
+
+.launcherLabel {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* A live voice session is visible from the launcher even when the panel is shut. */
+.launcherPulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .launcherPulse {
+    animation: pulse 1.8s var(--ease) infinite;
+  }
+  @keyframes pulse {
+    0% { opacity: 0.9; transform: scale(1); }
+    70% { opacity: 0; transform: scale(1.12); }
+    100% { opacity: 0; transform: scale(1.12); }
+  }
+}
+
+/* ---------------------------------------------------------------- panel */
+
+.panel {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-4) + 52px);
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - var(--sp-5)));
+  /* Bounded so the panel can never grow past the viewport and strand its own composer. */
+  max-height: min(640px, calc(100vh - var(--sp-7) - 52px));
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.55);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel {
+    animation: rise var(--dur-slow) cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/*
+ * Phone. A floating card over a data table is unusable at this width, so the panel takes the
+ * screen instead of hovering above it.
+ */
+@media (max-width: 560px) {
+  .panel {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 86vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+  .launcher {
+    right: var(--sp-3);
+    bottom: var(--sp-3);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font-weight: 700;
+  font-size: var(--fs-200);
+}
+
+.name {
+  display: block;
+  font-size: var(--fs-300);
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.role {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--dim);
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.voiceBtn {
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-100);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.voiceBtn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.voiceBtn[data-live] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.voiceBtn:focus-visible,
+.close:focus-visible,
+.send:focus-visible,
+.opener:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--dim);
+  font-size: var(--fs-400);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
+  border-color: var(--line-control);
+}
+
+.context {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-100);
+  color: var(--dim);
+}
+
+.context strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.liveDot {
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- transcript */
+
+.scroll {
+  flex: 1;
+  min-height: 0; /* the flex-overflow rule: without this the composer gets pushed off */
+  overflow-y: auto;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.emptyLead {
+  margin: 0;
+  font-size: var(--fs-200);
+  line-height: 1.55;
+  color: var(--dim);
+}
+
+.openers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.opener {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.opener:hover {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.turn[data-role='user'] {
+  align-items: flex-end;
+}
+
+.bubble {
+  max-width: 92%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-200);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere; /* a long stock number must wrap, never widen the panel */
+}
+
+.bubble[data-role='assistant'] {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.bubble[data-role='user'] {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-2);
+  color: var(--ink);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.thinking {
+  color: var(--faint);
+}
+
+/*
+ * PROVENANCE. When Thomas reads live data, the operator sees that he did. This is not decoration:
+ * it is the difference between a number he looked up and a number he remembered, and on this
+ * platform that distinction is the product.
+ */
+.provenance {
+  font-size: var(--fs-100);
+  color: var(--olive);
+}
+
+.blocked {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  border-left: 2px solid var(--line-control);
+  padding-left: var(--sp-2);
+}
+
+.working {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.error {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  font-size: var(--fs-100);
+  color: var(--dim);
+}
+
+/* ---------------------------------------------------------------- composer */
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  padding: var(--sp-2);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+  line-height: 1.5;
+  resize: none;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.input::placeholder {
+  color: var(--faint);
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius);
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font: inherit;
+  font-size: var(--fs-300);
+  cursor: pointer;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

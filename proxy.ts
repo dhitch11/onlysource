@@ -24,6 +24,15 @@ const PUBLIC_PATHS = new Set(['/enter', '/api/health', '/api/alerts/send'])
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true
+  /*
+   * THOMAS'S VOICE BRIDGE. ElevenLabs' servers call this to get his spoken turns, and they carry no
+   * gate cookie, so the session redirect cannot apply to it. It is NOT unprotected: the route checks
+   * a bearer secret on every request and FAILS CLOSED when that secret is unset, so a
+   * misconfiguration refuses everything rather than opening the book of business to the world.
+   * Scoped to this one subtree, never a blanket /api/thomas/ opening: the typed chat endpoint at
+   * /api/thomas/chat stays fully gated, because a browser CAN carry the cookie.
+   */
+  if (pathname.startsWith('/api/thomas/convai/')) return true
   if (pathname.startsWith('/_next/')) return true
   if (pathname === '/favicon.ico' || pathname === '/robots.txt') return true
   // Branded app icon (Next serves app/icon.svg here). A favicon carries no data and the browser

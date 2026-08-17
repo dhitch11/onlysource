@@ -5,6 +5,7 @@ import { leaveAction } from '../(auth)/enter/actions'
 import { AppShell, type NavGroup } from '@/components/shell/AppShell'
 import { FeedFreshnessPill } from '@/components/shell/FeedFreshnessPill'
 import { NotificationCenter } from '@/components/shell/NotificationCenter'
+import Thomas from '@/components/thomas/Thomas'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -232,6 +233,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }
     >
       {children}
+      {/*
+       * THOMAS, the platform-wide concierge. Mounted here, once, so he is present on every
+       * authenticated surface and inherits this layout's gate: an unauthenticated visitor never
+       * renders him at all, server-side, rather than being shown a widget that is merely hidden.
+       *
+       * Fixed-position, so he sits beside {children} rather than in the meta bar, which is an
+       * inline row of small facts a floating panel would fight.
+       *
+       * NO `operator` PROP ON PURPOSE. The name in the `user` prop above is a hardcoded literal,
+       * not a session read, and another lane is mid-fix on exactly that. Feeding it to Thomas
+       * would have him greet every account by one man's name, which is the same fabrication
+       * wearing a friendlier voice. He says "the operator" until the real identity is wired.
+       * Added by @THOMAS-CONCIERGE, additively, per the lane claim.
+       */}
+      <Thomas />
     </AppShell>
   )
 }
