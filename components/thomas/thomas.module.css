@@ -351,10 +351,33 @@
   margin-bottom: 0;
 }
 
+/*
+ * The global reset sets `list-style: none` on every ul and ol, which is right for nav and card
+ * lists and wrong here: it silently removed the numbers from Thomas's numbered lists, so a
+ * three-condition answer rendered as three indented sentences with no visible structure. Markers
+ * are restored explicitly, scoped to his replies only.
+ */
 .bubble ul,
 .bubble ol {
   margin: 0 0 var(--sp-2);
-  padding-left: var(--sp-4);
+  padding-left: var(--sp-5);
+}
+
+.bubble ul {
+  list-style: disc;
+}
+
+.bubble ol {
+  list-style: decimal;
+}
+
+.bubble li::marker {
+  color: var(--dim);
+}
+
+.bubble em {
+  font-style: italic;
+  color: var(--ink);
 }
 
 .bubble ul:last-child,

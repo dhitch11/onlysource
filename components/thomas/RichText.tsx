@@ -18,10 +18,17 @@
  */
 import { Fragment, type ReactNode } from 'react'
 
-/** Inline pass: **bold** and `code`. Everything else is literal text. */
+/**
+ * Inline pass: **bold**, *italic* and `code`. Everything else is literal text.
+ *
+ * ORDER MATTERS IN THIS ALTERNATION. The bold branch is written first so that `**word**` is claimed
+ * by it rather than being read as an italic containing a stray asterisk. A screenshot caught the
+ * single-asterisk case shipping raw: Thomas wrote "a sole *approved* source" and the panel printed
+ * the asterisks, because the first version handled only the double form.
+ */
 function inline(text: string, keyBase: string): ReactNode[] {
   const out: ReactNode[] = []
-  const re = /(\*\*[^*]+\*\*)|(`[^`]+`)/g
+  const re = /(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(`[^`]+`)/g
   let last = 0
   let m: RegExpExecArray | null
   let i = 0
@@ -30,6 +37,7 @@ function inline(text: string, keyBase: string): ReactNode[] {
     const tok = m[0]
     i += 1
     if (tok.startsWith('**')) out.push(<strong key={`${keyBase}b${i}`}>{tok.slice(2, -2)}</strong>)
+    else if (tok.startsWith('*')) out.push(<em key={`${keyBase}i${i}`}>{tok.slice(1, -1)}</em>)
     else out.push(<code key={`${keyBase}c${i}`}>{tok.slice(1, -1)}</code>)
     last = m.index + tok.length
   }
