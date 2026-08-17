@@ -324,6 +324,39 @@ const RULES = [
     ],
   },
   {
+    id: 'explainbutton-inside-a-paragraph',
+    spec: 'R0.1 (hydration integrity)',
+    why:
+      'ExplainButton renders its popover as a SIBLING <div popover>. A <div> is not phrasing ' +
+      'content, so the HTML parser force-closes an enclosing <p> before it; the server tree ' +
+      'and the client tree then disagree and React throws #418. This has now shipped to ' +
+      'production THREE times in this repo (AdminConsole at 8 errors per load, /competitor, ' +
+      'and /groups twice). It is invisible to dev, to typecheck and to a grep of the source, ' +
+      'and it appears only as a console error on the deployed page. An element that may ' +
+      'contain an ExplainButton can never be a <p>.',
+    // `code` strips comments — and it must, because three files carry comments EXPLAINING
+    // this defect, and a first pass of this sweep flagged all three as violations. The
+    // instrument read prose as evidence. Preprocessing is part of the instrument.
+    reads: 'code',
+    applies: (f) => f.startsWith('app/') || f.startsWith('components/'),
+    test: (t) => {
+      const out = []
+      const re = /<p\b[^>]*>([\s\S]*?)<\/p>/g
+      let m
+      while ((m = re.exec(t))) {
+        if (!/ExplainButton/.test(m[1])) continue
+        out.push({ line: t.slice(0, m.index).split('\n').length, text: '<p> encloses an ExplainButton' })
+      }
+      return out
+    },
+    knownBad: '<p className={s.sub}>Some prose<ExplainButton helpId="x" /></p>',
+    knownGood: [
+      '<div className={s.sub}>Some prose<ExplainButton helpId="x" /></div>',
+      '<p className={s.sub}>Prose with no explainer at all.</p>',
+      '<span className={s.head}>Class<ExplainButton helpId="x" /></span>',
+    ],
+  },
+  {
     id: 'design-gallery-linked-from-an-operator-surface',
     spec: 'R0.1 (nothing pretends) — the precondition of the /design lint EXCEPTION',
     why:

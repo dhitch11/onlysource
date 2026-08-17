@@ -88,13 +88,25 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
     <section className={styles.board} aria-label="Federal Supply Classes on this feed day">
       <div className={styles.boardHead}>
         <h2 className={styles.boardTitle}>Every class on the map, with its evidence</h2>
-        <p className={styles.boardSub}>
+        {/*
+         * A <div>, NOT a <p>, and the reason is a measured production defect rather than a
+         * preference. `ExplainButton` renders its popover as a SIBLING <div popover>, and
+         * `<div>` is not phrasing content, so the HTML parser force-closes an enclosing
+         * `<p>` before it. The server's tree and the client's tree then disagree and React
+         * throws #418 — which is invisible in dev, invisible to typecheck, invisible to a
+         * grep, and shows up only as a console error on the deployed page.
+         *
+         * This is the second time this exact pairing has produced #418 in this repo. The
+         * rule: an element that may contain an ExplainButton can never be a <p>.
+         * `.boardSub` carries no p-specific styling, so the swap is purely structural.
+         */}
+        <div className={styles.boardSub}>
           Ordered by evidence, then by candidate count, then by class size. There is no sort
           control on this board on purpose: the order is itself a claim, and a class with no
           rate must never be able to outrank a class with a measured one. Classes under the{' '}
           {sampleFloor} row floor show their counts and no percentage at all.
           <ExplainButton helpId="groups.insufficient" size="sm" />
-        </p>
+        </div>
       </div>
 
       {/* ------------------------------------------------------------------- the controls */}
@@ -341,14 +353,18 @@ function Row({
                 ))}
               </dl>
 
-              <p className={styles.testLine}>
+              {/* A <div> for the same reason as boardSub above: an ExplainButton's popover is
+                  a sibling <div>, which force-closes an enclosing <p> and desyncs the server
+                  and client trees. This one sits inside an expanded row, so it only rendered
+                  #418 once a row was opened - which is why it survived the first fix. */}
+              <div className={styles.testLine}>
                 {row.test}
                 {row.rate.kind === 'untested' ? (
                   <ExplainButton helpId="groups.insufficient" size="sm" />
                 ) : (
                   <ExplainButton helpId="groups.evidence" size="sm" />
                 )}
-              </p>
+              </div>
             </div>
           </td>
         </tr>
