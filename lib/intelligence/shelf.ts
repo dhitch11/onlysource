@@ -83,6 +83,21 @@ export function fillableAtFloor(position: ShelfPosition): Niin[] {
 /* ------------------------------------------------------------------------------------ */
 
 /**
+ * WHERE THE QUOTE SCREEN GOES INSTEAD, added 2026-08-18, so nobody wires a price surface here.
+ *
+ * This file values a HELD POSITION: what stock already on a shelf is worth, one modelled number
+ * per position, aggregated into a portfolio. Its `AnchorOutcome.anchorUsd` is a single scalar
+ * BECAUSE that is the right shape for a portfolio total, and it is the wrong shape for a quote:
+ * the pricing doctrine requires four separately visible figures on the surface where a bid is
+ * decided, and forbids a single blended number there.
+ *
+ * So the quote path is `@/lib/intelligence/pricing` (`buildQuoteView`), which adapts the same
+ * engine into the anchor, the resale band, the evaluated price and the tripwire band, each with
+ * its own arithmetic string, its own evidence state and its own named abstention. Do not add a
+ * quote figure to this file, and do not read `anchorUsd` as a price to bid.
+ */
+
+/**
  * ---------------------------------------------------------------------------------------
  * COLLAPSED ONTO T3'S CONTRACT. The mirror is gone.
  * ---------------------------------------------------------------------------------------

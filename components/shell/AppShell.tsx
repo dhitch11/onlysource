@@ -210,17 +210,24 @@ export function AppShell({ children, user, org, groups, meta }: AppShellProps) {
 
         <div className={styles.sideFoot}>
           {/*
-           * THE ORG SWITCHER. One org today, built for many.
-           * It is a <button> and not a <div>, and it carries aria-haspopup, because the day
-           * it lists two orgs it must already be a real control with a real keyboard model.
-           * Retrofitting semantics onto a div later is how a switcher ends up unreachable.
+           * THE ORGANIZATION PLATE. It states which organization this deployment is scoped to.
+           *
+           * IT USED TO BE A SWITCHER AND THE SWITCHER DID NOT SWITCH. It was a real <button>
+           * carrying aria-haspopup="listbox", an aria-label reading "Switch organization", and a
+           * chevron, and pressing it did nothing: there is no handler, no popup, and the `org`
+           * prop is `{ name, sublabel? }` with no list in it, so there was never anything to
+           * choose from. The reasoning for building it that way was sound (the day it lists two
+           * orgs it should already be a real control with a real keyboard model) and the result
+           * was still a control that promised an action it could not perform, which is the same
+           * defect as the nav rail telling an operator to "switch it on" for a Hunter Mode
+           * toggle that does not exist. A person who presses this and gets nothing learns that
+           * controls here are decorative, and that lesson costs more than the switcher saves.
+           *
+           * So it states a fact instead. When a second organization exists, restore the button
+           * WITH its handler in the same commit, reusing `styles.org`; the class is deliberately
+           * element-agnostic so that swap is a render change and not a restyle.
            */}
-          <button
-            type="button"
-            className={styles.org}
-            aria-haspopup="listbox"
-            aria-label={`Active organization: ${org.name}. Switch organization`}
-          >
+          <div className={`${styles.org} ${styles.orgStatic}`}>
             <span className={styles.orgFlag} aria-hidden="true">
               <Reticle size={13} />
             </span>
@@ -228,19 +235,7 @@ export function AppShell({ children, user, org, groups, meta }: AppShellProps) {
               <span className={styles.orgName}>{org.name}</span>
               <span className={styles.orgRole}>{org.sublabel ?? "Organization"}</span>
             </span>
-            <svg
-              className={styles.chevron}
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              aria-hidden="true"
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
+          </div>
 
           <div className={styles.acct}>
             <span className={styles.avatar} aria-hidden="true">

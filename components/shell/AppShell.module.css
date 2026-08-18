@@ -200,6 +200,15 @@
   border-color: var(--olive-dim);
 }
 
+/*
+ * The plate as it renders while this deployment has one organization: a statement, not a
+ * control. The hover lift is removed with it, because a border that answers the pointer is
+ * itself a promise that pressing will do something.
+ */
+.orgStatic:hover {
+  border-color: var(--line-control);
+}
+
 .orgFlag {
   display: grid;
   place-items: center;

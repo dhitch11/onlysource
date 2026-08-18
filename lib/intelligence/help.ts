@@ -205,9 +205,9 @@ export const T4_ENTRIES: HelpRecord[] = [
     what: 'The last recorded government price times the quantity asked for, added up. A model of how much money the buys represent, not a quote.',
     how: 'Use it to rank which lanes deserve the hour. Before quoting any single row, open it and check the price history behind the model.',
     why: 'A ranked dollar model is how a two-person shop picks its lane. A modeled total mistaken for promised revenue is how it overcommits capital.',
-    source: 'Measured per row from the government files: the last recorded price times the quantity on the solicitation line. A row with a price but no stated quantity contributes the price alone, and a row with no recorded price contributes nothing.',
+    source: 'Measured per row from the government files: the last recorded price times the quantity on the solicitation line. A row missing either leg, the price or the quantity, contributes nothing to the total and is listed separately as an unknown size. A quantity nobody published is not a quantity of one.',
     whatThisDoesNotDo:
-      'It does not promise the next award will price or size the same. The government can buy fewer, pay less, or not buy at all, and rows with no recorded price are honestly absent from the total.',
+      'It does not promise the next award will price or size the same. The government can buy fewer, pay less, or not buy at all. It also does not rank an unsized buy against a sized one: those are listed apart, ordered by the quantity the government did publish, because there is no measured basis for placing an unknown against a dollar figure in either direction.',
     modelled: true,
     explainsAScore: true,
   },
