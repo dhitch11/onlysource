@@ -111,9 +111,30 @@ case "${1:-}" in
     eval "LOG_DIR_REAL=${LOG_DIR}"
     mkdir -p "$LOG_DIR_REAL"
 
-    # Strip any existing managed block, keep everything else exactly as it was, append ours.
+    # ADOPTION, NOT JUST REPLACEMENT, AND THIS DISTINCTION SHIPPED BROKEN ONCE.
+    #
+    # The first version stripped only the MANAGED block and appended ours. On the one host that
+    # mattered the capture had been installed BY HAND, outside any markers, so that line survived
+    # and the managed block landed beside it: the box was scheduled to capture TWICE at 06:15.
+    # The commit message for that version promised the opposite in as many words. Two runs at the
+    # same minute means doubled traffic at a government endpoint that this estate has already
+    # recorded as locking out on aggressive access, for zero extra data.
+    #
+    # So --apply now removes the managed block AND any unmanaged line that runs the capture, then
+    # appends exactly one managed block. A CRON_TZ line is removed only when the very next line is
+    # a capture line, because that is the pairing this script creates; an operator's CRON_TZ
+    # sitting above some other job is left alone, since silently moving an unrelated job into a
+    # different timezone would be a worse bug than the one being fixed.
     tmp="$(mktemp)"
-    current_crontab | sed "\|^${BEGIN}\$|,\|^${END}\$|d" > "$tmp"
+    current_crontab | sed "\|^${BEGIN}\$|,\|^${END}\$|d" | awk '
+      { line[NR] = $0 }
+      END {
+        for (i = 1; i <= NR; i++) {
+          if (line[i] ~ /capture-day\.mts/) continue
+          if (line[i] ~ /^CRON_TZ=/ && i < NR && line[i+1] ~ /capture-day\.mts/) continue
+          print line[i]
+        }
+      }' > "$tmp"
     # A crontab whose last line lacks a newline swallows the line appended after it.
     if [ -s "$tmp" ] && [ "$(tail -c 1 "$tmp" | wc -l | tr -d ' ')" = "0" ]; then printf '\n' >> "$tmp"; fi
     block >> "$tmp"
@@ -126,6 +147,17 @@ case "${1:-}" in
     if [ "$have" != "$(block)" ]; then
       echo "FAILED: the crontab was written and does not read back as expected."
       printf '%s\n' "$have" | sed 's/^/  /'
+      exit 1
+    fi
+    # THE ASSERTION THE FIRST VERSION DID NOT MAKE, and its absence is why it shipped broken.
+    # Reading back the block proves the block is there. It does NOT prove the block is the only
+    # capture on the host, which is the property that actually matters. Count the whole crontab.
+    total="$(current_crontab | command grep -c 'capture-day\.mts' || true)"
+    if [ "${total:-0}" != "1" ]; then
+      echo "FAILED: the capture appears ${total} times in this crontab and must appear exactly once."
+      current_crontab | command grep -n 'capture-day\.mts' | sed 's/^/  /'
+      echo "Remove the extra line(s) by hand and re-run --apply. Two captures at one minute double"
+      echo "the traffic at a government endpoint for no extra data."
       exit 1
     fi
     echo "INSTALLED and verified by read-back:"
