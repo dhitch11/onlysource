@@ -332,9 +332,28 @@ function labelOf(c: RuleCitation): string {
 }
 
 /**
+ * Blockers this layer cannot compute for itself, keyed by the deliverable they apply to.
+ *
+ * ONE CALLER TODAY: the carried-figure confirmation gate in ./prefill.ts. A figure that a person
+ * never chose (the last price the government paid, landed in the quote's unit price by the prefill)
+ * must hold the deliverables that cite it at DRAFT until a person acts. That fact is not derivable
+ * from the captured facts alone, because the facts do not record where a value came from, so it
+ * arrives here from the surface that does know.
+ *
+ * IT CAN ONLY EVER ADD A BLOCKER. There is no shape of this parameter that clears one, which is the
+ * property that matters: an input that could unblock a deliverable would be an override, and an
+ * override on a compliance state is the defect this whole lane exists to prevent.
+ */
+export type ExtraBlockers = Partial<Readonly<Record<DeliverableKind, readonly string[]>>>
+
+/**
  * Build the whole view. Pure: no clock read (the caller passes `asOf`), no IO, no markup.
  */
-export function buildDocumentsView(raw: CapturedFacts, asOf: string): DocumentsView {
+export function buildDocumentsView(
+  raw: CapturedFacts,
+  asOf: string,
+  extraBlockers: ExtraBlockers = {},
+): DocumentsView {
   // The FIRST statement, deliberately. Nothing below may read an untrimmed field, so there is no
   // ordering by which a later check sees the raw input.
   const f = normaliseFacts(raw)
@@ -516,7 +535,10 @@ export function buildDocumentsView(raw: CapturedFacts, asOf: string): DocumentsV
       kind,
       payloads,
       artifact: assembly,
-      open_blockers: kind === 'quote_packet' ? quotePacketBlockers : blockers,
+      open_blockers: [
+        ...(kind === 'quote_packet' ? quotePacketBlockers : blockers),
+        ...(extraBlockers[kind] ?? []),
+      ],
     })
     deliverables.push({
       kind,

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import type { Route } from 'next'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
@@ -170,6 +171,26 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
               valueUsd={modeledBuyValue}
               initiallyInPipeline={alreadyPursued}
             />
+            {/*
+             * THE DOOR THAT EXISTED AND WAS NEVER OPENED.
+             *
+             * `/documents?from=corner:<nsn>` was fully implemented on the receiving side,
+             * tested, and documented as a stable contract, and nothing in the product linked
+             * to it. So the operator finished deciding here and then retyped the stock number,
+             * the item and the quantity into a blank form on the next screen, which is the
+             * whole reason that screen was described as producing "a checklist and a wall of
+             * text" rather than paperwork.
+             *
+             * It is one link. That is exactly what makes it worth writing down: this estate's
+             * dominant failure is not missing code, it is finished code with no way in.
+             */}
+            <Link
+              href={`/documents?from=corner:${encodeURIComponent(row.nsn)}` as Route}
+              className={styles.docsLink}
+              prefetch={false}
+            >
+              Build the paperwork for this part
+            </Link>
           </div>
         </div>
         <div className={styles.scoreBox}>

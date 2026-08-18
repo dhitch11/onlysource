@@ -77,7 +77,24 @@ export function readPacketResponse(
  * `app/(app)/admin/AdminConsole.tsx` checks it, and unreadable JSON is treated as a failure
  * rather than as an empty list.
  */
-export function PacketVault({ currentNsn }: { currentNsn: string }) {
+export function PacketVault({
+  currentNsn,
+  stamp,
+}: {
+  currentNsn: string
+  /**
+   * THE STAMP THAT TURNS A SAVED QUERY INTO A SAVED DOCUMENT.
+   *
+   * Composed on the SERVER for the document currently on screen: the render instant, the fingerprint of
+   * the assembled artifacts and their verdicts, the government feed day being served, and the source
+   * archive digest. It is appended to the saved query, so reopening the packet can compare what comes
+   * out now against what came out then and say which one the operator is looking at.
+   *
+   * IT IS NOT COMPUTED HERE. A fingerprint calculated in a browser would be a claim about the document
+   * made by something that never assembled it.
+   */
+  stamp: Readonly<Record<string, string>>
+}) {
   const [packets, setPackets] = useState<Packet[]>([])
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
@@ -146,9 +163,24 @@ export function PacketVault({ currentNsn }: { currentNsn: string }) {
     }
   }
 
+  /**
+   * The query that reproduces this packet: what is in the address bar, plus the server's stamp of the
+   * document on screen. An existing stamp is REPLACED rather than appended to, so reopening a saved
+   * packet and saving it again records the new render rather than accumulating two contradictory
+   * fingerprints in one URL.
+   */
+  function stampedQuery(): string {
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+    for (const [key, value] of Object.entries(stamp)) {
+      params.delete(key)
+      if (value !== '') params.set(key, value)
+    }
+    return params.toString()
+  }
+
   async function save() {
     if (!currentNsn) return
-    const query = typeof window !== 'undefined' ? window.location.search.replace(/^\?/, '') : ''
+    const query = stampedQuery()
     const saved = await write('/api/packets', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -204,6 +236,7 @@ export function PacketVault({ currentNsn }: { currentNsn: string }) {
                 {p.label}
               </a>
               {p.nsn ? <span className={`mono ${s.vaultNsn}`}>{p.nsn}</span> : null}
+              <span className={s.vaultNsn}>{savedKindOf(p)}</span>
               <button type="button" className={s.vaultDel} onClick={() => remove(p.id)} disabled={busy} aria-label={`Delete ${p.label}`}>
                 ✕
               </button>
@@ -212,5 +245,86 @@ export function PacketVault({ currentNsn }: { currentNsn: string }) {
         </ul>
       )}
     </div>
+  )
+}
+
+/**
+ * WHAT A SAVED PACKET ACTUALLY IS, said on the row.
+ *
+ * Two kinds exist in the same list and they are not the same promise. A packet saved since the
+ * document stamp landed carries a fingerprint, so reopening it can prove whether the artifact came
+ * out the same way. One saved before that carries only the inputs, and reopening it regenerates
+ * against today's world with no way to check. Both are useful; only one can be verified, so the row
+ * says which it is rather than letting the older kind borrow the newer one's credibility.
+ */
+export function savedKindOf(p: { query: string; savedAt: number }): string {
+  const day = p.savedAt > 0 ? new Date(p.savedAt).toISOString().slice(0, 10) : 'an unrecorded day'
+  const stamped = new URLSearchParams(p.query).get('_fp')
+  return stamped === null || stamped === ''
+    ? `saved ${day}, inputs only, cannot be verified`
+    : `saved ${day}, document fingerprinted`
+}
+
+/**
+ * THE DAY'S QUEUE, ON PAPER. Print only, and display:none on screen, so nothing here is announced
+ * twice by a screen reader.
+ *
+ * IT READS THE VAULT ITSELF rather than being handed the list, because the screen copy of the vault
+ * lives inside the screen-only branch of the page and a print sheet cannot reach into it. The cost is
+ * one extra read of a small JSON file; the alternative was printing a queue that might not match the
+ * one on screen.
+ *
+ * A FAILED READ PRINTS AS A FAILED READ. An operator carrying a sheet that silently omitted three
+ * packets is worse off than one carrying a sheet that says the queue could not be read.
+ */
+export function PacketQueuePrint({ heading }: { heading: React.ReactNode }) {
+  const [packets, setPackets] = useState<Packet[]>([])
+  const [loaded, setLoaded] = useState<'loading' | 'read' | 'unreadable'>('loading')
+
+  useEffect(() => {
+    let live = true
+    fetch('/api/packets')
+      .then(async (r) => {
+        const outcome = readPacketResponse(r, await r.json().catch(() => null))
+        if (!live) return
+        if (outcome.kind === 'refused') {
+          setLoaded('unreadable')
+          return
+        }
+        setPackets(outcome.packets)
+        setLoaded('read')
+      })
+      .catch(() => {
+        if (live) setLoaded('unreadable')
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  return (
+    <section className={s.page}>
+      {heading}
+      <h1 className={s.paperTitle}>The queue</h1>
+      {loaded === 'unreadable' ? (
+        <p className={s.paperBody}>{LIST_UNREADABLE}</p>
+      ) : loaded === 'loading' ? (
+        <p className={s.paperBody}>
+          The queue had not finished loading when this page was printed, so it is not shown. That is a
+          missing reading, not an empty queue.
+        </p>
+      ) : packets.length === 0 ? (
+        <p className={s.paperBody}>No packets are saved. This is a measured empty queue, not a failed read.</p>
+      ) : (
+        <ul className={s.paperList}>
+          {packets.map((p) => (
+            <li key={p.id}>
+              <strong>{p.label}</strong>
+              {p.nsn ? <span> NSN {p.nsn}.</span> : <span> No stock number recorded.</span>} {savedKindOf(p)}.
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

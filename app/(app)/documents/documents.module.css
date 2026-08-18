@@ -498,3 +498,410 @@
   color: var(--red);
   border-color: color-mix(in srgb, var(--red) 45%, transparent);
 }
+
+/* ================================================================= carried values ============ */
+
+/*
+ * A PREFILLED FIELD IS A CLAIM, SO IT LOOKS DIFFERENT FROM ONE A PERSON TYPED.
+ *
+ * The distinction is carried by THREE channels, not one, because a hue alone excludes anybody with a
+ * colour vision deficiency and disappears entirely under forced-colors:
+ *
+ *   1. SHAPE. A three-pixel rule down the leading edge of the input and of the origin block.
+ *   2. WORDS. The status chip beside it says "Carried in", "You changed this" or "You cleared this",
+ *      and the sentence under it says where the value came from.
+ *   3. GLYPH. T8's <Provenance> square or circle, which is shape plus colour by construction.
+ *
+ * Only an UNCHANGED carried value gets the input rule. The moment an operator edits the field the
+ * value is theirs, the rule comes off, and the block under it says so, because a screen that keeps
+ * marking an edited value as carried is making a wrong attribution credible.
+ */
+.inputCarried {
+  border-inline-start-width: 3px;
+  border-inline-start-color: var(--accent);
+}
+
+.carry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-block-start: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-inline-start: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  min-width: 0;
+}
+
+.carry[data-carried='unchanged'] {
+  border-inline-start-color: var(--accent);
+}
+
+.carryHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.carryOrigin {
+  font-size: var(--fs-100);
+  line-height: var(--lh-200);
+  color: var(--dim);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.carryOrigin strong {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.carryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.carryItem {
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.carryItem[data-carried='unchanged'] {
+  border-inline-start-color: var(--accent);
+}
+
+.carryWhat {
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  min-width: 0;
+}
+
+/* ================================================================= the pipeline list ========= */
+
+.pipeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.pipeItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  min-width: 0;
+}
+
+/*
+ * MEASURED AT 390 AND CORRECTED. This anchor came out 22px tall, under the 24px WCAG 2.5.8 pointer
+ * target floor, because a bare inline anchor is only as tall as its own line box. It is the primary
+ * way into this whole surface from the pipeline, so it is the last control that should be hard to hit
+ * on a phone. The floor is `--target-min`, T8's own token, not a number chosen here.
+ */
+.pipeLink {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-200);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-control);
+  overflow-wrap: anywhere;
+}
+
+.pipeLink:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.pipeRef {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ================================================================= the take-it-with-you row == */
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* ================================================================= screen and paper ========== */
+
+/*
+ * TWO RENDERINGS OF ONE VIEW MODEL. The screen is what an operator works in; the paper is what they
+ * carry to a desk or attach to a folder. Both are driven by the same `DocumentsView`, so they cannot
+ * disagree about a verdict, and each is display:none in the other medium, which also keeps the paper
+ * sheet out of the accessibility tree on screen rather than reading every sentence twice.
+ */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  min-width: 0;
+}
+
+.paper {
+  display: none;
+}
+
+/* ================================================================= print ===================== */
+
+/*
+ * LETTER PAPER. Owner: the DOCUMENTS lane.
+ *
+ * WHY THIS BLOCK USES PHYSICAL UNITS AND LITERAL BLACK, when the rest of this file is forbidden both.
+ * T8's tokens describe a SCREEN: a dark ground, a brass accent, colours chosen against emitted light.
+ * Paper is not a screen. A dark panel token prints as a grey block that eats a toner cartridge and
+ * makes a federal document harder to read, and `--sp-4` has no meaning to a printer. So the print
+ * medium gets its own small, explicit set of values, in inches and points, black on white. That is not
+ * a second palette for the product; it is the absence of one.
+ *
+ * THE PAGE BOX. Letter, half-inch margins, which every desktop printer can reach.
+ */
+@page {
+  size: letter;
+  margin: 0.5in;
+}
+
+@media print {
+  /*
+   * THE SHELL IS NOT PART OF THE DELIVERABLE. The navigation, the freshness pill, the build stamp and
+   * the concierge widget are tools for working in the product, and none of them belongs on a page
+   * somebody hands to a buyer.
+   *
+   * Targeted STRUCTURALLY rather than by class name on purpose: the shell's classes are hashed by CSS
+   * modules and this file cannot name them, and a hardcoded hash would break on the next build. `#main`
+   * is a real, stable id on the shell's <main>, and `:has()` reaches its container from it.
+   */
+  :global(body) {
+    background: #fff;
+    color: #000;
+  }
+
+  :global(body > div) {
+    display: block;
+  }
+
+  :global(.skip-link),
+  :global(aside) {
+    display: none;
+  }
+
+  /*
+   * The meta bar, which sits beside <main> inside the shell's content column.
+   *
+   * WRITTEN PAREN-FREE INSIDE :global() ON PURPOSE. The first version of this rule was
+   * `:global(div:has(> main#main)) > *:not(main#main)`, and the harness measured the meta bar still
+   * at `display: block` in print media: a selector carrying nested parentheses inside :global() did
+   * not survive to the browser, so the rule shipped and did nothing. That is the exact failure mode
+   * this estate keeps hitting, and the only reason it was caught is that the check read the COMPUTED
+   * display rather than grepping the stylesheet.
+   *
+   * So the shell's content column is addressed structurally by depth: body > shell > column > div.
+   * The page's own root is a <div> four levels down, inside <main>, so it is never matched; the
+   * :not() guard is belt on top of that and sits OUTSIDE the :global() where its parentheses are safe.
+   */
+  :global(body > div > div > div):not([data-print='root']) {
+    display: none;
+  }
+
+  :global(main#main) {
+    padding: 0;
+  }
+
+  /* Anything mounted next to this page inside <main>, above all the concierge widget. */
+  :global(main#main) > *:not([data-print='root']) {
+    display: none;
+  }
+
+  .wrap {
+    display: block;
+    gap: 0;
+  }
+
+  .screen {
+    display: none;
+  }
+
+  .paper {
+    display: block;
+    color: #000;
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    line-height: 1.35;
+  }
+
+  /*
+   * ONE SECTION, ONE PAGE. `break-before: page` on every section after the first is what puts the
+   * requirement sheet, each artifact and the abstentions on their own sheets, and it is also what makes
+   * the provenance strip at the top of each section land at the top of a printed page.
+   *
+   * A section that genuinely overflows flows onto a second page rather than being clipped. That is
+   * deliberate and it is the honest failure: clipping to hold a page count would hide a compliance
+   * line, and a hidden compliance line is the defect this whole surface exists to prevent.
+   */
+  .page {
+    break-before: page;
+    /* The flex column is what lets the notes block sit at the FOOT of the requirement sheet. */
+    display: flex;
+    flex-direction: column;
+    min-block-size: 9.4in;
+  }
+
+  .page:first-child {
+    break-before: auto;
+  }
+
+  .printStrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.06in 0.18in;
+    padding-block-end: 0.06in;
+    margin-block-end: 0.14in;
+    border-block-end: 1pt solid #000;
+    font-size: 7.5pt;
+    line-height: 1.3;
+    color: #000;
+  }
+
+  .paperTitle {
+    font-size: 15pt;
+    line-height: 1.2;
+    margin: 0 0 0.1in;
+    color: #000;
+  }
+
+  .paperHeading {
+    font-size: 10.5pt;
+    line-height: 1.2;
+    margin: 0.16in 0 0.05in;
+    color: #000;
+    break-after: avoid;
+  }
+
+  .paperBody {
+    margin: 0 0 0.06in;
+    font-size: 9.5pt;
+  }
+
+  .paperNotice {
+    margin: 0.08in 0;
+    padding: 0.06in 0.08in;
+    border: 1pt solid #000;
+    font-size: 9.5pt;
+  }
+
+  .paperFacts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.04in 0.2in;
+    margin: 0 0 0.08in;
+    font-size: 9.5pt;
+  }
+
+  .paperFacts dt {
+    font-weight: 600;
+    display: inline;
+  }
+
+  .paperFacts dt::after {
+    content: ': ';
+  }
+
+  .paperFacts dd {
+    margin: 0;
+    display: inline;
+  }
+
+  .paperList {
+    margin: 0 0 0.06in;
+    padding-inline-start: 0.22in;
+    font-size: 9.5pt;
+  }
+
+  .paperList li {
+    margin-block-end: 0.04in;
+    break-inside: avoid;
+  }
+
+  .paperArtifact {
+    margin: 0 0 0.1in;
+    padding: 0.1in;
+    border: 1pt solid #000;
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #000;
+  }
+
+  /*
+   * TWO INCHES OF RULED WRITING SPACE AT THE FOOT OF THE REQUIREMENT SHEET, asked for by name by the
+   * war room's Principal User chair. `margin-block-start: auto` inside the page's flex column pushes it
+   * to the bottom of the sheet rather than leaving it floating under the last paragraph.
+   *
+   * The rules are BORDERS, not a background gradient. Browsers print with backgrounds off by default,
+   * so a gradient here would ship, pass every source check, and come out of the printer blank.
+   */
+  .notesBlock {
+    margin-block-start: auto;
+    padding-block-start: 0.12in;
+    break-inside: avoid;
+  }
+
+  .notesLabel {
+    margin: 0 0 0.04in;
+    font-size: 8pt;
+    font-weight: 600;
+    color: #000;
+  }
+
+  .notes {
+    block-size: 2in;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notesRule {
+    block-size: calc(2in / 6);
+    border-block-end: 0.75pt solid #999;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+  }
+}
