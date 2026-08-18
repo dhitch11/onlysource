@@ -37,7 +37,13 @@ function isYear(n: number): boolean {
  */
 export function extractNumbers(text: string): number[] {
   const out: number[] = []
-  const re = /-?\$?\d[\d,]*(?:\.\d+)?%?/g
+  /*
+   * The leading minus is only a minus when it does not follow a digit or another hyphen. Without
+   * that guard, "2026-08-14" parses as 2026, -8 and -14, so a feed day harvested from a tool never
+   * matches the same date spoken back as "August 14", and a correct answer gets blocked. The same
+   * bug splits every stock number into negative fragments.
+   */
+  const re = /(?<![\d-])-?\$?\d[\d,]*(?:\.\d+)?%?/g
   for (const m of text.match(re) ?? []) {
     const v = Number(m.replace(/[$,%]/g, ''))
     if (Number.isFinite(v)) out.push(v)
@@ -124,19 +130,104 @@ function isGrounded(value: number, allow: AllowSet): boolean {
 
 export type GuardVerdict =
   | { ok: true }
-  | { ok: false; offenders: string[] }
+  | { ok: false; offenders: string[]; kind: 'ungrounded' | 'unmeasured' }
 
-/** Check a finished reply. Returns the offending figures so the retry can name them. */
-export function guard(text: string, allow: AllowSet): GuardVerdict {
-  const offenders = claimNumbers(text)
+/**
+ * ==========================================================================================
+ * THE SECOND GUARD: A NUMBER CAN BE REAL AND STILL BE THE WRONG ANSWER.
+ * ==========================================================================================
+ * The firewall above asks "does this figure exist in what Thomas was given". An adversarial
+ * audit showed that question is not sufficient, twice, in the two most expensive ways available:
+ *
+ *   Asked for the feed date, he answered "August seventeenth, that's the date stamped on this
+ *   build". That date was the knowledge-base stamp, so it WAS in the allow-set and passed
+ *   cleanly, while being three days newer than the actual feed and carrying invented provenance.
+ *
+ *   Asked how many corners to print in a press release, he answered "eighteen thousand two
+ *   hundred seventy one percent" — the screw's escalation figure, also genuinely in the
+ *   allow-set, also completely unrelated to the question.
+ *
+ * Both were grounded. Neither was an answer. So a question ABOUT THE CURRENT STATE OF THE BOOK
+ * is held to a stricter standard: its figures must come from a tool result in THIS conversation,
+ * not from the curated background, because background numbers describe a different day.
+ */
+const STATE_QUESTION = new RegExp(
+  [
+    'how many',
+    'how much',
+    'how fresh',
+    'how old',
+    'how stale',
+    'what is the (count|total|number)',
+    'feed ?(day|date)',
+    'date of the feed',
+    'when was .{0,20}(measured|captured|pulled|updated|refreshed)',
+    'as of',
+    'right now',
+    'currently',
+    'today',
+    'latest',
+    'current',
+    'exact (date|count|number)',
+  ].join('|'),
+  'i',
+)
+
+/** A spoken or written date. Thomas must never produce one that a tool did not hand him. */
+const DATE_SHAPE =
+  /\b(\d{4}-\d{2}-\d{2}|(january|february|march|april|may|june|july|august|september|october|november|december)\s+\w+)/i
+
+export function guard(
+  text: string,
+  allow: AllowSet,
+  opts?: { measured?: AllowSet; question?: string },
+): GuardVerdict {
+  const ungrounded = claimNumbers(text)
     .filter((c) => !isGrounded(c.value, allow))
     .map((c) => c.raw.trim())
-  if (!offenders.length) return { ok: true }
-  return { ok: false, offenders: Array.from(new Set(offenders)) }
+  if (ungrounded.length) {
+    return { ok: false, offenders: Array.from(new Set(ungrounded)), kind: 'ungrounded' }
+  }
+
+  const measured = opts?.measured
+  const asked = opts?.question ?? ''
+  if (!measured) return { ok: true }
+
+  const isStateQuestion = STATE_QUESTION.test(asked)
+  if (!isStateQuestion) return { ok: true }
+
+  /*
+   * A state question was asked and NO tool ran. Any claim-shaped figure or any date in the reply
+   * is therefore being recalled rather than read, which is the exact failure above. If a tool DID
+   * run, its numbers are in `measured` and the normal check governs.
+   */
+  const unmeasured = claimNumbers(text)
+    .filter((c) => !isGrounded(c.value, measured))
+    .map((c) => c.raw.trim())
+  const dateClaim = DATE_SHAPE.test(text) && measured.size === 0
+  if (!unmeasured.length && !dateClaim) return { ok: true }
+
+  const offenders = Array.from(new Set(unmeasured))
+  if (dateClaim) offenders.push('a date the feed did not report')
+  return { ok: false, offenders, kind: 'unmeasured' }
 }
 
 /** The constraint appended for the single regeneration attempt. */
-export function constraintFor(offenders: string[]): string {
+export function constraintFor(offenders: string[], kind: 'ungrounded' | 'unmeasured' = 'ungrounded'): string {
+  if (kind === 'unmeasured') {
+    return [
+      '',
+      '## THAT WAS THE WRONG NUMBER FOR THE QUESTION (you just broke this)',
+      `You were asked about the CURRENT state of the book and you answered with ${offenders
+        .map((o) => JSON.stringify(o))
+        .join(', ')}.`,
+      'Those figures exist in your background notes, so they are real, but they describe a DIFFERENT DAY and',
+      'they are not answers to what was asked. A real number in the wrong slot is still a wrong answer, and on',
+      'this platform it is one somebody may bid against.',
+      'Answer again. Call the tool, and speak only what it returns. Never state a count or a date you did not',
+      'just read from a tool result. If you cannot call one, say plainly that you will pull it.',
+    ].join('\n')
+  }
   return [
     '',
     '## NUMBER CONSTRAINT (you just broke this)',

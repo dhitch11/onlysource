@@ -256,6 +256,14 @@ function portfolioSnapshot(): ToolOutcome {
     return { text: 'The portfolio could not be built from the current feed. Say so honestly.', numbers: [], isError: true }
   }
   const t = pf.totals
+  /*
+   * THE FEED DAY IS GROUNDED IN BOTH SHAPES IT CAN BE SPOKEN IN. The engine stores it as
+   * 2026-08-14, and Thomas says "August fourteenth" out loud, so the day and month never appear as
+   * standalone figures and the strict guard rejected a perfectly correct answer. Same fact, two
+   * renderings, both allowed. Grounding must follow how a number is actually said, or it starts
+   * blocking the truth, which trains exactly the wrong instinct.
+   */
+  const feedParts = (pf.feedDay.match(/(\d{4})-(\d{2})-(\d{2})/) ?? []).slice(1).map(Number)
   const chains = pf.bySupplyChain.slice(0, 5).map((c) => `${c.label} ${c.value}`).join(', ')
   const top = pf.topCorners
     .slice(0, 5)
@@ -275,6 +283,7 @@ function portfolioSnapshot(): ToolOutcome {
       t.priced,
       t.machineAward,
       t.withEscalation,
+      ...feedParts,
       ...pf.bySupplyChain.map((c) => c.value),
       ...pf.topCorners.slice(0, 5).flatMap((c) => [c.score, c.escalationPct, c.lastPrice, c.firstPrice]),
     ),

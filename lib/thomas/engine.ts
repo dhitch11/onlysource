@@ -68,6 +68,13 @@ export async function runTurn(opts: {
     opts.message,
     ...opts.history.map((h) => h.content),
   ])
+  /*
+   * MEASURED is the strict set: figures a tool returned during THIS turn, and nothing else. It
+   * starts empty and only a real engine call fills it. A question about the current state of the
+   * book is answered from this set or not at all. See the note on `guard` for the two audit
+   * failures that made a second set necessary.
+   */
+  const measured: AllowSet = new Set()
 
   const messages: ThomasMessage[] = [
     ...opts.history.slice(-12).map((h) => ({ role: h.role, content: h.content })),
@@ -100,7 +107,14 @@ export async function runTurn(opts: {
 
     if (!serverCalls.length) {
       // The model is done reaching for data. Check what it wants to say, then say it.
-      const checked = await enforce(turn.text, allow, { system, messages, slot, mode: opts.mode })
+      const checked = await enforce(turn.text, allow, {
+        system,
+        messages,
+        slot,
+        mode: opts.mode,
+        measured,
+        question: opts.message,
+      })
       return { ok: true, text: checked.text, actions, toolsUsed, model, grounded: checked.grounded }
     }
 
@@ -110,8 +124,10 @@ export async function runTurn(opts: {
     for (const call of serverCalls) {
       toolsUsed.push(call.name)
       const outcome = await runServerTool(call.name, (call.input ?? {}) as Record<string, unknown>)
-      // Everything a tool measured becomes speakable. This is how real numbers get through.
+      // Everything a tool measured becomes speakable, and joins the STRICT set as well, which is
+      // what makes it a valid answer to a question about the book as it stands right now.
       addNumbers(allow, outcome.numbers)
+      addNumbers(measured, outcome.numbers)
       results.push({
         type: 'tool_result',
         tool_use_id: call.id,
@@ -163,20 +179,34 @@ function assistantBlocks(text: string, uses: ToolUseBlock[]): ContentBlock[] {
 async function enforce(
   text: string,
   allow: AllowSet,
-  cfg: { system: string; messages: ThomasMessage[]; slot: ThomasSlot; mode: 'voice' | 'text' },
+  cfg: {
+    system: string
+    messages: ThomasMessage[]
+    slot: ThomasSlot
+    mode: 'voice' | 'text'
+    measured?: AllowSet
+    question?: string
+  },
 ): Promise<{ text: string; grounded: boolean }> {
   if (!text.trim()) return { text: HONEST_EMPTY, grounded: false }
-  const first = guard(text, allow)
+  const checkOpts = { measured: cfg.measured, question: cfg.question }
+  const first = guard(text, allow, checkOpts)
   if (first.ok) return { text, grounded: true }
 
+  /*
+   * The retry keeps the TOOLS available. The original single-shot retry withheld them, which was
+   * fine for an invented figure but actively wrong for the "right number, wrong question" failure:
+   * the only correct fix there is to go and read the real one, and a model with no tools cannot.
+   */
   const retry = await collectTurn({
-    system: cfg.system + constraintFor(first.offenders),
+    system: cfg.system + constraintFor(first.offenders, first.kind),
     messages: cfg.messages,
+    tools: first.kind === 'unmeasured' ? ALL_TOOLS : undefined,
     slot: cfg.slot,
     maxTokens: cfg.mode === 'voice' ? 400 : 1600,
   })
   if (retry.ok && retry.text.trim()) {
-    const second = guard(retry.text, allow)
+    const second = guard(retry.text, allow, checkOpts)
     if (second.ok) return { text: retry.text, grounded: true }
   }
   return { text: HONEST_EMPTY, grounded: false }
@@ -206,6 +236,7 @@ export async function* streamTurnWithTools(opts: {
     opts.message,
     ...opts.history.map((h) => h.content),
   ])
+  const measured: AllowSet = new Set()
   const messages: ThomasMessage[] = [
     ...opts.history.slice(-12).map((h) => ({ role: h.role, content: h.content })),
     { role: 'user' as const, content: `${turnContext({ ...opts.ctx, mode: 'text' })}\n\n${opts.message}` },
@@ -239,9 +270,16 @@ export async function* streamTurnWithTools(opts: {
        */
       const text = probe.text
       for (const chunk of chunkForStream(text)) yield { type: 'text', delta: chunk }
-      const verdict = guard(text, allow)
+      const verdict = guard(text, allow, { measured, question: opts.message })
       if (!verdict.ok) {
-        const fixed = await enforce(text, allow, { system, messages, slot: 'thomas_chat', mode: 'text' })
+        const fixed = await enforce(text, allow, {
+          system,
+          messages,
+          slot: 'thomas_chat',
+          mode: 'text',
+          measured,
+          question: opts.message,
+        })
         yield { type: 'replace', text: fixed.text }
         yield { type: 'done', model, grounded: fixed.grounded }
         return
@@ -256,6 +294,7 @@ export async function* streamTurnWithTools(opts: {
       yield { type: 'tool', name: call.name }
       const outcome = await runServerTool(call.name, (call.input ?? {}) as Record<string, unknown>)
       addNumbers(allow, outcome.numbers)
+      addNumbers(measured, outcome.numbers)
       results.push({
         type: 'tool_result',
         tool_use_id: call.id,
