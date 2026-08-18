@@ -147,6 +147,19 @@ export const ROLES: readonly Role[] = [
   },
 ]
 
+/**
+ * The role with this key, or undefined when no role has it.
+ *
+ * It answers undefined on purpose, and every caller has to handle that. A lookup that answers
+ * an unknown key with a working role is a silent grant: the roster only has to carry a typo,
+ * or the key of a role somebody deleted, for its holder to quietly acquire whatever the
+ * fallback happened to be. Denying is recoverable, an admin sets the role again. A grant
+ * nobody made is not.
+ */
+export function role(key: string): Role | undefined {
+  return ROLES.find((r) => r.key === key)
+}
+
 export class RoleShapeError extends Error {
   constructor(message: string) {
     super(message)

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { assemblePursuitPackage } from '@/lib/intelligence/brief/assemble-package'
@@ -24,7 +24,8 @@ export const runtime = 'nodejs'
  * billed as a memo.
  */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  // A pursuit package is the quoting decision, assembled.
+  const denied = await requirePermission('board.quote')
   if (denied) return denied
 
   if (!aiConfigured()) {

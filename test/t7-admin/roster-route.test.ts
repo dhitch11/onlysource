@@ -14,8 +14,16 @@ import path from 'node:path'
  *
  * The gate is stubbed to ALLOW, deliberately: this file is about what the handler does with a
  * request it is permitted to serve. The refusal path is a one-liner in every handler
- * (`const denied = await gateOrJson(); if (denied) return denied`) and is measured for real,
- * against the running server with the cookie jar cleared, in `.probe/admin-verify.mjs`.
+ * (`const denied = await requirePermission(key); if (denied) return denied`) and is measured
+ * for real, against the running server with the cookie jar cleared, in `.probe/admin-verify.mjs`.
+ *
+ * THE SUBJECT IS THE BREAK-GLASS DOOR, and that is a deliberate choice rather than a stub. The
+ * route now resolves WHO is calling, so a fabricated subject would be denied on every request
+ * and this file would measure the refusal instead of the rules. `pre-release` on a state
+ * directory where no account has a credential is the product's real first-run caller: it is
+ * owner-equivalent, and it is NOBODY, so the self-role rule has no self to protect and the
+ * last-owner cases below still exercise the roster rule they were written for. Authorization
+ * itself is measured in test/authz/escalation.test.ts.
  *
  * Every refusal below is paired with a POSITIVE CONTROL that succeeds, so a handler that
  * returned 400 unconditionally would fail this suite rather than pass it.
@@ -24,6 +32,10 @@ import path from 'node:path'
 vi.mock('@/lib/session/require-gate', () => ({
   gateOrJson: async () => null,
   requireGateSession: async () => undefined,
+  readGateVerdict: async () => ({
+    valid: true,
+    payload: { sub: 'pre-release', iat: 0, exp: 9e9 },
+  }),
 }))
 
 let dir: string

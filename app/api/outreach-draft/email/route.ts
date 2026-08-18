@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { MODEL_CHAINS } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { buildOutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
@@ -25,7 +25,8 @@ const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  // Outreach is addressed to a supplier, and this one actually leaves the building.
+  const denied = await requirePermission('supplier.pursue')
   if (denied) return denied
 
   // No key at all is an environment fact, stated up front: not a failure, never a pretend send.

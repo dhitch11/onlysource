@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { readSettings, writeSettings, type AlertSettings } from '@/lib/notify/settings'
 
 export const dynamic = 'force-dynamic'
@@ -12,9 +13,12 @@ export async function GET() {
   return Response.json(readSettings())
 }
 
-/** Save alert settings. Gated. The store coerces unknown/invalid shapes to safe defaults. */
+/**
+ * Save alert settings. Requires `org.manage`, because alert settings are organization settings.
+ * The store coerces unknown/invalid shapes to safe defaults.
+ */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('org.manage')
   if (denied) return denied
   let body: AlertSettings
   try {

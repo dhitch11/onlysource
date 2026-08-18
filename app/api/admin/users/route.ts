@@ -1,5 +1,11 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import {
+  callerAccountId,
+  callerPermissions,
+  permissionRefusal,
+  readCaller,
+  requirePermission,
+} from '@/lib/session/authz'
 import { buildUsers, type DirectoryUser } from '@/lib/admin/directory'
 import {
   addMember,
@@ -13,6 +19,8 @@ import {
 import {
   guardRemove,
   guardRoleChange,
+  guardSelfRoleChange,
+  guardSignInChange,
   guardStatusChange,
   validateNewUser,
   type GuardedUser,
@@ -24,7 +32,15 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * THE ROSTER API. Gated, and it re-decides every rule the interface believes.
+ * THE ROSTER API. Authorized per caller, and it re-decides every rule the interface believes.
+ *
+ * ★ THE ESCALATION THIS ROUTE SHIPPED WITH, AND HOW IT IS CLOSED. Until 2026-08-18 the only
+ * check here was `gateOrJson()`, which answers "is any account signed in" and nothing else. A
+ * session holding `read_only`, the weakest role the product ships with, POSTed its own id with
+ * `roleKey: 'owner'`, was promoted, and then set a password on the seeded owner account. Full
+ * takeover, from the role designed to see the least. Every handler below now resolves WHO is
+ * calling and asks the permission model what they may do, and a role change additionally
+ * refuses the caller's own row, so no privilege increase is ever a single-person act.
  *
  * The screen disables a control the server would refuse, which is a courtesy. THIS is the
  * control: every write below re-runs the same `roster-rules` functions the page used, against
@@ -86,9 +102,16 @@ function notSaved() {
   )
 }
 
-/** The roster as the screen sees it. Gated. */
+/**
+ * The roster as the screen sees it. Requires `users.manage`.
+ *
+ * A read, and still admin-plane: it returns every person's name, address, role and whether
+ * they have a sign in, which is the shape of the organization. There is no `users.read`
+ * permission in the model, so this asks for the one that exists rather than inventing a key
+ * here, where nobody would ever find it again.
+ */
 export async function GET() {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('users.manage')
   if (denied) return denied
   return Response.json({ users: buildUsers(readRoster()) })
 }
@@ -100,7 +123,14 @@ export async function GET() {
  * endpoint means one place where the rules are re-checked.
  */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  /*
+   * The caller is resolved ONCE and asked twice: `users.manage` for the right to touch the
+   * roster at all, and `roles.manage` at each point below where a role is handed out. Reading
+   * the caller a second time would let a deactivation landing mid-request answer two different
+   * questions inside one write.
+   */
+  const caller = await readCaller()
+  const denied = permissionRefusal(caller, 'users.manage')
   if (denied) return denied
 
   let body: Body
@@ -125,6 +155,14 @@ export async function POST(req: NextRequest) {
       { name: body.name, email: body.email, roleKey: body.roleKey, title: body.title },
     )
     if (!check.ok) return refuse('invalid_user', check.reason)
+
+    /*
+     * A create NAMES a role, and naming a role is handing one out. It asks for `roles.manage`
+     * for the same reason the change path does: a caller who may add people but not grant
+     * roles must not be able to add a person who arrives already holding one.
+     */
+    const roleDenied = permissionRefusal(caller, 'roles.manage')
+    if (roleDenied) return roleDenied
 
     const now = systemClock.now()
     try {
@@ -156,6 +194,21 @@ export async function POST(req: NextRequest) {
    * also means a request carrying only a password is not treated as an "empty change".
    */
   if (body.password !== undefined) {
+    /*
+     * A PASSWORD IS AN IDENTITY, which is the escalation a permission check alone cannot see.
+     * `users.manage` says the caller may work the roster; it does not say they may hand
+     * themselves the keys to a bigger account. Both directions are covered here, setting and
+     * revoking, because taking a sign in away from the owner is its own kind of takeover.
+     */
+    const reach = guardSignInChange(callerPermissions(caller), {
+      id: target.id,
+      name: target.name,
+      roleKey: target.roleKey,
+      status: target.status,
+      seeded: target.seeded,
+    })
+    if (!reach.ok) return refuse('sign_in_refused', reach.reason)
+
     if (body.password === null) {
       const done = revokePassword(id, systemClock.now())
       if (!done.ok) return notSaved()
@@ -173,6 +226,12 @@ export async function POST(req: NextRequest) {
 
   if (body.roleKey !== undefined) {
     const nextRole = typeof body.roleKey === 'string' ? body.roleKey.trim() : ''
+    // Changing a role is a second, narrower privilege than changing a person's title.
+    const roleDenied = permissionRefusal(caller, 'roles.manage')
+    if (roleDenied) return roleDenied
+    // And nobody changes their OWN role, whatever they hold. See `guardSelfRoleChange`.
+    const self = guardSelfRoleChange(guarded(users), callerAccountId(caller), id, nextRole)
+    if (!self.ok) return refuse('self_role_refused', self.reason)
     const g = guardRoleChange(guarded(users), id, nextRole)
     if (!g.ok) return refuse('role_refused', g.reason)
     patch.roleKey = nextRole
@@ -205,9 +264,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Remove an added user. Gated. Seeded users are refused, with the reason. */
+/** Remove an added user. Requires `users.manage`. Seeded users are refused, with the reason. */
 export async function DELETE(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('users.manage')
   if (denied) return denied
 
   const url = new URL(req.url)

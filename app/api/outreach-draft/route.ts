@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { buildOutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
@@ -23,7 +23,8 @@ export const runtime = 'nodejs'
  * own allowlisted address through the disarmed-by-default transport.
  */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  // An outreach draft is addressed to a supplier, so it is pursuit work.
+  const denied = await requirePermission('supplier.pursue')
   if (denied) return denied
 
   if (!aiConfigured()) {

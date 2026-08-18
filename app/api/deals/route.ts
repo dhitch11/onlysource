@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import {
   findDealByRef,
   readDeals,
@@ -89,9 +90,12 @@ function directPatch(body: PostBody): Partial<StoredDeal> {
   return patch
 }
 
-/** Create or update a deal. Gated. A new deal without an id gets one. */
+/**
+ * Create or update a deal. Requires `supplier.pursue`, because writing the pipeline is pursuit
+ * work. A new deal without an id gets one.
+ */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('supplier.pursue')
   if (denied) return denied
   let body: PostBody
   try {
@@ -312,9 +316,9 @@ export async function POST(req: NextRequest) {
   })
 }
 
-/** Remove a deal. Gated. Body or query: { id }. */
+/** Remove a deal. Requires `supplier.pursue`. Body or query: { id }. */
 export async function DELETE(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('supplier.pursue')
   if (denied) return denied
   const url = new URL(req.url)
   let id = url.searchParams.get('id') ?? ''

@@ -25,7 +25,14 @@ import { findDealByRef, readDeals, upsertDeal } from '@/lib/sales/deals-store'
 // The gate is stubbed to ALLOW: this file is about what the handler does with a request it
 // is permitted to serve. The 401 path is measured against the live server by .probe scripts.
 vi.mock('@/lib/session/require-gate', () => ({
-  readGateVerdict: async () => ({ valid: true, payload: { sub: 'test', iat: 0, exp: 9e9 } }),
+  // The handlers now resolve WHO is calling, so the subject has to be somebody: 'test' is
+  // nobody and is refused before the code under test runs. `seed:hitchman` is the seeded
+  // owner, who exists in every roster and holds every permission, which keeps this file
+  // about what the handler does with a request it is permitted to serve.
+  readGateVerdict: async () => ({
+    valid: true,
+    payload: { sub: 'seed:hitchman', iat: 0, exp: 9e9 },
+  }),
   requireGateSession: async () => undefined,
   gateOrJson: async () => null,
 }))

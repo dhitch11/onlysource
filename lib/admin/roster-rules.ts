@@ -1,4 +1,4 @@
-import { ROLES } from './permissions'
+import { ROLES, can, permission, role } from './permissions'
 import type { RosterStatus } from './roster-store'
 
 /**
@@ -81,6 +81,75 @@ export function guardRoleChange(
     return { ok: false, reason: LAST_OWNER_REASON }
   }
   return OK
+}
+
+/**
+ * The single sentence used wherever somebody tries to change their own role. Written once, so
+ * the disabled select and the API refusal are word for word identical.
+ */
+export const SELF_ROLE_REASON =
+  'You cannot change your own role. Somebody else with the permission has to do it, so nobody ' +
+  'can promote themselves.'
+
+/**
+ * NOBODY CHANGES THEIR OWN ROLE. Not an operator, not an admin, not the owner.
+ *
+ * This is separate from the permission check and it is not the same rule. A permission asks
+ * "may this person edit roles at all"; this asks "may they edit THEIR OWN", and the answer is
+ * always no. Without it, one compromised admin session is a self-service promotion to owner,
+ * and the audit trail reads as a legitimate role change made by somebody entitled to make it.
+ * The recovery is deliberately social: another person with the permission makes the change,
+ * so two accounts are involved in every privilege increase.
+ *
+ * `callerId` is null when there is no person behind the request, which today means the
+ * break-glass door on a server with no credentials at all. There is no self to protect in that
+ * case, so the rule does not fire and first-run setup still works.
+ */
+export function guardSelfRoleChange(
+  users: readonly GuardedUser[],
+  callerId: string | null,
+  id: string,
+  nextRoleKey: string,
+): RosterGuard {
+  if (!callerId || callerId !== id) return OK
+  const user = find(users, id)
+  if (!user) return { ok: false, reason: NOT_IN_ROSTER }
+  // Asking for the role you already hold changes nothing, so it is not an escalation. This
+  // matches `guardRoleChange`, which also lets a no-op through rather than refusing a request
+  // that would have had no effect.
+  if (nextRoleKey === user.roleKey) return OK
+  return { ok: false, reason: SELF_ROLE_REASON }
+}
+
+/**
+ * NOBODY HANDS OUT A SIGN IN TO AN ACCOUNT THAT OUTRANKS THEM.
+ *
+ * `users.manage` carries the power to set a password, and a password is an identity. Without
+ * this rule an admin sets a password on the OWNER account, signs in as the owner, and holds
+ * everything, without a single role ever changing. The escalation is invisible in a roster
+ * diff: no role moved, nobody was added, and the audit trail says a password was set by
+ * somebody entitled to set passwords.
+ *
+ * The comparison is between PERMISSION SETS, not role names, so it keeps working when an admin
+ * authors a fifth role. A caller may set a sign in for anybody who cannot do more than they
+ * can, which is the whole of the rule and needs no list of role pairs to maintain.
+ */
+export function guardSignInChange(callerHeld: readonly string[], user: GuardedUser): RosterGuard {
+  const target = role(user.roleKey)
+  // An unrecognised role key holds nothing, so there is nothing to escalate to.
+  if (!target) return OK
+
+  const beyond = target.permissions.filter((key) => !can(callerHeld, key))
+  if (beyond.length === 0) return OK
+
+  const first = permission(beyond[0] as string)?.label ?? (beyond[0] as string)
+  return {
+    ok: false,
+    reason:
+      `You cannot change the sign in for ${user.name}, because that account holds access your ` +
+      `own role does not, starting with "${first}". Somebody with at least that access has to ` +
+      'set it.',
+  }
 }
 
 export function guardStatusChange(

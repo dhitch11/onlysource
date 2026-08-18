@@ -2,7 +2,7 @@ import 'server-only'
 import { buildUsers } from '@/lib/admin/directory'
 import { readRoster, setOverride, updateMember, type RosterStatus } from '@/lib/admin/roster-store'
 import { hashPassword, passwordProblem, verifyPassword } from './credentials'
-import { ROLES, type Role } from '@/lib/admin/permissions'
+import { role, type Role } from '@/lib/admin/permissions'
 
 /**
  * ACCOUNTS. Real per-person sign in over the roster, replacing the shared pre-release phrase.
@@ -48,8 +48,25 @@ export type Account = {
 const DUMMY_CREDENTIAL =
   'scrypt$32768$8$1$YWJjZGVmZ2hpamtsbW5vcA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
 
+/**
+ * A role key that matches no role. It holds NOTHING, and it says so where a role name is shown.
+ *
+ * This is the answer to a stored key the permission model does not recognise, which happens
+ * when a role is deleted, renamed, or hand-edited into the state file. The previous answer was
+ * the operator role, chosen by array index, and that is a silent grant: a typo in a JSON file
+ * would have handed somebody the whole operator plane with nothing to see and nothing logged.
+ */
+const UNRECOGNISED_ROLE: Role = {
+  key: 'unrecognised',
+  name: 'Unrecognised role',
+  plane: 'operator',
+  permissions: [],
+  builtin: false,
+}
+
+/** The role behind a stored key. Never a default, because a default role is a grant nobody made. */
 function roleFor(key: string): Role {
-  return ROLES.find((r) => r.key === key) ?? (ROLES[2] as Role)
+  return role(key) ?? UNRECOGNISED_ROLE
 }
 
 type RosterCredential = { id: string; passwordHash: string | null }

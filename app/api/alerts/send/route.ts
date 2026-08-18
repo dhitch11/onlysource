@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { readGateVerdict } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { computeSignals } from '@/lib/notify/signals'
 import { readSettings, channelEnabled } from '@/lib/notify/settings'
 import { sendEmail, emailConfigured } from '@/lib/notify/email'
@@ -22,9 +22,15 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest) {
   const token = req.headers.get('x-alert-token')
   const cronOk = Boolean(process.env.ALERT_CRON_TOKEN) && token === process.env.ALERT_CRON_TOKEN
-  const sessionOk = cronOk ? false : (await readGateVerdict()).valid
-  if (!cronOk && !sessionOk) {
-    return Response.json({ error: 'not_authorised' }, { status: 401 })
+  if (!cronOk) {
+    /*
+     * The human path asks for a PERMISSION, not merely a session. A digest is an outbound
+     * message from the organization to the address configured in Settings, so it is owned by
+     * the same permission that owns Settings. The scheduler above is a different authority
+     * with its own shared token and never touches this branch.
+     */
+    const denied = await requirePermission('org.manage')
+    if (denied) return denied
   }
 
   if (!emailConfigured()) {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { readPackets, savePacket, removePacket } from '@/lib/compliance/packets-store'
 import { systemClock } from '@/lib/time/clock'
 
@@ -13,9 +14,14 @@ export async function GET() {
   return Response.json({ packets: readPackets() })
 }
 
-/** Save a packet (label + nsn + the form query that reproduces it). Gated. */
+/**
+ * Save a packet (label + nsn + the form query that reproduces it). Requires `document.view`.
+ *
+ * A traceability packet IS a document, and `document.view` is the sensitive permission the
+ * read-only role deliberately does not hold.
+ */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('document.view')
   if (denied) return denied
   let body: { label?: string; nsn?: string; query?: string }
   try {
@@ -33,9 +39,9 @@ export async function POST(req: NextRequest) {
   return Response.json({ packets })
 }
 
-/** Remove a saved packet. Gated. */
+/** Remove a saved packet. Requires `document.view`. */
 export async function DELETE(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('document.view')
   if (denied) return denied
   const id = new URL(req.url).searchParams.get('id') ?? ''
   if (!id) return Response.json({ error: 'no_id' }, { status: 400 })

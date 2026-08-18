@@ -1,4 +1,4 @@
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildPortfolio, buildPortfolioDossier } from '@/lib/intelligence/portfolio'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
@@ -15,7 +15,8 @@ export const runtime = 'nodejs'
  * real figures or it abstains. Gated, and it never bills a generation it did not return.
  */
 export async function POST() {
-  const denied = await gateOrJson()
+  // A portfolio brief is written to decide what to quote, so it asks for the quoting permission.
+  const denied = await requirePermission('board.quote')
   if (denied) return denied
 
   if (!aiConfigured()) {

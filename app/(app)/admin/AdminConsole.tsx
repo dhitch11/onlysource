@@ -50,6 +50,26 @@ import styles from './Admin.module.css'
 
 type Draft = { name: string; email: string; title: string; roleKey: string }
 
+/**
+ * WHAT THIS VIEWER MAY DO, decided on the server by `lib/session/authz` and
+ * `lib/admin/roster-rules` and handed here already answered.
+ *
+ * The same shape as `DirectoryUser.actions`, and for the same reason: this component decides
+ * nothing. Every sentence below is the sentence the API would have refused with, so a control
+ * is never disabled with one explanation and refused with another.
+ */
+export type ViewerLimits = {
+  /** The viewer's own roster id, or null for the break-glass session, which is nobody. */
+  id: string | null
+  canManageRoles: boolean
+  /** Why the role selects are dead, when they are. Null when the viewer may change roles. */
+  roleBlockedReason: string | null
+  /** The one sentence about changing your own role. Comes from roster-rules, never written here. */
+  selfRoleReason: string
+  /** Row id to the reason its sign in is out of this viewer's reach. Absent means allowed. */
+  signInBlocked: Record<string, string>
+}
+
 const emptyDraft = (roleKey: string): Draft => ({ name: '', email: '', title: '', roleKey })
 
 const SESSION_GONE =
@@ -62,6 +82,7 @@ export function AdminConsole({
   accessNote,
   canMutate,
   mutateBlockedReason,
+  viewer,
 }: {
   initial: DirectoryUser[]
   roleOptions: RoleOption[]
@@ -69,6 +90,8 @@ export function AdminConsole({
   /** Measured, not assumed: whether the server can actually write the roster file. */
   canMutate: boolean
   mutateBlockedReason: string | null
+  /** Who is looking, and what the server will let them do. Never decided in this file. */
+  viewer: ViewerLimits
 }) {
   const defaultRole =
     roleOptions.find((r) => r.key === 'operator')?.key ?? roleOptions[0]?.key ?? 'operator'
@@ -201,11 +224,21 @@ export function AdminConsole({
           <ExplainButton helpId="admin.seeded_identity" size="sm" />
         </div>
         <span className={styles.topAction}>
-          <Button variant="primary" disabled={!canMutate} onClick={() => setAdding((v) => !v)}>
+          {/* Adding a person NAMES their role, so the server asks for `roles.manage` on the
+              create path as well. A viewer who cannot grant a role cannot add a user, and the
+              button says so rather than failing after the form is filled in. */}
+          <Button
+            variant="primary"
+            disabled={!canMutate || !viewer.canManageRoles}
+            onClick={() => setAdding((v) => !v)}
+          >
             {adding ? 'Cancel' : 'Add a user'}
           </Button>
           {!canMutate && mutateBlockedReason ? (
             <span className={styles.blockedReason}>{mutateBlockedReason}</span>
+          ) : null}
+          {canMutate && !viewer.canManageRoles && viewer.roleBlockedReason ? (
+            <span className={styles.blockedReason}>{viewer.roleBlockedReason}</span>
           ) : null}
         </span>
       </div>
@@ -224,7 +257,7 @@ export function AdminConsole({
         </p>
       ) : null}
 
-      {adding && canMutate ? (
+      {adding && canMutate && viewer.canManageRoles ? (
         <form
           className={styles.addForm}
           onSubmit={(e) => {
@@ -300,10 +333,25 @@ export function AdminConsole({
            * instead. Repeating it per row buried the row-specific reason under boilerplate,
            * which is how a screen full of honest sentences ends up read by nobody.
            */
+          /*
+           * The two PERMISSION reasons sit beside the roster reasons and read the same way. A
+           * role select can be dead because this viewer may not change roles at all, because
+           * the row is the viewer's own, or because the roster would lose its last owner, and
+           * an operator is owed the actual reason rather than a control that simply does not
+           * respond.
+           */
+          const roleBlock = !viewer.canManageRoles
+            ? viewer.roleBlockedReason
+            : u.id === viewer.id
+              ? viewer.selfRoleReason
+              : null
+          const signInBlock = viewer.signInBlocked[u.id] ?? null
           const reasons = [roleVerdict, statusVerdict, ...(u.seeded ? [] : [removeVerdict])]
             .filter((v) => !v.allowed && v.reason)
             .map((v) => v.reason as string)
-          const shownReasons = Array.from(new Set(reasons))
+          const shownReasons = Array.from(new Set([...reasons, roleBlock, signInBlock].filter(
+            (r): r is string => Boolean(r),
+          )))
 
           return (
             <div key={u.id} className={styles.row} role="row">
@@ -323,7 +371,7 @@ export function AdminConsole({
                   className={styles.roleSelect}
                   aria-label={`Role for ${u.name}`}
                   value={u.roleKey}
-                  disabled={rowBusy || !canMutate || !roleVerdict.allowed}
+                  disabled={rowBusy || !canMutate || !roleVerdict.allowed || Boolean(roleBlock)}
                   onChange={(e) => patch(u.id, 'role', { roleKey: e.target.value })}
                 >
                   {roleOptions.map((r) => (
@@ -391,7 +439,7 @@ export function AdminConsole({
 
                   <Button
                     variant="quiet"
-                    disabled={rowBusy || !canMutate || u.status !== 'active'}
+                    disabled={rowBusy || !canMutate || u.status !== 'active' || Boolean(signInBlock)}
                     onClick={() => {
                       setPw('')
                       setNotice(null)
@@ -462,7 +510,7 @@ export function AdminConsole({
                   {u.hasPassword ? (
                     <Button
                       variant="destructive"
-                      disabled={rowBusy}
+                      disabled={rowBusy || Boolean(signInBlock)}
                       onClick={() => void revoke(u.id)}
                     >
                       Remove sign in

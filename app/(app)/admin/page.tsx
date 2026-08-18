@@ -1,8 +1,16 @@
 import { requireGateSession } from '@/lib/session/require-gate'
+import {
+  callerAccountId,
+  callerCan,
+  callerPermissions,
+  readCaller,
+  type Caller,
+} from '@/lib/session/authz'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { getDirectory } from '@/lib/admin/directory'
 import { describeRole } from '@/lib/admin/permissions'
+import { SELF_ROLE_REASON, guardSignInChange } from '@/lib/admin/roster-rules'
 import { AdminConsole } from './AdminConsole'
 import styles from './Admin.module.css'
 
@@ -38,12 +46,82 @@ export const dynamic = 'force-dynamic'
  * enabled, because they save. The connectors stay honestly not connected, because they do not.
  * And the one thing this roster genuinely cannot do, create a per person sign in, is stated in
  * plain words above the table rather than left for an operator to assume.
+ *
+ * ==========================================================================================
+ * WHAT CHANGED ON 2026-08-18: THE PAGE ASKS WHO IS LOOKING.
+ * ==========================================================================================
+ * It never did. It rendered the whole roster, with live controls, to any signed-in session,
+ * because the API behind it authorized nothing and there was nothing for the page to ask. The
+ * permission model was on screen and enforced nowhere.
+ *
+ * Now the viewer is resolved once, and the SAME `callerCan()` and roster-rule functions the API
+ * runs decide what is drawn. A viewer without `users.manage` gets a stated refusal instead of a
+ * roster, because the API would refuse them too and a screen that shows what the server will
+ * not serve is a lie told slowly. A viewer without `roles.manage` sees the role selects
+ * disabled with the reason. Nobody, at any level, gets a live control over their own role.
  */
 export default async function AdminPage() {
   await requireGateSession()
+
+  const caller = await readCaller()
+  if (!callerCan(caller, 'users.manage')) {
+    /*
+     * No roster, not even a greyed-out one. `users.manage` is admin-plane, the API refuses this
+     * viewer, and the roster is the shape of the organization: who is here, what they may do,
+     * who can sign in. Drawing it disabled would hand that over anyway and call it a courtesy.
+     */
+    return (
+      <div className={styles.page}>
+        <header className={styles.top}>
+          <div className={styles.heading}>
+            <h1 className={styles.title}>Admin &amp; Users</h1>
+            <p className={styles.meta}>
+              Your role is <b>{callerRoleName(caller)}</b>
+            </p>
+          </div>
+        </header>
+        <div className={styles.body}>
+          <p className={styles.accessNote}>
+            Managing users is an admin permission, and your role does not hold it, so there is
+            nothing on this screen for you. The API refuses the same requests for the same
+            reason. Ask an owner if you need it.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const directory = await getDirectory()
   const { org, users, roles, roleOptions, connectors, accessNote, canMutate, mutateBlockedReason } =
     directory
+
+  /*
+   * The viewer's own limits, decided by the SAME functions the route handler calls. Not a second
+   * implementation of the rules, a second CALLER of them, which is why the sentence under a
+   * disabled control is the exact sentence the API would have answered with.
+   */
+  const held = callerPermissions(caller)
+  const signInBlocked: Record<string, string> = {}
+  for (const u of users) {
+    const g = guardSignInChange(held, {
+      id: u.id,
+      name: u.name,
+      roleKey: u.roleKey,
+      status: u.status,
+      seeded: u.seeded,
+    })
+    if (!g.ok) signInBlocked[u.id] = g.reason
+  }
+  const canManageRoles = callerCan(caller, 'roles.manage')
+  const viewer = {
+    id: callerAccountId(caller),
+    canManageRoles,
+    roleBlockedReason: canManageRoles
+      ? null
+      : 'Changing somebody\'s role needs the "Manage roles" permission, which your role does not hold.',
+    selfRoleReason: SELF_ROLE_REASON,
+    signInBlocked,
+  }
 
   return (
     <div className={styles.page}>
@@ -66,6 +144,7 @@ export default async function AdminPage() {
           accessNote={accessNote}
           canMutate={canMutate}
           mutateBlockedReason={mutateBlockedReason}
+          viewer={viewer}
         />
 
         <div className={styles.cards}>
@@ -141,6 +220,13 @@ export default async function AdminPage() {
       </div>
     </div>
   )
+}
+
+/** The viewer's role as a person reads it, or the honest absence of one. */
+function callerRoleName(caller: Caller): string {
+  if (caller.kind === 'account') return caller.account.role.name
+  if (caller.kind === 'bootstrap') return 'Break-glass session'
+  return 'No account'
 }
 
 /**

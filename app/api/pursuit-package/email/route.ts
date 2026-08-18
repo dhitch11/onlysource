@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { MODEL_CHAINS } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { assemblePursuitPackage } from '@/lib/intelligence/brief/assemble-package'
@@ -29,7 +29,8 @@ const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  // A pursuit package is the quoting decision, assembled, and this one leaves by email.
+  const denied = await requirePermission('board.quote')
   if (denied) return denied
 
   // No key at all is an environment fact, stated up front like the alerts route states it:

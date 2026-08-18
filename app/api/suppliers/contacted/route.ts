@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { readContacted, toggleContacted } from '@/lib/suppliers/contacted'
 
 export const dynamic = 'force-dynamic'
@@ -12,9 +13,9 @@ export async function GET() {
   return Response.json({ contacted: readContacted() })
 }
 
-/** Toggle a supplier's contacted state. Gated. Body: { cage }. */
+/** Toggle a supplier's contacted state. Requires `supplier.pursue`. Body: { cage }. */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  const denied = await requirePermission('supplier.pursue')
   if (denied) return denied
   let body: { cage?: unknown }
   try {

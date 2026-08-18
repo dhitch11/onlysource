@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { gateOrJson } from '@/lib/session/require-gate'
+import { requirePermission } from '@/lib/session/authz'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
@@ -27,7 +27,8 @@ export const runtime = 'nodejs'
  * never bills a generation it did not return: a failure is a JSON error, not a half-written brief.
  */
 export async function POST(req: NextRequest) {
-  const denied = await gateOrJson()
+  // A brief is written to decide whether to quote, so it asks for the quoting permission.
+  const denied = await requirePermission('board.quote')
   if (denied) return denied
 
   if (!aiConfigured()) {

@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   LAST_OWNER_REASON,
+  SELF_ROLE_REASON,
   guardRemove,
   guardRoleChange,
+  guardSelfRoleChange,
+  guardSignInChange,
   guardStatusChange,
   validateNewUser,
   type GuardedUser,
 } from '@/lib/admin/roster-rules'
-import { ROLES } from '@/lib/admin/permissions'
+import { ROLES, role } from '@/lib/admin/permissions'
 
 /**
  * THE ONE RULE THAT CANNOT BE ALLOWED TO FAIL: the organization keeps an active owner.
@@ -207,5 +210,71 @@ describe('a new user is validated before anything is written', () => {
   it('trims what it accepts, so a padded name is not stored padded', () => {
     const r = validateNewUser(soleOwner, emails, { ...good, name: '  Padded Name  ' })
     expect(r.ok === true && r.value.name).toBe('Padded Name')
+  })
+})
+
+/**
+ * THE TWO RULES ADDED WITH THE AUTHORIZATION LANE, 2026-08-18.
+ *
+ * Neither is a permission. A permission asks whether somebody may do this KIND of thing at
+ * all; both of these ask about a specific target and refuse even a caller who holds the
+ * permission, because the alternative is that one compromised session is a promotion.
+ */
+describe('nobody changes their own role', () => {
+  const roster: GuardedUser[] = [
+    user({ id: 'seed:hitchman', name: 'David Hitchman', roleKey: 'owner', seeded: true }),
+    user({ id: 'user:probe', name: 'Probe ReadOnly', roleKey: 'read_only' }),
+  ]
+
+  it('refuses the read_only self-promotion that was reproduced on the live build', () => {
+    const r = guardSelfRoleChange(roster, 'user:probe', 'user:probe', 'owner')
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toBe(SELF_ROLE_REASON)
+  })
+
+  it('refuses the owner too, because the rule is about self and not about rank', () => {
+    expect(guardSelfRoleChange(roster, 'seed:hitchman', 'seed:hitchman', 'operator').ok).toBe(false)
+  })
+
+  it('ALLOWS changing somebody else, so the rule is not a wall', () => {
+    expect(guardSelfRoleChange(roster, 'seed:hitchman', 'user:probe', 'operator').ok).toBe(true)
+  })
+
+  it('ALLOWS a request that asks for the role already held, which changes nothing', () => {
+    expect(guardSelfRoleChange(roster, 'user:probe', 'user:probe', 'read_only').ok).toBe(true)
+  })
+
+  it('ALLOWS a caller with no identity, which is first-run break-glass and has no self', () => {
+    expect(guardSelfRoleChange(roster, null, 'user:probe', 'owner').ok).toBe(true)
+  })
+})
+
+describe('nobody hands a sign in to an account that outranks them', () => {
+  const owner = user({ id: 'seed:hitchman', name: 'David Hitchman', roleKey: 'owner', seeded: true })
+  const admin = user({ id: 'seed:goodreau', name: 'David Goodreau', roleKey: 'admin', seeded: true })
+  const held = (key: string) => role(key)?.permissions ?? []
+
+  it('refuses an admin setting the owner password, and names what they lack', () => {
+    const r = guardSignInChange(held('admin'), owner)
+    expect(r.ok).toBe(false)
+    // `org.manage` is the one permission owner holds and admin does not, so it is the whole
+    // reason this refusal exists and the sentence has to say so.
+    expect(r.ok === false && r.reason).toContain('Manage the organization')
+  })
+
+  it('ALLOWS the owner setting the admin password, so the rule has a direction', () => {
+    expect(guardSignInChange(held('owner'), admin).ok).toBe(true)
+  })
+
+  it('ALLOWS an admin setting another admin password, equal reach being enough', () => {
+    expect(guardSignInChange(held('admin'), admin).ok).toBe(true)
+  })
+
+  it('refuses a caller holding nothing at all', () => {
+    expect(guardSignInChange([], admin).ok).toBe(false)
+  })
+
+  it('ALLOWS a target whose stored role key matches no role, because it holds nothing', () => {
+    expect(guardSignInChange([], user({ id: 'user:corrupt', roleKey: 'wibble' })).ok).toBe(true)
   })
 })

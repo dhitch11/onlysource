@@ -30,7 +30,14 @@ import { STAGE_NEXT_ACTION, PURSUE_NEXT_ACTION } from '@/lib/sales/pipeline'
 import { savePacket } from '@/lib/compliance/packets-store'
 
 vi.mock('@/lib/session/require-gate', () => ({
-  readGateVerdict: async () => ({ valid: true, payload: { sub: 'test', iat: 0, exp: 9e9 } }),
+  // The handlers now resolve WHO is calling, so the subject has to be somebody: 'test' is
+  // nobody and is refused before the code under test runs. `seed:hitchman` is the seeded
+  // owner, who exists in every roster and holds every permission, which keeps this file
+  // about what the handler does with a request it is permitted to serve.
+  readGateVerdict: async () => ({
+    valid: true,
+    payload: { sub: 'seed:hitchman', iat: 0, exp: 9e9 },
+  }),
   requireGateSession: async () => undefined,
   gateOrJson: async () => null,
 }))

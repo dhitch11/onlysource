@@ -45,6 +45,13 @@ export async function requireGateSession(returnTo?: string): Promise<void> {
 /**
  * For route handlers, which must answer with a status rather than a redirect.
  *
+ * ★ THIS IS NOT AUTHORIZATION AND IT NEVER WAS. It answers one question, "is any account
+ * signed in", and it cannot answer who or what they may do. It was the only check on
+ * `POST /api/admin/users` until 2026-08-18, and a `read_only` session used that route to
+ * promote itself to `owner`. Any handler that CHANGES state calls
+ * `requirePermission(key)` from `lib/session/authz.ts` instead. This function is correct
+ * only for a read that every signed-in person may make.
+ *
  * WHAT AN ANONYMOUS CALLER ACTUALLY SEES IN PRODUCTION: a 307 to /enter, not this 401.
  * The edge proxy (Caddy) intercepts unauthenticated requests before they reach Next, so
  * this JSON answer is the DEFENSE-IN-DEPTH layer behind it: it fires when the edge is
