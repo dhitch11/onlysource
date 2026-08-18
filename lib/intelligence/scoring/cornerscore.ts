@@ -20,6 +20,7 @@
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
+import type { AwardeeVerdict } from "@/lib/intelligence/suppliers/classify";
 import {
   measured,
   prior,
@@ -60,6 +61,14 @@ export type CornerScoreResult = {
     priceAnchor: Leg<number>;
     forwardDemand: Leg<number>;
     feasibility: Leg<number>;
+    /**
+     * The operator's own declared NUMBER ONE signal: was the last supplier a surplus dealer.
+     * Sixth leg, added after a source-fidelity audit found the served score ranked his SECONDARY
+     * dormancy idea while this one sat encoded and unwired. It abstains far more often than it
+     * fires, because the government Surplus cell is read on 0.73% of the award history, and that
+     * abstention is the honest state rather than a gap to be filled.
+     */
+    surplusLineage: Leg<number>;
   };
   reasons: ReasonCode[];
   /** Never empty by omission: what a full score is still waiting on for THIS NSN. */
@@ -92,6 +101,7 @@ export function scoreCorner(
   award: NsnAwardSummary | null,
   forecast: ForecastSummary | null = null,
   sources: ScoreSourceState = {},
+  lastAwardee: AwardeeVerdict | null = null,
 ): CornerScoreResult {
   const reasons: ReasonCode[] = [];
   const dataGaps: string[] = [];
@@ -283,6 +293,65 @@ export function scoreCorner(
     dataGaps.push("ILS availability not connected, so the feasibility leg abstains and a corner cannot be CONFIRMED");
   }
 
+  /* ------------------------------------------------------------------------------------
+   * SURPLUS LINEAGE: the operator's OWN declared number-one signal, and it was never scored.
+   *
+   * His rubric, recorded verbatim in `_intel/access-and-systems.md`: "Last Supplier was a
+   * surplus supplier -> higher win probability", and he says he sorts every match report by
+   * previous supplier to find it. The product scored sole-source and award-silence instead,
+   * which is his SECONDARY dormancy idea, and read the surplus flag only in the pricing path.
+   * So the board he opens every morning ranked on a thesis he did not name first.
+   *
+   * ★ IT FIRES ON A MEASUREMENT OR NOT AT ALL. The verdict carries `measured` (the government
+   * award record) and `prior` (the researcher's book) as SEPARATE types precisely so the second
+   * cannot pose as the first. Points come only from `measured` with at least one award whose
+   * Surplus cell actually read yes. The book's label never scores; it renders as context.
+   *
+   * ★★ AND THE HONEST PART, WHICH IS THE WHOLE REASON THIS LEG ABSTAINS SO OFTEN. Measured over
+   * the live award history: 42,698 award rows, Surplus cell READ on 311 of them, a fill rate of
+   * 0.73%, yielding 73 measured surplus dealers out of 1,680 distinct awardee CAGEs. The signal
+   * is REAL and the ledger behind it is THIN. So the absence of this leg is never evidence
+   * against a row, the abstention names the coverage rather than shrugging, and no surface may
+   * present this ranking as a confident classification. It is a watchlist ordering with a
+   * published effective sample size, which is the truthful version of "it has been taught".
+   * ------------------------------------------------------------------------------------ */
+  let surplusLineage: Leg<number>;
+  if (lastAwardee && lastAwardee.evidenceState === "measured" && (lastAwardee.measured?.surplusYes ?? 0) > 0) {
+    const m = lastAwardee.measured!;
+    add(20);
+    surplusLineage = measured(
+      1,
+      Math.min(0.9, 0.3 + m.readFraction * 0.6),
+      `${m.surplusYes} of this awardee's ${m.totalAwards} recorded awards read as surplus material`,
+    );
+    reasons.push({
+      leg: "surplusLineage",
+      plain:
+        `the last supplier is a recorded surplus dealer (${m.surplusYes} surplus award(s) on file), ` +
+        "which the operator's own rubric ranks as the strongest single indicator of a winnable surplus buy",
+      points: 20,
+      calibration: "measured",
+    });
+  } else if (lastAwardee && lastAwardee.prior) {
+    // The book has a read and the government record does not. It informs, it does not score.
+    surplusLineage = unavailable(
+      `no award on file for this supplier carries a read surplus flag; the supplier book calls them a ${lastAwardee.prior.bookClass}, which is a researcher's judgement and not a government record`,
+    );
+    dataGaps.push(
+      "the last supplier's surplus history is unread in the government record, so the operator's lead signal abstains here and the book's own label is shown as context only",
+    );
+  } else if (sources.awardIndexLoaded) {
+    surplusLineage = unavailable(
+      "no recorded award for this stock number carries a readable surplus flag, so the last supplier cannot be classified",
+    );
+    dataGaps.push(
+      "the surplus flag is read on 0.73% of the loaded award history, so the operator's lead signal abstains on most rows and its absence is not evidence against this one",
+    );
+  } else {
+    surplusLineage = unavailable("award history not loaded, so the last supplier cannot be classified");
+    dataGaps.push("award history not loaded, so the operator's lead surplus signal abstains");
+  }
+
   // ---- DISPOSITION via the Evidence-State decision table (§2.3), first match wins. ----
   // Win-probability is not modeled at v0 (λ unobservable at scale), so the driving quantity for a
   // corner is PRIOR by construction → WATCHLIST, never FLAG. Feasibility UNAVAILABLE → the corner
@@ -302,7 +371,7 @@ export function scoreCorner(
     scoreV0: Math.max(0, Math.min(100, points)),
     disposition,
     grade,
-    legs: { demand, competition, priceAnchor, forwardDemand, feasibility },
+    legs: { demand, competition, priceAnchor, forwardDemand, feasibility, surplusLineage },
     reasons,
     dataGaps,
   };
