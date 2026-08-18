@@ -53,17 +53,27 @@
  * just as wrong, because it would erase a fact the government did publish.
  *
  * MEASURED, not asserted: the revert was applied to the real file (backed up first, restored
- * after, `cmp` byte identical) and the run reported 5 failed / 6 passed. Two of the six that
- * stayed green are labelled INVARIANT below, because a case that passes with the defect in
- * place proves nothing about the repair and must not be counted as a control. The
- * currency-symbol case is a control: it went red, since the strip empties the cell before the
- * emptiness test can see it.
+ * after, `cmp` byte identical) and the run reported 6 FAILED / 5 PASSED across the 11 tests in
+ * this file. The five that stayed green are the two labelled INVARIANT below, the two
+ * instrument checks that read the fixture directly, and the counter-control
+ * ("a stated zero price IS a measurement"). A case that passes with the defect in place proves
+ * nothing about the repair and must not be counted as a control. The currency-symbol case IS a
+ * control: it went red, because the strip empties the cell before the emptiness test sees it.
+ *
+ * THE EARLIER VERSION OF THIS PARAGRAPH SAID 5 FAILED / 6 PASSED, WHICH IS IMPOSSIBLE: six red
+ * plus six green is twelve and this file holds eleven tests. It was caught by a reviewer who
+ * re-ran the revert rather than reading the claim. A hand-maintained tally in a comment is a
+ * measurement that rots the moment a test is added, and this paragraph is the ENTIRE evidence
+ * that the control fires, so getting it wrong retires the control while looking like rigour.
+ * Re-derive it, do not edit it: the reverted body is kept at
+ * `.probe/rev-e-hubzone.reverted.ts` and can be aliased in without touching the tree.
  */
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { join } from 'node:path'
 import type { HubzoneDataset } from '@/lib/intelligence/opportunities/hubzone'
 
 /* ------------------------------------------------------------------------------------ */
@@ -370,13 +380,38 @@ describe('the summary, which is what the page prints and what the page discloses
 
   it('renders the sentence this file actually earns, not a smaller one', () => {
     /*
-     * The hint expression from app/(app)/hubzone/page.tsx, mirrored so the control is on the
-     * SENTENCE A PERSON READS rather than on a field. Counting alone was not enough: the old
-     * reader still reported 1 unsized row here (the unparseable one it could not fake a zero
-     * for), so `unsized > 0` stayed green while the tile told the operator that 1 of 7 buys
-     * could not be sized when the true answer was 5. A disclosure that understates the gap is
-     * the same defect as no disclosure, only harder to notice.
+     * MIRRORING IS NOT BINDING, AND THIS TEST USED TO ONLY MIRROR.
+     *
+     * It copied the page's hint expression into the test and asserted the copy, with a comment
+     * claiming the control was "on the SENTENCE A PERSON READS rather than on a field". It was
+     * not: nothing here imported, read or rendered the page, so replacing the page's ternary
+     * with the unconditional literal "every solicitation on the file" left this test GREEN
+     * while the tile claimed full coverage over a file carrying five unsizable buys. A reviewer
+     * proved exactly that by making the substitution and watching the suite stay green.
+     *
+     * So it now READS THE PAGE, the way test/honesty/nav-copy.test.ts already does, and asserts
+     * both branch strings AND the expression that gates them. Delete the ternary, flip the
+     * comparison, or reword either branch, and this goes red.
+     *
+     * Why the sentence matters and a count alone did not: the old reader still reported 1
+     * unsized row here (the unparseable one it could not fake a zero for), so a bare
+     * `unsized > 0` check stayed green while the tile told the operator 1 of 7 buys could not
+     * be sized when the true answer was 5. A disclosure that understates the gap is the same
+     * defect as no disclosure, only harder to notice.
      */
+    const page = readFileSync(
+      join(process.cwd(), 'app', '(app)', 'hubzone', 'page.tsx'),
+      'utf8',
+    )
+    // Comments are stripped first: this file's own prose quotes the strings it checks for, and
+    // an instrument that reads a comment about a defect as the defect is the recorded failure
+    // mode from test/honesty/nav-copy.test.ts.
+    const src = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+    expect(src).toContain('summary.size.unsized === 0')
+    expect(src).toContain('last price times quantity, every solicitation on the file')
+    expect(src).toContain('have no computable size and are not in this total')
+
     const s = ok().summary
     const tileHint =
       s.size.unsized === 0
