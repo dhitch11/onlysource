@@ -189,7 +189,17 @@ export function resolveBidEligibility(
   }
 
   const publishes = index.publishers.has(row.pica)
-  if (!publishes || !row.amsc) {
+  /*
+   * TRIMMED BEFORE IT IS TESTED FOR EMPTINESS, and that is not tidying.
+   * A cell holding a single space is a row that carries no code, and reading it as a code was
+   * measured taking the dossier verdict to `determined` with `evidence: MEASURED` on a value
+   * nothing can interpret. The derivation script trims today, so this is the guard for the day
+   * a different producer does not, which is the shape of every "cannot happen" defect on this
+   * estate. The raw value is not otherwise altered: the case the feed carries is the case a
+   * surface shows.
+   */
+  const amscCell = (row.amsc ?? '').trim()
+  if (!publishes || !amscCell) {
     return {
       niin,
       state: 'abstained_pica_does_not_publish',
@@ -203,20 +213,20 @@ export function resolveBidEligibility(
     }
   }
 
-  const entry = amscEntry(row.amsc)
+  const entry = amscEntry(amscCell)
   const amcNum = /^\d$/.test(row.amc) ? Number(row.amc) : null
   return {
     niin,
     state: 'determined',
-    reason: `the managing activity (${row.pica}) publishes acquisition codes and this item carries AMSC ${row.amsc}`,
+    reason: `the managing activity (${row.pica}) publishes acquisition codes and this item carries AMSC ${amscCell}`,
     amc: row.amc || null,
-    amsc: row.amsc,
+    amsc: amscCell,
     aac: row.aac || null,
     pica: row.pica,
     amscEntry: entry,
     amcEntry: amcEntry(amcNum),
     posture: entry ? amscPosture(entry.code as AmscCode) : null,
-    combination: amcAmscCombinationValid(amcNum, row.amsc),
+    combination: amcAmscCombinationValid(amcNum, amscCell),
   }
 }
 

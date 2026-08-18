@@ -148,7 +148,12 @@ describe('the downloaded document renders eligibility deterministically', () => 
 
   it('renders the VERIFIED government text and the ESTIMATED grouping as different claims', () => {
     const text = md()
-    expect(text).toContain('AMSC P, VERIFIED verbatim')
+    // The code is written as a token, `AMSC-P`, and the hyphen is load-bearing: it is what keeps
+    // the memo's number guard from reading a bare government code as a spendable quantity.
+    expect(text).toContain('AMSC-P, VERIFIED verbatim')
+    // The document still names the source in full. The digits live in the RENDERED label, which
+    // is looked up from the engine's own citation at document time and is not on the package.
+    expect(text).toContain('Table 71')
     expect(text).toContain('not owned by the Government and cannot be purchased')
     expect(text).toContain('ESTIMATED by us and NOT a government statement')
     expect(text).toContain('restricted, closed to a new manufacturing source')
@@ -182,10 +187,58 @@ describe('the grounding guard is not widened by provenance', () => {
     expect(out.stripped).toHaveLength(1)
   })
 
-  it('a number inside a verbatim government quote IS grounded, because the package contains it', () => {
-    // The contrast that makes the rule legible: 90 is in the package as the Master Solicitation's
-    // own "minimum of 90 days validity period", so a memo may state it. 565 is a line number in a
-    // file path and may not.
-    expect(allowedNumberSet(pkg()).has('90')).toBe(true)
+  /*
+   * THE CLAIM THIS BLOCK USED TO MAKE HAS BEEN STRUCK, ON MEASUREMENT.
+   *
+   * It used to assert that 90 IS grounded, "because the package contains it": the Master
+   * Solicitation's own phrase "the minimum of 90 days validity period" travelled inside a
+   * citation quote. That reasoning was circular. The quote was on the package only because the
+   * citation copied it, nothing rendered it anywhere, and its only effect was to license the
+   * memo to write "90" as a quantity about anything at all. The quote is no longer copied (see
+   * `lib/intelligence/eligibility/citation.ts`), so 90 is no longer spendable, and the document
+   * lost nothing because it never showed that sentence.
+   */
+  it('★ CONTROL: a document number inside a citation is not a figure the memo may state', () => {
+    const allowed = allowedNumberSet(pkg())
+    for (const n of ['71', '4100', '90', '7', '4']) {
+      expect(allowed.has(n)).toBe(false)
+    }
+  })
+
+  it('★ CONTROL: the three fabricated counts the reviewer measured are stripped again', () => {
+    /*
+     * MEASURED on this exact fixture, whose true approvedSourceCount is 1: each of these was
+     * stripped by the guard before the eligibility field existed and survived it afterwards,
+     * because `Table 71` blessed 71, `section 7` blessed 7 and `Chapter 4` blessed 4. The memo
+     * prints "No number appears that this build did not measure" directly above this content.
+     */
+    for (const claim of [
+      'THE SUPPLY\nThere are 71 approved sources on this part.',
+      'THE ECONOMICS\nThe last buy ran 7 units.',
+      'THE SUPPLY\nFour of the 4 holders list stock.',
+    ]) {
+      expect(groundBrief(claim, pkg()).stripped).toHaveLength(1)
+    }
+  })
+
+  it('★ CONTROL: a real package names no person and no path off this machine', () => {
+    /*
+     * MEASURED on the first live corner row with a solicitation, before the fix:
+     * `JSON.stringify(pkg).includes('Wayne')` true, `.includes('/Users/')` true, five distinct
+     * absolute paths, and both false with the eligibility field deleted. The route stringifies
+     * the whole package as the memo's user message, so anything here is something the model is
+     * told it may say.
+     */
+    const json = JSON.stringify(pkg())
+    expect(json).not.toContain('/Users/')
+    expect(json).not.toContain('Wayne')
+    expect(json).not.toMatch(/(?:^|[\s"'(=])\/[A-Za-z0-9._-]+\//)
+  })
+
+  it('the provenance a reader can act on is still there: a file and a line, in one command', () => {
+    const el = pkg().eligibility
+    expect(el.kind).toBe('dossier_eligibility')
+    if (el.kind !== 'dossier_eligibility') return
+    expect(el.amsc?.citation.pin).toBe('nsn-cataloging-and-interchangeability.md:L523-L546')
   })
 })

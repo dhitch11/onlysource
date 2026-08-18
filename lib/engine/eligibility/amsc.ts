@@ -331,6 +331,24 @@ export const AMSC_NOT_A_CLOSED_DOOR = cite({
   verification: 'verified_primary',
 })
 
+/**
+ * The ACQUISITION METHOD CODE half of the transcription, cited whenever an AMC explanation is
+ * rendered.
+ *
+ * It exists because citing an AMC to the suffix-code row range is a citation that does not
+ * verify: the six AMC rows were read at lines 510 to 515 and the suffix-code rows at 523 to 546,
+ * and a memo that printed "Acquire directly from the actual manufacturer" beside a pin at 523-546
+ * would send a reader to a block of text that does not contain the sentence. Two tables, two pins.
+ */
+export const AMC_TABLE_CITATION = cite({
+  id: 'amc_table_71',
+  authority: 'DoD 4100.39-M Volume 10, Chapter 4',
+  identifier: 'Table 71, Acquisition Method Code',
+  quote: null,
+  source: `${NSN_DOC}:510-515`,
+  verification: 'verified_primary',
+})
+
 /** The Table 71 transcription itself, cited whenever a code's explanation is rendered. */
 export const AMSC_TABLE_CITATION = cite({
   id: 'amsc_table_71',

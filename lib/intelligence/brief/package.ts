@@ -9,6 +9,16 @@ import { bestRecipient } from '@/lib/sales/outreach-templates'
  * browser bundle. The verdict is therefore resolved by the caller and handed in.
  */
 import type { PackageEligibility } from '@/lib/intelligence/eligibility/dossier-eligibility'
+/*
+ * VALUE IMPORT, AND IT IS SAFE. `lib/intelligence/eligibility/citation` is a pure module: it
+ * imports only the engine's transcription, which touches no filesystem, so it does not drag
+ * `node:fs` into the client bundle the way `dossier-eligibility` would. It holds the citation
+ * LABELS on purpose. The label carries the document numbers a reader wants (Table 71, Chapter 4,
+ * DoD 4100.39-M) and those numbers must not sit on the package itself, because the package is the
+ * memo's grounding object and every digit in it becomes a figure the memo may state as a
+ * quantity. Rendered here, at document time, they reach the reader and never reach the guard.
+ */
+import { citationLabel } from '@/lib/intelligence/eligibility/citation'
 import type { CornerDossier } from './dossier'
 
 /**
@@ -357,10 +367,21 @@ export function packageMarkdown(pkg: PursuitPackage, memo: string, servedModel: 
     lines.push(el.headline)
     lines.push('')
     if (el.amc) {
-      lines.push(`- AMC ${el.amc.value.code}, VERIFIED verbatim (${el.amc.citation.authority}): ${el.amc.value.meaning}`)
+      lines.push(`- ${el.amc.value.token}, VERIFIED verbatim (${citationLabel(el.amc.citation.id)}): ${el.amc.value.meaning}`)
     }
     if (el.amsc) {
-      lines.push(`- AMSC ${el.amsc.value.code}, VERIFIED verbatim (${el.amsc.citation.authority}): ${el.amsc.value.meaning}`)
+      lines.push(`- ${el.amsc.value.token}, VERIFIED verbatim (${citationLabel(el.amsc.citation.id)}): ${el.amsc.value.meaning}`)
+    }
+    /*
+     * The unlisted code is rendered as a named unknown, never omitted. Omitting it is what the
+     * code did before, and it printed a clean-looking eligibility block for a row whose one
+     * deciding character nobody had read.
+     */
+    if (el.amscCodeNotInTable) {
+      lines.push(
+        `- ${el.amscCodeNotInTable}, UNREAD: the transcribed suffix code table does not list this ` +
+          'code, so no meaning and no posture are asserted for it.',
+      )
     }
     if (el.posture) {
       lines.push(
@@ -371,7 +392,7 @@ export function packageMarkdown(pkg: PursuitPackage, memo: string, servedModel: 
       lines.push('- The AMC and AMSC pairing on this row is one the validation grid does not permit.')
     }
     if (el.dealerNote) {
-      lines.push(`- ${el.dealerNote.citation.authority}, ${el.dealerNote.citation.identifier ?? 'note'}: "${el.dealerNote.value}"`)
+      lines.push(`- ${citationLabel(el.dealerNote.citation.id)}: "${el.dealerNote.value}"`)
     }
     lines.push(`- ${el.surplusSupplyNote.sentence}`)
     if (el.lane) lines.push(`- Award lane: ${el.lane.surplusOffer.sentence}`)

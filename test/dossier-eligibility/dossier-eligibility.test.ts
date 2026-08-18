@@ -15,6 +15,9 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { AMC_TABLE, AMSC_TABLE } from '@/lib/engine/eligibility'
+import { valueTokensIn } from '@/lib/ai/grounding'
+import { citationLabel, knownCitationKeys } from '@/lib/intelligence/eligibility/citation'
 import {
   resolveDossierEligibility,
   type DossierEligibility,
@@ -48,6 +51,14 @@ const IDX = index(
     { niin: '000000006', amc: '1', amsc: 'Q', pica: 'GX' },
     { niin: '000000007', amc: '5', amsc: 'C', pica: 'GX' },
     { niin: '000000008', amc: '3', amsc: 'D', pica: 'GX' },
+    /*
+     * 'E' IS THE ONE THE MODULE GOT WRONG. `lib/engine/eligibility/amsc.ts` names E, F, I, J, O,
+     * W and X as codes absent from the transcribed table, so this is a value the government file
+     * can carry and our reading cannot resolve. It is a synthetic row whose answer is known before
+     * the code runs: the publisher publishes, the row carries a character, and there is no meaning
+     * and no posture to assert for it.
+     */
+    { niin: '000000009', amc: '3', amsc: 'E', pica: 'GX' },
   ],
   ['GX'],
 )
@@ -98,7 +109,7 @@ describe('a PICA that does not publish AMSC yields an ABSTENTION, never "open" a
     expect(v.headline).toContain('publishes acquisition codes, but this row carries none')
     expectNoPermissionAnywhere(v)
     // The AMC is a separate field of the same row and IS on record, so it is not thrown away.
-    expect(v.amc?.value.code).toBe(1)
+    expect(v.amc?.value.token).toBe('AMC-1')
     expect(v.amc?.evidence).toBe('MEASURED')
   })
 
@@ -133,7 +144,7 @@ describe('where the publisher does publish, the government text and OUR grouping
     expect(v.determined).toBe(true)
     expect(v.evidence).toBe('MEASURED')
     expect(v.amsc?.evidence).toBe('MEASURED')
-    expect(v.amsc?.value.code).toBe('G')
+    expect(v.amsc?.value.token).toBe('AMSC-G')
     expect(v.amsc?.value.meaning).toContain('unlimited rights to the technical data')
     expect(v.amc?.value.meaning).toContain('Suitable for competitive acquisition')
   })
@@ -226,6 +237,66 @@ describe('where the publisher does publish, the government text and OUR grouping
   })
 })
 
+describe('an AMSC the feed carries and the transcribed table does not list ABSTAINS, never clears', () => {
+  /*
+   * MEASURED BEFORE THE FIX, on this exact fixture: state 'determined', evidence 'MEASURED',
+   * amsc null, posture null, cautions [], stance 'no_recorded_bar' with the sentence "Nothing in
+   * the acquisition codes recorded for this item bars pursuing it", and the character 'E' nowhere
+   * on the object. The else-if chain had branches for the three postures and for the not-determined
+   * state, and no branch for determined-with-no-posture, so it emitted nothing, and no caution is
+   * what `pursuitFor` reads as a clean row. That is the blank-is-not-a-zero rule failing on an
+   * unlisted value instead of a blank, in the direction that costs hours.
+   */
+  it('★ THE CONTROL: an unlisted suffix code abstains on every field a surface could render', () => {
+    const v = resolve('000000009')
+    expectNoPermissionAnywhere(v)
+    // UNREAD, not ABSENT and not MEASURED: the publisher published, we hold the row, and we
+    // cannot say what the character means.
+    expect(v.evidence).toBe('UNREAD')
+  })
+
+  it('★ the code itself is NAMED, in the headline, in a caution and in the gaps', () => {
+    const v = resolve('000000009')
+    expect(v.amscCodeNotInTable).toBe('AMSC-E')
+    expect(v.headline).toContain('AMSC-E')
+    expect(v.headline).toContain('does not list')
+    const c = v.cautions.find((x) => x.code === 'acquisition_posture_not_determined')!
+    expect(c.evidence).toBe('UNREAD')
+    expect(c.sentence).toContain('AMSC-E')
+    expect(c.sentence).toContain('does not list')
+    expect(v.gaps.join(' ')).toContain('AMSC-E')
+  })
+
+  it('the AMC on the same row is still read, because it is a separate measured field', () => {
+    const v = resolve('000000009')
+    expect(v.amc?.value.token).toBe('AMC-3')
+    expect(v.amc?.evidence).toBe('MEASURED')
+  })
+
+  it('a suffix code cell holding only whitespace is a row that carries NO code, not an unreadable one', () => {
+    /*
+     * Two different unknowns, and they must not collapse into one another. A character the table
+     * does not list is "we cannot read this code". A cell holding a space is "this row carries no
+     * code", which is the publisher-silence case the module was built around. Measured before the
+     * trim: a single space took the verdict to `determined` with `evidence: MEASURED`.
+     */
+    const idx = index([{ niin: '000000010', amc: '3', amsc: '   ', pica: 'GX' }], ['GX'])
+    const v = resolveDossierEligibility({ stockNumber: '000000010' }, idx)
+    expect(v.state).toBe('abstained_pica_does_not_publish')
+    expect(v.amscCodeNotInTable).toBeNull()
+    expect(v.headline).toContain('this row carries none')
+    expectNoPermissionAnywhere(v)
+  })
+
+  it('a listed code on the same shape of row still resolves, so the branch is not a blanket refusal', () => {
+    // The negative control for the control: change one character and the verdict determines.
+    const v = resolve('000000002')
+    expect(v.determined).toBe(true)
+    expect(v.amscCodeNotInTable).toBeNull()
+    expect(v.evidence).toBe('MEASURED')
+  })
+})
+
 describe('provenance travels, in a form the grounding guard cannot mistake for a figure', () => {
   it('every citation pins a file and a line, in the identifier form', () => {
     const v = resolve('000000001')
@@ -244,9 +315,197 @@ describe('provenance travels, in a form the grounding guard cannot mistake for a
     expect(all).not.toMatch(/\.md:\d/)
   })
 
+  it('★ CONTROL: every citation key a verdict carries has a label to render', () => {
+    /*
+     * The package carries keys; the document renders labels from `citationLabel`. If a citation
+     * reaches a verdict and the label map cannot answer for it, the memo's provenance line reads
+     * "source not on record in this build", which is honest and useless. The map is DISCOVERED
+     * from the engine's exports, and this is the check that the discovery is actually complete.
+     */
+    const ids = new Set<string>()
+    for (const v of EVERY_CODE) {
+      for (const [where, text] of strings(v)) {
+        if (where.endsWith('.citation.id')) ids.add(text)
+      }
+    }
+    expect(ids.size).toBeGreaterThan(3)
+    for (const id of ids) {
+      expect(knownCitationKeys()).toContain(id)
+      expect(citationLabel(id)).not.toContain('not on record')
+    }
+  })
+
+  it('the AMC is pinned to the AMC rows, not to the suffix-code rows it does not appear in', () => {
+    // A pin at 523-546 beside "Acquire directly from the actual manufacturer" sends a reader to a
+    // range that does not carry the sentence, which is a citation that does not verify.
+    const v = resolve('000000002')
+    expect(v.amc?.citation.pin).toBe('nsn-cataloging-and-interchangeability.md:L510-L515')
+    expect(v.amsc?.citation.pin).toBe('nsn-cataloging-and-interchangeability.md:L523-L546')
+  })
+
   it('HOUSE LAW: no em dash in any sentence this module emits', () => {
     for (const sn of ['000000001', '000000002', '000000003', '999999999']) {
       expect(JSON.stringify(resolve(sn))).not.toMatch(/—/)
     }
   })
 })
+
+/* ------------------------------------------------------------------------------------ */
+
+/** Every (path, string) pair in a verdict, so a scan can name WHERE it found what it found. */
+function strings(value: unknown, at = '$', into: Array<[string, string]> = []): Array<[string, string]> {
+  if (typeof value === 'string') into.push([at, value])
+  else if (Array.isArray(value)) value.forEach((v, i) => strings(v, `${at}[${i}]`, into))
+  else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) strings(v, `${at}.${k}`, into)
+  }
+  return into
+}
+
+/** Every key name in a verdict, at any depth. */
+function keys(value: unknown, into: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(value)) value.forEach((v) => keys(v, into))
+  else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      into.add(k)
+      keys(v, into)
+    }
+  }
+  return into
+}
+
+/**
+ * THE SWEEP: every code in both transcribed tables, on a publishing activity, on both lanes.
+ *
+ * A control written against one fixture proves one fixture. The three defects this block guards
+ * were each found on a DIFFERENT code and a DIFFERENT citation, so the fixture here is the whole
+ * cross product of the tables rather than a row somebody picked.
+ */
+const EVERY_CODE = (() => {
+  const rows: Array<{ niin: string; amc: string; amsc: string; pica: string }> = []
+  let n = 100000000
+  for (const a of AMC_TABLE) {
+    for (const e of AMSC_TABLE) {
+      rows.push({ niin: String(n++), amc: String(a.code), amsc: e.code, pica: 'GX' })
+    }
+  }
+  // Plus the codes the transcription does not carry, which are the defect-3 shape.
+  for (const c of ['E', 'F', 'I', 'J', 'O', 'W', 'X']) {
+    rows.push({ niin: String(n++), amc: '3', amsc: c, pica: 'GX' })
+  }
+  const idx = index(rows, ['GX'])
+  return rows.flatMap((r) => [
+    resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber: 'SPE7L426U1037' }, idx),
+    resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber: 'SPE4A626T15HA' }, idx),
+  ])
+})()
+
+describe('NOTHING THAT NAMES A PERSON OR A MACHINE REACHES THE PARTNER-FACING PACKAGE', () => {
+  /*
+   * MEASURED BEFORE THE FIX, on the first live corner row with a solicitation:
+   * `JSON.stringify(pkg).includes('Wayne')` was true and `.includes('/Users/')` was true, with
+   * five distinct absolute paths, and both went false when the eligibility field was deleted from
+   * the same object. The route hands `JSON.stringify(pkg)` to the model as the entire user
+   * message under a system prompt that says its only source of fact is the package and that it
+   * may not name a person who is not in it, so a person who IS in the package was licensed. The
+   * quote was deliberately kept out of the rendered document and shipped into the prompt, which
+   * is the higher-stakes surface of the two.
+   */
+  it('★ CONTROL: no absolute path survives into any verdict, at any depth', () => {
+    for (const v of EVERY_CODE) {
+      for (const [where, text] of strings(v)) {
+        expect(`${where} ${text}`).not.toContain('/Users/')
+        // Any rooted path of two or more segments, not just this laptop's.
+        expect(text).not.toMatch(/(?:^|[\s"'(=])\/[A-Za-z0-9._-]+\//)
+      }
+    }
+  })
+
+  it('★ CONTROL: the engine citation quote is not copied onto the verdict, in any form', () => {
+    // Structural: the field cannot be there. If `packageCitation` starts copying `quote` again,
+    // this fails before anybody has to think of the right name to search for.
+    const k = keys(EVERY_CODE[0])
+    for (const forbidden of ['quote', 'authority', 'identifier', 'source']) {
+      expect([...k]).not.toContain(forbidden)
+    }
+  })
+
+  it('the digest sentence that names an individual is nowhere in any verdict', () => {
+    /*
+     * The value check behind the structural one, aimed at the actual text: the warning at the
+     * pin `nsn-cataloging-and-interchangeability.md:L565` ends "...the system will suppress
+     * Wayne's best leads." Our own restatement of it must still be present, in our vocabulary.
+     */
+    for (const v of EVERY_CODE) {
+      const json = JSON.stringify(v)
+      expect(json).not.toContain('Wayne')
+      expect(json).not.toContain('best leads')
+    }
+    expect(EVERY_CODE[0]!.surplusSupplyNote.sentence).toContain('does not by itself bar')
+  })
+})
+
+describe('THE VERDICT SPENDS NO NUMBER: the grounding guard is not widened by provenance', () => {
+  /*
+   * MEASURED BEFORE THE FIX: adding the eligibility field took a real package's allowed-number
+   * set from 32 entries to 46, and a synthetic one from 28 to 42. The additions were 3 (the AMC
+   * carried as a number), 4 and 4100 and 4100.39 ('DoD 4100.39-M Volume 10, Chapter 4'), 7
+   * ('research digest ... section 7'), 71 ('Table 71, Acquisition Method Suffix Code') and 90
+   * ('the minimum of 90 days validity period', inside a citation quote nothing rendered). The
+   * fabricated sentences "There are 71 approved sources on this part." and "The last buy ran 7
+   * units." and "Four of the 4 holders list stock." were each stripped by the guard before the
+   * field existed and each survived it afterwards.
+   *
+   * THE ONE ALLOWED EXCEPTION IS NAMED, NOT SWEPT UP. AMSC L's verbatim explanation says the
+   * annual buy value "falls below the $10,000 screening threshold". That is a measured fact about
+   * the item, in the government's own words, and it is exactly the kind of number the package is
+   * supposed to license. Everything else the eligibility block used to contribute was citation
+   * plumbing: a table number, a chapter number, a section number, a document number.
+   */
+  const AMSC_L_THRESHOLD = 10000
+
+  it('★ CONTROL: across every code in both tables, the only value the verdict adds is the one named above', () => {
+    const spent = new Map<number, string>()
+    for (const v of EVERY_CODE) {
+      for (const [where, text] of strings(v)) {
+        for (const t of valueTokensIn(text)) {
+          // 8+ contiguous digits is an identifier, not a value claim, on both sides of the guard.
+          if (t.raw.replace(/[^\d]/g, '').length >= 8) continue
+          if (!spent.has(t.n)) spent.set(t.n, `${where} :: ${text}`)
+        }
+      }
+      for (const n of collectNumbers(v)) {
+        if (String(Math.abs(n)).length >= 8) continue
+        if (!spent.has(n)) spent.set(n, 'a numeric field')
+      }
+    }
+    expect([...spent.entries()].filter(([n]) => n !== AMSC_L_THRESHOLD)).toEqual([])
+  })
+
+  it('the AMSC L threshold is present, and it is present as the government wrote it', () => {
+    // The negative half of the control above: it is not asserting that the verdict is number-free,
+    // it is asserting that the ONLY number is the measured one. If that disappeared, the control
+    // above would still pass while the memo lost a real fact.
+    const l = EVERY_CODE.find((v) => v.amsc?.value.token === 'AMSC-L')!
+    expect(l.amsc?.value.meaning).toContain('$10,000 screening threshold')
+  })
+
+  it('★ CONTROL: a code and a citation both survive the round trip as identifier fragments', () => {
+    const v = resolve('000000002')
+    // If `AcquisitionCode.token` reverts to a bare number, or `pinned` stops rewriting, the
+    // tokenizer starts seeing a value here and the control above goes red.
+    expect(valueTokensIn(v.amc!.value.token)).toEqual([])
+    expect(valueTokensIn(v.amsc!.citation.id)).toEqual([])
+    expect(valueTokensIn(v.amsc!.citation.pin)).toEqual([])
+  })
+})
+
+/** Every raw number field in a value, at any depth. Numbers never pass through the tokenizer. */
+function collectNumbers(value: unknown, into: number[] = []): number[] {
+  if (typeof value === 'number' && Number.isFinite(value)) into.push(value)
+  else if (Array.isArray(value)) value.forEach((v) => collectNumbers(v, into))
+  else if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) collectNumbers(v, into)
+  }
+  return into
+}

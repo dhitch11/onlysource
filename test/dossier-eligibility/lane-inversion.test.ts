@@ -24,6 +24,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { evaluateEligibility } from '@/lib/engine/eligibility'
+import { citationLabel, identifierSafe } from '@/lib/intelligence/eligibility/citation'
 import { resolveDossierEligibility } from '@/lib/intelligence/eligibility/dossier-eligibility'
 import type { AmscIndex } from '@/lib/intelligence/eligibility/bid-eligibility'
 
@@ -48,7 +49,11 @@ describe('the lane is read from the ninth character, and it decides the surplus 
     expect(l?.instrument).toBe('automated_rfq')
     expect(l?.surplusOffer.consequence).toBe('expressly_permitted_on_this_lane')
     expect(l?.surplusOffer.sentence).toContain('do NOT make a quote')
-    expect(l?.surplusOffer.citation?.identifier).toBe('Part I para 3(a)(1), item 3')
+    // The citation is pinned by its KEY, not by its prose: the package carries no `identifier`
+    // string any more, because those strings were putting document numbers into the memo's
+    // allowed-number set. `citationLabel` renders the paragraph at document time.
+    expect(l?.surplusOffer.citation?.id).toBe('ms_part_i_L3a1_surplus_allowed')
+    expect(citationLabel(l!.surplusOffer.citation!.id)).toContain('Part I para 3(a)(1), item 3')
   })
 
   it('★ U: the identical offer FALLS OUT OF AUTOMATED AWARD on the AIDC lane', () => {
@@ -57,7 +62,8 @@ describe('the lane is read from the ninth character, and it decides the surplus 
     expect(l?.instrument).toBe('aidc')
     expect(l?.surplusOffer.consequence).toBe('falls_out_of_automated_award_on_this_lane')
     expect(l?.surplusOffer.sentence).toContain('out of automated award')
-    expect(l?.surplusOffer.citation?.identifier).toBe('Part II para 1')
+    expect(l?.surplusOffer.citation?.id).toBe('ms_part_ii_L1_aidc_exceptions')
+    expect(citationLabel(l!.surplusOffer.citation!.id)).toContain('Part II para 1')
   })
 
   it('★ THE INVERSION ITSELF: one character apart, opposite outcomes, both stated', () => {
@@ -149,10 +155,16 @@ describe('CROSS-CHECK: the gate engine, asked directly, says the same thing', ()
     })
     const engineCitation = u.reasons.find((r) => r.code === 'aidc_surplus_disqualified')!.citation
     const dossierCitation = lane(AIDC)!.surplusOffer.citation!
-    expect(dossierCitation.id).toBe(engineCitation.id)
-    expect(dossierCitation.quote).toBe(engineCitation.quote)
-    expect(dossierCitation.authority).toBe(engineCitation.authority)
-    // Same file, same line, written in the identifier form so the memo's number guard ignores it.
-    expect(dossierCitation.pin.replace(/:L/g, ':').replace(/-L/g, '-')).toBe(engineCitation.source)
+    expect(dossierCitation.id).toBe(identifierSafe(engineCitation.id))
+    expect(dossierCitation.verification).toBe(engineCitation.verification)
+    // The label a reader sees is still the engine's own words, looked up from the engine's own
+    // citation object at render time rather than copied onto the grounding package.
+    expect(citationLabel(dossierCitation.id)).toContain(engineCitation.authority)
+    // Same file, same line, written in the identifier form so the memo's number guard ignores it,
+    // and reduced to the file name so no path off one developer's laptop reaches a partner.
+    expect(dossierCitation.pin.replace(/:L/g, ':').replace(/-L/g, '-')).toBe(
+      engineCitation.source.split('/').pop(),
+    )
+    expect(dossierCitation.pin).not.toContain('/')
   })
 })

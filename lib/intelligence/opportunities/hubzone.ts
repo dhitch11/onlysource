@@ -17,6 +17,11 @@ import { compareBySizeOfBuy, sizeOfBuy, totalKnownSize, type SizeOfBuy } from '.
  * added nothing to a total that claimed to be everything. All 23 rows on the current export carry both
  * legs, so the shape changes and the rendered figures do not; the reasoning and the measurements are
  * in size-of-buy.ts, which is the single owner of this arithmetic for both opportunity surfaces.
+ *
+ * ★ AND THE SAME ZERO LIVED ON IN THE READER BELOW, WHICH IS WHERE IT WAS FINALLY KILLED. Fixing the
+ * ranking did nothing while `num()` was still handing `sizeOfBuy` a 0 for a cell Excel had omitted.
+ * The story is on `num()` itself; the control is test/honesty/blank-cell-is-not-a-zero.test.ts, which
+ * is the first test that ever exercised this builder at all.
  */
 
 const FILE = 'suppliers/hubzone-matches.xlsx'
@@ -60,8 +65,39 @@ const usDateToIso = (s: string): string | null => {
   const [, mm, dd, yyyy] = m
   return `${yyyy}-${mm!.padStart(2, '0')}-${dd!.padStart(2, '0')}`
 }
+/**
+ * A number this cell actually carries, or null when it carries none.
+ *
+ * ===========================================================================================
+ * A CELL EXCEL OMITTED IS AN ABSENCE, NEVER A ZERO.
+ * ===========================================================================================
+ * `Number('')` is 0 and `Number.isFinite(0)` is true, so the earlier body turned a blank
+ * "Last Sold Price" into a MEASURED zero. `sizeOfBuy` accepts a measured zero (rightly: a real
+ * $0.00 on the file is a fact), so it answered `{known: true, usd: 0}`, the table printed "$0"
+ * against a buy nobody has ever priced, and `summary.size.unsized` stayed 0, which silenced
+ * BOTH disclosure sentences and left the tile claiming its total covered "every solicitation on
+ * the file". That is the same silent zero this module was written to end, one layer down in the
+ * reader instead of in the ranking, and it survived because nothing exercised this builder.
+ *
+ * MEASURED (2026-08-18, a copy of the real hubzone-matches.xlsx with `<c r="H2">` deleted, the
+ * exact serialisation Excel produces for a blank cell): solicitation SPE8E7-26-T-0526 came back
+ * lastSoldPrice=0, quantity=40, size={known:true,usd:0}, rendered "$0", summary.unsized=0.
+ * Zero of the 23 cells on the current export are blank, but the sibling export from the same
+ * vendor with the identical column names has a blank Last Sold Price on 68 of 839 rows (8.1%).
+ *
+ * The emptiness test runs AFTER the `$`/`,` strip, deliberately: a cell holding only a currency
+ * symbol or only a thousands separator empties to `''` at that point and would otherwise take
+ * the same route to 0. `lib/intelligence/datasets.ts:toNumber` reaches the same answer for the
+ * goldmine's workbook, which is why that surface never carried this defect.
+ *
+ * Both legs go through here, so an absent QUANTITY is an absence too: a quantity nobody
+ * published is not a quantity of zero, and `sizeOfBuy` reports `no_stated_quantity` for it
+ * rather than multiplying a real price by an invented count.
+ */
 const num = (v: string | undefined | null): number | null => {
-  const n = Number(clean(v).replace(/[$,]/g, ''))
+  const s = clean(v).replace(/[$,]/g, '')
+  if (s === '') return null
+  const n = Number(s)
   return Number.isFinite(n) ? n : null
 }
 const typeCharOf = (sol: string): 'T' | 'U' | null => {
