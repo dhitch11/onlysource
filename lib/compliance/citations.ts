@@ -84,9 +84,8 @@ export type RuleCitation = {
   readonly quote_normalization?: string
 }
 
-const RESEARCH = '/Users/user/project-x/03-findings'
-const SPINE = `${RESEARCH}/research/surplus-material-traceability-compliance.md`
-const MECHANICS = `${RESEARCH}/research/dla-procurement-mechanics.md`
+const SPINE = 'internal derivation: surplus-material traceability & compliance (research)'
+const MECHANICS = 'internal derivation: DLA procurement mechanics (research)'
 /**
  * The Master Solicitation primary source, read by this lane rather than inherited.
  *
@@ -96,8 +95,8 @@ const MECHANICS = `${RESEARCH}/research/dla-procurement-mechanics.md`
  * clause, and one was a concatenated paraphrase of three subparagraphs.
  */
 const MS_PDF =
-  '/Users/user/Downloads/MasterSolicitation4ASAcqRev-81_August-23-2021(1).pdf, ' +
-  'REVISION 81 (AUG 23 2021), extracted and verified by T5 on 2026-08-13'
+  'DLA Master Solicitation for Automated Simplified Acquisitions, Rev-81 (2021-08-23), ' +
+  'extracted and verified by T5 on 2026-08-13'
 
 /**
  * THE REGISTRY.
@@ -648,7 +647,7 @@ export const RULES = {
       'This allows vendors to review and challenge records they believe to be inaccurate before there ' +
       'is a scoring impact.',
     quote_status: 'verified_primary',
-    source: `${RESEARCH}/edge/traceability-automation.md section 5.4`,
+    source: 'internal derivation: traceability automation (research) §5.4',
     argument:
       'A negative record challenged inside 14 days never touches the score. One caught on day 20 ' +
       'decays linearly over 1,095 days. T6 owns the daily poll; this lane owns the challenge evidence.',

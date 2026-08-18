@@ -151,79 +151,79 @@
     "note": "Verbatim from the cited file, with runs of whitespace normalized to a single space and nothing else changed.",
     "spans": {
       "wayne.1650.surplus_run": {
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "Note that the previous 9 awards back to 1988 for this NSN were to suppliers of surplus material."
       },
       "wayne.1650.oem_small_lot": {
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "The Moog 2017 award was for 17 units. If Moog submitted quotes for substantially lesser qty, its quotes would have been for much more than the inflation adjusted value."
       },
       "wayne.1650.inferred_demand": {
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "There is no forecast for the subject NSN but were 13 awards for 80 units in less than the past 5 years. Continued demand is likely. Continued demand in small qty increments is likely."
       },
       "wayne.1650.corner": {
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "During that time, they competed against each other, quoting far less than they could have if there were only a single source of supply."
       },
       "wayne.4730.thin_competition": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "You want to quote on something with less competition. That indicates that inventories are low"
       },
       "wayne.4730.zero_stock": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "It just shows that they have no other choices but to try to get it from somebody."
       },
       "wayne.4730.non_stocked": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "They are depending on distributors to carry these items instead of them carrying it on their depot shelves."
       },
       "wayne.4730.platform": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Current planes will be used in the future and repair and maintenance is going to be an ongoing opportunity."
       },
       "wayne.4730.scarcity_gradient": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "In this instance where there are not many available on NSN now but lots on EFF, it's time to investigate whether or not the demand for the parts would justify buying out the inventory that's available in the marketplace. Having control of all the available inventory is a great position to be in for controlling price."
       },
       "wayne.4730.distressed_incumbent": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Are they tired of doing work for DLA? Are they having problems in doing business with DLA or have they been merged with somebody else and their priorities have changed? Any of these create opportunities for the purchase of their inventory in bulk."
       },
       "wayne.4730.affiliate_holding": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Western air is an affiliate. They have five pieces. This means that we can have a priority as far as accessing the parts that they do have."
       },
       "wayne.4730.demand_gap": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "There were large gaps in demand. It may indicate that there are maintenance opportunities ahead."
       },
       "wayne.4730.price_jump": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Over a short amount of time there was a huge jump in price for less parts"
       },
       "wayne.4730.lead_time": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Lead time is an important indicator. The quicker they want it, the more urgently they need it and they're willing to pay for it."
       },
       "wayne.4730.management_price": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Management price is an indicator as to if the government is thinking that they're going to need to pay more or less for a component. It's not the Bible but it is an indicator as to what the market will bear."
       },
       "wayne.4730.approved_manufacturer": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Hydro air is an approved manufacturer for the part they're local"
       },
       "wayne.4730.supplier_growth": {
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Last order was to a manufacturer. their sales are growing considerably from 1,000,000 to a three million over the last three years"
       },
       "research.mortality": {
-        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "source": "internal derivation: opportunity-scoring architecture (research)",
         "quote": "the subsequent manufactures that received the higher qty awards were no longer in business."
       },
       "research.contracting_office": {
-        "source": "/Users/user/project-x/03-findings/edge/competitor-and-market-structure.md",
+        "source": "internal derivation: competitor & market structure (research)",
         "quote": "SPE4A5 ran a 64.7% single-offer rate on 119 POs, SPE4A6 30.6% on 855, SPE4A7 42.0% on 255. Office selection is itself a lever, and nobody in the corpus talks about it."
       }
     }
@@ -239,7 +239,7 @@
       "resolves_with": "The printed procurement history on the solicitation face, with each awardee CAGE classified through the curated dealer map.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "source": "internal derivation: opportunity-scoring architecture (research)",
         "quote": "the four most recent awards were for surplus material is treated as the strongest single trigger"
       },
       "expert_span_ref": "wayne.1650.surplus_run",
@@ -282,7 +282,7 @@
       "resolves_with": "The manufacturer award quantity from the printed procurement history, against the quantity on the current solicitation.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "The Moog 2017 award was for 17 units. If Moog submitted quotes for substantially lesser qty, its quotes would have been for much more than the inflation adjusted value."
       },
       "expert_span_ref": "wayne.1650.oem_small_lot",
@@ -326,7 +326,7 @@
       "resolves_with": "numberOfOffersReceived on the prior award in FPDS, which is published free and coded consistently across offices.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "You want to quote on something with less competition. That indicates that inventories are low"
       },
       "expert_span_ref": "wayne.4730.thin_competition",
@@ -370,7 +370,7 @@
       "resolves_with": "A listed availability count from each connected source, taken on the same day.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Very few available on NSN now, lots on EFF"
       },
       "expert_span_ref": "wayne.4730.scarcity_gradient",
@@ -406,7 +406,7 @@
       "resolves_with": "The awardee CAGE on the last award, classified through the curated dealer and manufacturer map.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "source": "internal derivation: opportunity-scoring architecture (research)",
         "quote": "Wayne's MEETING 2.0 email states five criteria (LAST SUPPLIER, PREVIOUS QTY, DELIVERY DAYS, UNSUCCESSFUL BIDDER REPORT, CANCELLED AWARDS)"
       },
       "expert_span_ref": null,
@@ -447,7 +447,7 @@
       "resolves_with": "The government on hand quantity series for this stock number.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "0 stock since 2009"
       },
       "expert_span_ref": "wayne.4730.zero_stock",
@@ -490,7 +490,7 @@
       "resolves_with": "The award dates in the printed procurement history, counted back five years from the evaluation date.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md",
+        "source": "internal derivation: corpus supplement (WKF correspondence)",
         "quote": "There is no forecast for the subject NSN but were 13 awards for 80 units in less than the past 5 years. Continued demand is likely."
       },
       "expert_span_ref": "wayne.1650.inferred_demand",
@@ -541,7 +541,7 @@
       "resolves_with": "Entity status with effective dates for each prior awardee CAGE.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/03-findings/research/ai-opportunity-scoring-architecture.md",
+        "source": "internal derivation: opportunity-scoring architecture (research)",
         "quote": "the subsequent manufactures that received the higher qty awards were no longer in business."
       },
       "expert_span_ref": "research.mortality",
@@ -585,7 +585,7 @@
       "resolves_with": "The office DoDAAC on the solicitation, joined to the measured office baseline table.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/project-x/03-findings/edge/competitor-and-market-structure.md",
+        "source": "internal derivation: competitor & market structure (research)",
         "quote": "SPE4A5 ran a 64.7% single-offer rate on 119 POs, SPE4A6 30.6% on 855, SPE4A7 42.0% on 255. Office selection is itself a lever, and nobody in the corpus talks about it."
       },
       "expert_span_ref": "research.contracting_office",
@@ -629,7 +629,7 @@
       "resolves_with": "The end item application for this stock number, joined to a reviewed platform status list.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "They go on good planes F16 and F14"
       },
       "expert_span_ref": "wayne.4730.platform",
@@ -662,7 +662,7 @@
       "resolves_with": "The stocked or non stocked indicator on the item record.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Listed as non stocked"
       },
       "expert_span_ref": "wayne.4730.non_stocked",
@@ -698,7 +698,7 @@
       "resolves_with": "The incumbent's award volume by year, compared against its own prior years.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Vendor is listed as having stock but is doing considerably less work in 2025 than in past years maybe 80 to 90% less"
       },
       "expert_span_ref": "wayne.4730.distressed_incumbent",
@@ -733,7 +733,7 @@
       "resolves_with": "The operator and affiliate inventory positions for this stock number, with the quantity stated.",
       "provenance": {
         "grade": "VERIFIED",
-        "source": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+        "source": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
         "quote": "Western air has five pieces"
       },
       "expert_span_ref": "wayne.4730.affiliate_holding",

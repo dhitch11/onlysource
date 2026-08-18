@@ -786,7 +786,7 @@ describe('T3.4.10n fixture 2 is transcribed from the docx itself', () => {
     const p = DECISION_FIXTURE.provenance
     expect(p.source_kind).toBe('docx_primary')
     expect(p.read_directly).toBe(true)
-    expect(p.source_path).toBe('/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx')
+    expect(p.source_path).toBe('internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)')
     expect(p.cross_check_section).toBe('4.4a')
     expect(p.cross_check_agrees).toBe(true)
     expect(p.cross_check_note).toContain('NOT used as a substitute source')

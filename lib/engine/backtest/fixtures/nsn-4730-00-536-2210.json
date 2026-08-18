@@ -3,11 +3,11 @@
   "fixture_kind": "decision",
   "nsn": "4730-00-536-2210",
   "provenance": {
-    "source_path": "/Users/user/Downloads/Notes on 4730-00-536-2210 1-8-26.docx",
+    "source_path": "internal derivation: WKF quote-process notes, NSN 4730-00-536-2210 (2026-01-08)",
     "source_kind": "docx_primary",
     "read_directly": true,
     "extraction_method": "unzip -p on the docx for word/document.xml, then the w:t text nodes joined in document order and split on w:p paragraph boundaries. The extracted text is pure ASCII: zero em dashes, zero smart quotes, zero ellipsis glyphs.",
-    "cross_check_path": "/Users/user/onlysource-build/HANDOFFS/T3-ENGINE.md",
+    "cross_check_path": "internal derivation: T3 engine specification",
     "cross_check_section": "4.4a",
     "cross_check_agrees": true,
     "cross_check_note": "The docx itself was readable, so every string in this file is transcribed from the docx and the docx is the source of record. Handoff section 4.4a quotes the same document and was compared line by line as a check: every finding and every principle quoted in 4.4a is present in the docx with the same wording. The handoff was used only to confirm the transcription and to name the feature each consideration seeds. It was NOT used as a substitute source.",

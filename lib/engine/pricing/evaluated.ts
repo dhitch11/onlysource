@@ -209,7 +209,7 @@ export const CORPUS_DRAG_REFERENCE_CASES = {
     // not quoted from the solicitation, so the grade is DERIVED and the authority is the digest.
     authority: 'Research digest worked cases on the surplus evaluation factor, computed not quoted',
     quote: null,
-    sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+    sourceFile: 'internal derivation: DLA procurement mechanics (research)',
     sourceLines: '384-386',
     grade: 'DERIVED',
   } as SourceCitation,
@@ -228,7 +228,7 @@ export const BUY_AMERICAN_FACTOR_CITATION: SourceCitation = {
   quote:
     'When the solicitation is subject to the Buy American statute or the Balance of Payments ' +
     'Program (see DFARS 225.502(c).',
-  sourceFile: '/Users/user/Downloads/MasterSolicitation4ASAcqRev-81_August-23-2021(1).pdf',
+  sourceFile: 'DLA Master Solicitation for Automated Simplified Acquisitions, Rev-81 (2021-08-23)',
   sourceLines: 'Part I, para 3(b)(3)',
   grade: 'PRIMARY_TEXT',
 }

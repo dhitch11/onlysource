@@ -523,9 +523,9 @@ describe('surplusDrag, the regressive-adder metric, on both corpus worked cases'
 
   it('cites the worked cases to their line numbers in the research file', () => {
     expect(CORPUS_DRAG_REFERENCE_CASES.citation.sourceLines).toBe('384-386')
-    expect(CORPUS_DRAG_REFERENCE_CASES.citation.sourceFile).toContain(
-      'dla-procurement-mechanics.md',
-    )
+    // Path/filename removed to stop the citation leaking a filesystem path into rendered exhibits;
+    // the document is now named by title and line-number traceability is preserved in sourceLines.
+    expect(CORPUS_DRAG_REFERENCE_CASES.citation.sourceFile).toContain('DLA procurement mechanics')
   })
 })
 

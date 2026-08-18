@@ -291,7 +291,7 @@ export function sharedRoundingRules(
 const CORPUS_SECTION_2: SourceCitation = {
   authority: 'Expert analysis "THROUGH MY EYES ONLY - 1650-01-059-8221", forwarded 2026-08-12',
   quote: null,
-  sourceFile: '/Users/user/project-x/05-intelligence/09-corpus-supplement-gmail.md',
+  sourceFile: 'internal derivation: corpus supplement (WKF correspondence)',
   sourceLines: '22-61 (section 2)',
   grade: 'CORPUS_STATED',
 }

@@ -191,7 +191,7 @@ const FAR_2_101_AS_AMENDED: SourceCitation = {
     "In the definition 'Micro-purchase threshold' removing from the introductory text " +
     "'$3,500' and adding '$10,000' in its place... In the definition 'Simplified acquisition " +
     "threshold' removing from the introductory text '$150,000' and adding '$250,000' in its place.",
-  sourceFile: '/Users/user/project-x/05-intelligence/10-policy-and-market-corpus.md',
+  sourceFile: 'internal derivation: policy & market corpus',
   sourceLines: '45-48',
   grade: 'PRIMARY_TEXT',
 }
@@ -201,7 +201,7 @@ const MASTER_SOLICITATION_3B_SURPLUS: SourceCitation = {
     'DLA Master Solicitation Rev 104, Part I para 3(b)(1); corroborated by DLAD 11.390(b)(1) ' +
     'and procurement note M05 (SEP 2016), current in DLAD Rev 5, January 12 2026',
   quote: '$200 for offers of surplus for unused former Government surplus material.',
-  sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+  sourceFile: 'internal derivation: DLA procurement mechanics (research)',
   sourceLines: '357 (corroboration at 363-370)',
   grade: 'PRIMARY_TEXT',
 }
@@ -214,7 +214,7 @@ const MASTER_SOLICITATION_3B_ESA: SourceCitation = {
     '$600 for CSI evaluations of surplus by each ESA. The evaluation factor may be applied ' +
     'if the contracting office cannot determine acceptability of quotations for other than ' +
     'CSI items and requires ESA coordination.',
-  sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+  sourceFile: 'internal derivation: DLA procurement mechanics (research)',
   sourceLines: '358 (corroboration at 363-370)',
   grade: 'PRIMARY_TEXT',
 }
@@ -224,7 +224,7 @@ const DLAD_17_7505: SourceCitation = {
   quote:
     'an increase of 25% or more over the most recent 12-month period. (2) The threshold ' +
     'percentage increase for procurements valued under the micro-purchase threshold is 51 percent.',
-  sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+  sourceFile: 'internal derivation: DLA procurement mechanics (research)',
   sourceLines: '569-570',
   grade: 'PRIMARY_TEXT',
 }
@@ -281,7 +281,7 @@ const FAR_2_101_CURRENT: SourceCitation = {
     'Micro-purchase threshold means "$15,000, except it means (1) For acquisitions of construction ' +
     'subject to 40 U.S.C. chapter 31, subchapter IV, $2,000..." Simplified acquisition threshold ' +
     'means "$350,000, except for (1) Acquisitions ... to support a contingency operation..."',
-  sourceFile: '/Users/user/project-x/03-findings/research/dla-procurement-mechanics.md',
+  sourceFile: 'internal derivation: DLA procurement mechanics (research)',
   sourceLines: '172-186 (grading at 1087)',
   grade: 'PRIMARY_TEXT',
 }
