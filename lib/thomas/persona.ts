@@ -162,18 +162,49 @@ export function turnContext(ctx: {
   mode: 'voice' | 'text'
   operator?: string
   selection?: string
+  /**
+   * The sensitive classes THIS caller may not read, said the way Thomas says them.
+   *
+   * It rides in the message list, never in the system prefix, for the reason stated above: the
+   * prefix must stay byte-identical for the cache to hit, and this varies per person. It is told
+   * to him BEFORE he reaches for a tool so he can answer the permitted half in the same breath
+   * rather than promising something and then walking it back, which reads as the product failing
+   * rather than as a boundary.
+   *
+   * It is a courtesy to the conversation and never the control. The control is `refuseTool()` on
+   * the server, which runs whatever the model believes. A model that ignored this line would be
+   * refused by the dispatcher exactly as before.
+   */
+  withheld?: readonly string[]
 }): string {
   const bits: string[] = []
   bits.push(`[CONTEXT] The operator is on ${ctx.surface || ctx.path || 'the platform'}.`)
   if (ctx.path && ctx.surface) bits.push(`Route: ${ctx.path}.`)
   if (ctx.operator) bits.push(`Signed in as ${ctx.operator}.`)
   if (ctx.selection) bits.push(`They have this selected or in view: ${ctx.selection}.`)
+  if (ctx.withheld?.length) {
+    bits.push(
+      `[PERMISSIONS] This operator's role does NOT include ${listOf(ctx.withheld)}. Any tool that ` +
+        'would read that will refuse, so do not offer it and do not promise it. If they ask for it, ' +
+        'say in one plain sentence that their role does not include it and that an owner can grant ' +
+        'it, then answer whatever else they asked. Never fill that gap from memory or from your ' +
+        'background notes, and never quietly leave it out: they have to be able to tell a permission ' +
+        'boundary from a hole in our data.',
+    )
+  }
   bits.push(
     ctx.mode === 'voice'
       ? 'This turn is SPOKEN. One thought, one or two sentences, numbers said for the ear.'
       : 'This turn is TYPED. Lead with the answer, keep it scannable.',
   )
   return bits.join(' ')
+}
+
+/** "a", "a and b", "a, b and c". Keeps the permission line reading like a sentence. */
+function listOf(parts: readonly string[]): string {
+  if (!parts.length) return 'that'
+  if (parts.length === 1) return parts[0]!
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }
 
 /** What Thomas opens with. Short, because a long greeting on a voice line is a tell. */

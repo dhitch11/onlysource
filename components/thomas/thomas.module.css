@@ -428,6 +428,35 @@
   color: var(--olive);
 }
 
+/*
+ * THE PERMISSION BOUNDARY. Deliberately the loudest of the three notices under a turn, and
+ * deliberately not the same as either of the others.
+ *
+ *   .provenance  olive, quiet      he read this live. Good news.
+ *   .blocked     dim, hairline     the numeral firewall pulled a figure. Something went wrong.
+ *   .withheld    amber, filled     your role does not include this. Nothing went wrong, nothing is
+ *                                  missing, and there is something you can do about it.
+ *
+ * They must never render at equal confidence, because collapsing them is exactly how an operator
+ * learns to read a permission boundary as a hole in our data. Amber is the token this estate
+ * already uses for "attention, not failure", and it is defined in both themes.
+ */
+.withheld {
+  font-size: var(--fs-100);
+  line-height: 1.5;
+  color: var(--ink);
+  border-left: 3px solid var(--amber);
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2);
+}
+
+.withheld strong {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .blocked {
   font-size: var(--fs-100);
   color: var(--dim);

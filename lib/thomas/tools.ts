@@ -26,6 +26,8 @@ import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { buildCornerDossier } from '@/lib/intelligence/brief/dossier'
 import { buildPortfolio } from '@/lib/intelligence/portfolio'
 import { resolveDataRoot } from '@/lib/data-root'
+import { refuseTool, type ToolAccess, type ToolRefusal } from './authz'
+import { can } from '@/lib/admin/permissions'
 import type { ToolSpec } from './claude'
 
 /* ------------------------------------------------------------------------------------------- */
@@ -148,6 +150,12 @@ export type ToolOutcome = {
   /** Real figures this call produced. They join the grounding allow-set for this conversation. */
   numbers: number[]
   isError?: boolean
+  /**
+   * Set when the call was refused because the CALLER may not read what it returns. It is not an
+   * error and it is not an empty result, and the interface must not draw it as either: it is a
+   * permission boundary, and the operator has to be able to tell those three apart on screen.
+   */
+  refused?: ToolRefusal
 }
 
 const money = (n: number | null | undefined) =>
@@ -158,7 +166,27 @@ function harvest(...vals: Array<number | null | undefined>): number[] {
   return vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
 }
 
-export async function runServerTool(name: string, input: Record<string, unknown>): Promise<ToolOutcome> {
+export async function runServerTool(
+  name: string,
+  input: Record<string, unknown>,
+  access: ToolAccess,
+): Promise<ToolOutcome> {
+  /*
+   * ==========================================================================================
+   * THE PERMISSION CHECK RUNS BEFORE ANYTHING IS READ, AND BEFORE ANYTHING IS SAID ABOUT THE FEED.
+   * ==========================================================================================
+   * First, because a caller who may not see supplier identities must be told THAT, and not told
+   * that the feed is unmounted or that their stock number is not in the book. Those are three
+   * different facts and answering with the wrong one is how an operator learns to read a
+   * permission boundary as a data gap.
+   *
+   * `access` is a required argument rather than an optional one on purpose. An optional caller
+   * defaults to something, and whatever it defaulted to would be the permission every forgotten
+   * call site quietly ran with. The type makes forgetting it a compile error instead.
+   */
+  const refusal = refuseTool(name, access)
+  if (refusal) return { text: refusal.text, numbers: [], refused: refusal }
+
   const root = resolveDataRoot()
   if (!root.present) {
     /*
@@ -178,7 +206,7 @@ export async function runServerTool(name: string, input: Record<string, unknown>
       case 'lookup_stock_number':
         return lookupStockNumber(String(input.nsn ?? ''))
       case 'portfolio_snapshot':
-        return portfolioSnapshot()
+        return portfolioSnapshot(access)
       case 'find_opportunities':
         return findOpportunities(input)
       case 'goldmine_snapshot':
@@ -250,7 +278,7 @@ function lookupStockNumber(raw: string): ToolOutcome {
   }
 }
 
-function portfolioSnapshot(): ToolOutcome {
+function portfolioSnapshot(access: ToolAccess): ToolOutcome {
   const pf = buildPortfolio()
   if (!pf.ok) {
     return { text: 'The portfolio could not be built from the current feed. Say so honestly.', numbers: [], isError: true }
@@ -277,6 +305,17 @@ function portfolioSnapshot(): ToolOutcome {
       `Top corners by score right now: ${top || 'none ranked'}.`,
       'REMINDER: these are the current live totals. Quote them exactly; do not add them together or derive new figures.',
     ].join('\n'),
+    /*
+     * A HARVESTED NUMBER IS A SPEAKABLE NUMBER, SO THE HARVEST SHRINKS WITH THE PERMISSION.
+     * Everything returned here joins the conversation's allow-set and its measured set, which is
+     * what makes the numeral firewall accept it. This tool only needs `board.view`, and its spoken
+     * text carries no unit price, but it was harvesting `lastPrice` and `firstPrice` off the top
+     * corners anyway. For a caller without `margin.view` that would leave a price pre-cleared for
+     * speaking on a line where the pricing tools refuse, which is the firewall being widened by a
+     * permission refusal instead of narrowed by it. The scores and the escalation percentages stay:
+     * they are the board's own ranking, they are what this screen shows a read-only viewer, and no
+     * dollar figure can be recovered from them.
+     */
     numbers: harvest(
       t.candidateCorners,
       t.onForecast,
@@ -285,7 +324,10 @@ function portfolioSnapshot(): ToolOutcome {
       t.withEscalation,
       ...feedParts,
       ...pf.bySupplyChain.map((c) => c.value),
-      ...pf.topCorners.slice(0, 5).flatMap((c) => [c.score, c.escalationPct, c.lastPrice, c.firstPrice]),
+      ...pf.topCorners.slice(0, 5).flatMap((c) => [c.score, c.escalationPct]),
+      ...(can(access.held, 'margin.view')
+        ? pf.topCorners.slice(0, 5).flatMap((c) => [c.lastPrice, c.firstPrice])
+        : []),
     ),
   }
 }

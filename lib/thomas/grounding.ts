@@ -130,7 +130,22 @@ function isGrounded(value: number, allow: AllowSet): boolean {
 
 export type GuardVerdict =
   | { ok: true }
-  | { ok: false; offenders: string[]; kind: 'ungrounded' | 'unmeasured' }
+  | { ok: false; offenders: string[]; kind: GuardFailure }
+
+/**
+ * WHY THERE ARE THREE FAILURES AND NOT ONE.
+ *
+ *   ungrounded  the figure exists nowhere Thomas was given. He made it up.
+ *   unmeasured  the figure is real, and it answers a DIFFERENT DAY than the one he was asked about.
+ *   withheld    a tool refused this turn because the CALLER may not read what it returns, so any
+ *               figure that is not from a tool that actually ran, or from the operator's own words,
+ *               is Thomas filling a permission boundary from memory.
+ *
+ * They are not interchangeable, because each one gets a different sentence and a different retry.
+ * Telling somebody a number could not be traced to the feed, when the truth is that their role does
+ * not include it, is a false statement about our own data.
+ */
+export type GuardFailure = 'ungrounded' | 'unmeasured' | 'withheld'
 
 /**
  * ==========================================================================================
@@ -180,7 +195,24 @@ const DATE_SHAPE =
 export function guard(
   text: string,
   allow: AllowSet,
-  opts?: { measured?: AllowSet; question?: string },
+  opts?: {
+    measured?: AllowSet
+    question?: string
+    /**
+     * Numbers the OPERATOR themselves put on the table this conversation. Saying one back is
+     * quoting them, never a disclosure, so the strict checks accept it. Without this a caller who
+     * asks "we quoted eighteen hundred, is that in line" gets their own figure refused on the same
+     * turn a tool refused, which reads as the product breaking rather than as a boundary.
+     */
+    spoken?: AllowSet
+    /**
+     * The sensitive classes a tool refused to read for THIS caller on THIS turn, said out loud.
+     * Non-empty means the fact set shrank, and the firewall has to see the smaller one: otherwise
+     * a permission refusal quietly hands the answer back from the background notes, which is the
+     * whole control being undone by the model's helpfulness.
+     */
+    withheld?: readonly string[]
+  },
 ): GuardVerdict {
   const ungrounded = claimNumbers(text)
     .filter((c) => !isGrounded(c.value, allow))
@@ -193,27 +225,62 @@ export function guard(
   const asked = opts?.question ?? ''
   if (!measured) return { ok: true }
 
+  const withheld = opts?.withheld ?? []
   const isStateQuestion = STATE_QUESTION.test(asked)
-  if (!isStateQuestion) return { ok: true }
+  /*
+   * A REFUSAL IS AS STRICT AS A STATE QUESTION, AND FOR THE SAME REASON. In both cases the only
+   * legitimate source for a figure is a tool that ran in this conversation. The state question
+   * excludes yesterday's numbers; the refusal excludes numbers this caller is not allowed to hear.
+   */
+  if (!isStateQuestion && !withheld.length) return { ok: true }
 
   /*
    * A state question was asked and NO tool ran. Any claim-shaped figure or any date in the reply
    * is therefore being recalled rather than read, which is the exact failure above. If a tool DID
    * run, its numbers are in `measured` and the normal check governs.
+   *
+   * THE OPERATOR'S OWN FIGURES COUNT ON A REFUSAL TURN, AND NEVER ON A STATE QUESTION.
+   *
+   * Quoting somebody their own number back is not a disclosure, so on a turn that is strict only
+   * because a tool refused, their figures are speakable. A STATE question is different in kind:
+   * "is the count still 2,141" carries a number the operator supplied, and answering "yes, 2,141"
+   * with no tool in the trace is the recalled-rather-than-read failure this whole block exists to
+   * catch, arriving with the operator's own digits as cover. Their figure describes whatever day
+   * they last looked, which is exactly the thing a state question must not be answered from.
    */
+  const speakable: AllowSet = new Set(measured)
+  if (!isStateQuestion) for (const n of opts?.spoken ?? []) speakable.add(n)
   const unmeasured = claimNumbers(text)
-    .filter((c) => !isGrounded(c.value, measured))
+    .filter((c) => !isGrounded(c.value, speakable))
     .map((c) => c.raw.trim())
   const dateClaim = DATE_SHAPE.test(text) && measured.size === 0
   if (!unmeasured.length && !dateClaim) return { ok: true }
 
   const offenders = Array.from(new Set(unmeasured))
   if (dateClaim) offenders.push('a date the feed did not report')
-  return { ok: false, offenders, kind: 'unmeasured' }
+  return { ok: false, offenders, kind: withheld.length ? 'withheld' : 'unmeasured' }
 }
 
 /** The constraint appended for the single regeneration attempt. */
-export function constraintFor(offenders: string[], kind: 'ungrounded' | 'unmeasured' = 'ungrounded'): string {
+export function constraintFor(
+  offenders: string[],
+  kind: GuardFailure = 'ungrounded',
+  withheld: readonly string[] = [],
+): string {
+  if (kind === 'withheld') {
+    return [
+      '',
+      '## THAT WAS WITHHELD FROM THIS OPERATOR (you just broke this)',
+      `A tool refused this turn because their role does not include ${listOf(withheld)}, and you then said ` +
+        `${offenders.map((o) => JSON.stringify(o)).join(', ')}.`,
+      'Those figures did not come from a tool that ran in this conversation, so you filled a permission',
+      'boundary from your background notes. That is the refusal being undone by you, and it is worse than',
+      'saying nothing, because it arrives sounding measured.',
+      'Answer again. Tell them in one plain sentence which part their role does not include and that an owner',
+      'can grant it. Use ONLY figures a tool returned to you in this conversation, or figures the operator',
+      'themselves said. Do not substitute a nearby number, and do not quietly drop the subject.',
+    ].join('\n')
+  }
   if (kind === 'unmeasured') {
     return [
       '',
@@ -237,6 +304,29 @@ export function constraintFor(offenders: string[], kind: 'ungrounded' | 'unmeasu
     'Answer again. Use ONLY figures that appeared verbatim above, or call a tool and use what it returns.',
     'If you do not have a real number for something, say you will pull it. Never state one you cannot point to.',
   ].join('\n')
+}
+
+/** "a", "a and b", "a, b and c". Keeps a generated constraint reading like a sentence. */
+function listOf(parts: readonly string[]): string {
+  if (!parts.length) return 'that'
+  if (parts.length === 1) return parts[0]!
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
+/**
+ * What Thomas says when a permission refusal could not be turned into an honest answer.
+ *
+ * It never claims the data is missing, because the data is not missing. It names the boundary, says
+ * who can change it, and refuses to fill the hole with a figure from memory. An operator who reads
+ * this knows exactly what happened and exactly what to do about it, which is the difference between
+ * a control and a dead end.
+ */
+export function withheldEmpty(classes: readonly string[]): string {
+  return (
+    `Your role does not include ${listOf(classes)}, so I cannot give you that here, and I am not going to ` +
+    'put a number on it from memory. An owner can change your role if you need it. Ask me anything that ' +
+    'sits outside that and I will pull it properly.'
+  )
 }
 
 /** What Thomas says when even the constrained retry could not be grounded. */

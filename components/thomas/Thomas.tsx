@@ -25,7 +25,19 @@ type Msg = {
   role: 'user' | 'assistant'
   text: string
   tools?: string[]
+  /**
+   * The sensitive classes a tool refused to read for THIS operator on THIS turn, in Thomas's words.
+   *
+   * It is a separate field from `tools` and from `grounded` because it is a separate FACT, and the
+   * three must never render at the same confidence. `tools` is provenance: he read this live.
+   * `grounded` false is the numeral firewall: a figure could not be traced to the feed. This is
+   * neither. Nothing failed and nothing is missing. The data is there and this account may not read
+   * it, which is the one of the three the operator can actually do something about.
+   */
+  withheld?: string[]
   grounded?: boolean
+  /** Why an answer was replaced. A permission boundary gets a different sentence from a bad figure. */
+  failure?: 'ungrounded' | 'unmeasured' | 'withheld'
   spoken?: boolean
 }
 
@@ -78,6 +90,12 @@ const OPENERS = [
 
 let seq = 0
 const nextId = () => `m${(seq += 1)}`
+
+/** "a", "a and b", "a, b and c". The notice has to read like a sentence, not like a log line. */
+function listOf(parts: readonly string[]): string {
+  if (parts.length === 1) return parts[0] ?? 'that'
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
 
 export default function Thomas({ operator }: { operator?: string }) {
   const [open, setOpen] = useState(false)
@@ -138,6 +156,7 @@ export default function Thomas({ operator }: { operator?: string }) {
       const replyId = nextId()
       let acc = ''
       const tools: string[] = []
+      const withheld: string[] = []
       try {
         const res = await fetch('/api/thomas/chat', {
           method: 'POST',
@@ -167,9 +186,23 @@ export default function Thomas({ operator }: { operator?: string }) {
                 acc += String(evt.delta ?? '')
                 setMsgs((m) => m.map((x) => (x.id === replyId ? { ...x, text: acc } : x)))
               } else if (t === 'replace') {
-                /* The firewall caught an ungrounded figure. What was shown is replaced, not appended. */
+                /* The firewall caught something. What was shown is replaced, not appended. */
                 acc = String(evt.text ?? '')
-                setMsgs((m) => m.map((x) => (x.id === replyId ? { ...x, text: acc, grounded: false } : x)))
+                const failure = evt.failure as Msg['failure']
+                setMsgs((m) =>
+                  m.map((x) => (x.id === replyId ? { ...x, text: acc, grounded: false, failure } : x)),
+                )
+              } else if (t === 'refusal') {
+                /*
+                 * A tool refused. This is drawn, always, and never swallowed: an operator who sees a
+                 * shorter answer with nothing explaining it learns to read our boundaries as thin
+                 * data, and then stops believing every honest "I do not have that" the product makes
+                 * anywhere else. It is deliberately NOT added to `tools`, because nothing was read.
+                 */
+                for (const c of (evt.classes as string[]) ?? []) {
+                  if (!withheld.includes(c)) withheld.push(c)
+                }
+                setMsgs((m) => m.map((x) => (x.id === replyId ? { ...x, withheld: [...withheld] } : x)))
               } else if (t === 'tool') {
                 const name = String(evt.name ?? '')
                 tools.push(name)
@@ -332,7 +365,14 @@ export default function Thomas({ operator }: { operator?: string }) {
                     Read live: {m.tools.map((t) => TOOL_LABELS[t] ?? t).join(', ')}
                   </div>
                 )}
-                {m.grounded === false && (
+                {m.withheld && m.withheld.length > 0 && (
+                  <div className={s.withheld}>
+                    <strong>Your role does not include {listOf(m.withheld)}.</strong> That is a
+                    permission boundary, not missing data: the platform holds it and this account may
+                    not read it. An owner can change your role.
+                  </div>
+                )}
+                {m.grounded === false && m.failure !== 'withheld' && (
                   <div className={s.blocked}>
                     A figure in that answer could not be traced to the feed, so it was withheld.
                   </div>

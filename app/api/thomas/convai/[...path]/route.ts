@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { runTurn, type WireMessage, type TurnContext } from '@/lib/thomas/engine'
+import { MACHINE_BRIDGE_ACCESS } from '@/lib/thomas/authz'
 import { log } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,22 @@ export const runtime = 'nodejs'
  * request is refused, rather than every request being waved through. That default is the entire point.
  * A gate that opens when it is misconfigured is not a gate, and this estate has shipped that defect
  * before: a page whose bytes reached the browser while a client-side overlay pretended to hide them.
+ *
+ * ==========================================================================================
+ * AND THAT SECRET PROVES WHICH SERVICE IS CALLING. IT PROVES NOTHING ABOUT WHO IS ON THE PHONE.
+ * ==========================================================================================
+ * There is no cookie on this path and there never will be, so there is no person to resolve and no
+ * role to read. The `OPERATOR:` line this route parses out of the system text arrives inside a
+ * client-written message: it is display context for the conversation and it is NOT an identity
+ * claim. Trusting it would mean anybody holding the bearer secret could name themselves the owner
+ * in a string and read every margin in the book down a phone line.
+ *
+ * So this is the MOST RESTRICTED caller in the system. `MACHINE_BRIDGE_ACCESS` holds every
+ * non-sensitive operator permission and no sensitive one, DERIVED from the permission catalog
+ * rather than listed, so a permission marked sensitive tomorrow is excluded the moment it exists.
+ * Thomas can still take somebody through the thesis and read the board's live counts out loud. He
+ * cannot name a supplier, quote a price, open a document, or export anything, for anybody, ever, on
+ * this line, and when he is asked he says exactly that instead of going quiet.
  */
 
 function unauthorized() {
@@ -94,7 +111,7 @@ export async function POST(req: NextRequest) {
     operator: (systemText.match(/OPERATOR:\s*([^\n|]+)/) || [])[1]?.trim(),
   }
 
-  const result = await runTurn({ message, history, mode: 'voice', ctx })
+  const result = await runTurn({ message, history, mode: 'voice', ctx, access: MACHINE_BRIDGE_ACCESS })
 
   if (!result.ok) {
     log.warn('thomas.voice_failed', { reason: (result.reason ?? '').slice(0, 120) })
@@ -112,6 +129,13 @@ export async function POST(req: NextRequest) {
     tools: result.toolsUsed.join(','),
     actions: result.actions.map((a) => a.name).join(','),
   })
+  if (result.refusedTools.length) {
+    log.warn('thomas.tool_refused', {
+      outcome: 'denied',
+      gate: 'permission',
+      reason: `machine-bridge ${result.refusedTools.join(',')}: ${result.withheld.join(', ')}`,
+    })
+  }
 
   return completion(body.stream === true, result.text, result.model)
 }

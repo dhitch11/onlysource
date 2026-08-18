@@ -60,12 +60,10 @@ export function useVoice(events: VoiceEvents) {
     let alive = true
     fetch('/api/thomas/voice', { method: 'GET' })
       .then(async (r) => {
+        const verdict = await readMint(r)
         if (!alive) return
-        setAvailable(r.ok)
-        if (!r.ok) {
-          const body = await r.json().catch(() => null)
-          setReason(body?.message ?? 'Voice is not connected in this environment.')
-        }
+        setAvailable(verdict.ok)
+        if (!verdict.ok) setReason(verdict.reason)
       })
       .catch(() => {
         if (!alive) return
@@ -102,8 +100,8 @@ export function useVoice(events: VoiceEvents) {
       if (ws.current) return
       setState('connecting')
       try {
-        const minted = await fetch('/api/thomas/voice').then((r) => r.json())
-        if (!minted?.ok || !minted.signedUrl) throw new Error(minted?.message || 'Voice is not connected here.')
+        const minted = await readMint(await fetch('/api/thomas/voice'))
+        if (!minted.ok) throw new Error(minted.reason)
 
         // Ask BEFORE opening the socket, so a refused microphone never leaves a live session open.
         const media = await navigator.mediaDevices.getUserMedia({
@@ -234,6 +232,85 @@ export function useVoice(events: VoiceEvents) {
   const stop = useCallback(() => teardown(), [teardown])
 
   return { state, available, reason, start, stop }
+}
+
+/**
+ * READ THE MINT RESPONSE, OR SAY WHY IT COULD NOT BE READ.
+ *
+ * ==========================================================================================
+ * THE DEFECT THIS ENDS IS ABOUT THE SENTENCE THE OPERATOR GETS, NOT ABOUT ACCESS.
+ * ==========================================================================================
+ * Both call sites used to go straight to `r.json()`. That is not a fail-open: when the gate has
+ * expired, `proxy.ts` answers this route with a 307 to `/enter`, fetch follows it, and the body is
+ * the sign-in PAGE. `json()` throws on the leading `<`, the throw is caught, and the code denies.
+ * Access was never granted at any point. What the person got was the wrong explanation, or none:
+ *
+ *   - `start()` surfaced the raw parse error, so pressing Talk produced something like
+ *     "Unexpected token '<'", which tells a trader nothing and looks like the product is broken.
+ *   - the probe was worse, and it is the reason `r.redirected` is checked FIRST here rather than
+ *     `r.ok`. A followed redirect answers 200, so `r.ok` was TRUE, the probe set `available` to
+ *     true, and the Talk button rendered on a session that cannot mint. That is this estate's named
+ *     defect of a media control that renders and cannot play, arriving through the back door.
+ *
+ * So the response is inspected in the order the failures actually occur: bounced to sign-in first,
+ * then a body that is not JSON at all, then a stated refusal from the route, and only then the shape
+ * of what came back. Every branch answers with a sentence somebody can act on.
+ *
+ * THE CONTENT TYPE IS ASSERTED, NOT JUST THE REDIRECT, and that is the stronger of the two checks.
+ * `r.redirected` catches the bounce we know about. A proxy that rewrites in place, or any future
+ * layer that answers 200 with an HTML error page and no redirect at all, defeats it and would put
+ * us straight back to parsing markup as a mint. Asking what the body actually IS closes both, and
+ * it is the proof the repository's own `followed-redirect-read-as-ok` lint gate asks for.
+ *
+ * The two `fetch` calls in `app/api/thomas/voice/route.ts` are NOT this defect and must not be
+ * "fixed" the same way. They are server-to-server calls to api.elevenlabs.io, where `.ok` is already
+ * checked, there is no gate in front of them, and there is no redirect to follow.
+ */
+export type MintVerdict = { ok: true; signedUrl: string } | { ok: false; reason: string }
+
+/*
+ * EXPORTED FOR ONE REASON: so `test/thomas/voice-mint.test.ts` can hand it the four responses this
+ * route really produces, including the sign-in PAGE that a bounced session returns. There is no DOM
+ * test harness in this repository, so the alternative was to leave the branch that decides whether
+ * the Talk button appears untested, which is the branch that shipped the defect.
+ */
+export async function readMint(r: Response): Promise<MintVerdict> {
+  if (r.redirected) {
+    return {
+      ok: false,
+      reason: 'Your session expired, so voice could not start. Sign in again, then reopen this panel.',
+    }
+  }
+
+  if (!(r.headers.get('content-type') ?? '').includes('application/json')) {
+    /*
+     * Not JSON, so this is not our route answering. The overwhelmingly likely cause is the gate
+     * handing back a sign-in page, so the operator is told the useful thing rather than the
+     * literal one. It is stated as the probable cause, never as a certainty.
+     */
+    return {
+      ok: false,
+      reason:
+        r.status === 200
+          ? 'Voice answered with a page instead of a session, which usually means your sign in expired. Sign in again, then reopen this panel.'
+          : `Voice could not start (${r.status}).`,
+    }
+  }
+
+  const body = (await r.json().catch(() => null)) as
+    | { ok?: boolean; signedUrl?: string; message?: string }
+    | null
+
+  if (!r.ok) {
+    return { ok: false, reason: body?.message ?? `Voice could not start (${r.status}).` }
+  }
+  if (!body) {
+    return { ok: false, reason: 'Voice answered with something this browser could not read.' }
+  }
+  if (body.ok !== true || typeof body.signedUrl !== 'string' || !body.signedUrl) {
+    return { ok: false, reason: body.message ?? 'Voice is not connected here.' }
+  }
+  return { ok: true, signedUrl: body.signedUrl }
 }
 
 function toBase64(buf: ArrayBuffer): string {
