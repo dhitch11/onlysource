@@ -27,15 +27,64 @@
  * INPUT:  ~/onlysource-data/flis/CAGE.zip, H-SERIES.zip   (or FLIS_SOURCE_DIR)
  * OUTPUT: <data root>/flis/cage-index.json
  */
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import os from 'node:os'
 
-import { buildAllDatasets } from '../../lib/intelligence/datasets'
-import { buildNsnAwardIndex } from '../../lib/intelligence/awards/nsn-now'
-import { dataPath } from '../../lib/data-root'
+import { archivePath, dataPath } from '../../lib/data-root'
+import { readdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+
+/**
+ * ★ EVERY CAPTURED DAY, NOT THE SERVED ONE.
+ *
+ * The first version of this script derived its CAGE set from `buildAllDatasets()`, i.e. from
+ * whichever single feed day was being served. The feed then advanced and **26% of the CAGE codes
+ * on the live map resolved to nothing** — the index was a snapshot of a moving target, and a
+ * supplier that appeared on Tuesday was invisible on Thursday.
+ *
+ * So the set is now the UNION over every `as*.txt` inside every archived `bq*.zip`, plus every
+ * CAGE already in the previous index. It can only grow. That is the correct shape for a
+ * catalogue join: an operator must never lose a company because today's solicitation list
+ * happens not to mention it.
+ */
+function cagesFromArchive(): { cages: Set<string>; days: number; rows: number } {
+  const root = archivePath('dibbs-rfq-daily')
+  const cages = new Set<string>()
+  let days = 0
+  let rows = 0
+  let dayDirs: string[] = []
+  try { dayDirs = readdirSync(root) } catch { return { cages, days, rows } }
+  for (const day of dayDirs) {
+    let found = false
+    let captures: string[] = []
+    try { captures = readdirSync(`${root}/${day}`) } catch { continue }
+    for (const capture of captures) {
+      let files: string[] = []
+      try { files = readdirSync(`${root}/${day}/${capture}`) } catch { continue }
+      for (const name of files) {
+        if (!/^bq\d+\.zip$/i.test(name)) continue
+        let text = ''
+        try {
+          text = execFileSync('unzip', ['-p', `${root}/${day}/${capture}/${name}`, 'as*.txt'],
+            { encoding: 'latin1', maxBuffer: 1024 * 1024 * 512 })
+        } catch { continue }
+        for (const line of text.split('\n')) {
+          // "<key>","CAGE","<part>","" — field 1 is the CAGE, per lib/intelligence/seed/feed.ts:65
+          const m = line.match(/^"[^"]*","([^"]+)"/)
+          if (!m) continue
+          const cage = m[1]!.trim().toUpperCase()
+          if (cage) { cages.add(cage); rows += 1 }
+        }
+        found = true
+      }
+    }
+    if (found) days += 1
+  }
+  return { cages, days, rows }
+}
 
 const SOURCE_DIR = process.env.FLIS_SOURCE_DIR ?? path.join(os.homedir(), 'onlysource-data', 'flis')
 
@@ -79,20 +128,23 @@ async function main(): Promise<void> {
   }
 
   /* ---------------------------------------------------------------- 1. who do we need? */
-  const wanted = new Set<string>()
-  const datasets = buildAllDatasets()
-  for (const row of datasets.cornerMap.rows) {
-    for (const cage of row.approvedSources) wanted.add(String(cage).toUpperCase())
-  }
-  const awards = buildNsnAwardIndex()
-  if (awards.ok) {
-    for (const [, summary] of awards.byNsn) {
-      for (const award of (summary as { awards?: Array<{ cage?: string | null }> }).awards ?? []) {
-        if (award.cage) wanted.add(String(award.cage).toUpperCase())
+  const scan = cagesFromArchive()
+  const wanted = new Set(scan.cages)
+  console.log(`archive: ${scan.days} days of approved-source files, ${scan.rows} rows, ${wanted.size} distinct CAGEs`)
+
+  // NEVER SHRINK. Carry forward every CAGE the previous index resolved, so a rebuild on a thin
+  // feed day cannot delete companies an operator could see yesterday.
+  const priorPath = dataPath('flis', 'cage-index.json')
+  let carried = 0
+  if (existsSync(priorPath)) {
+    try {
+      const prior = JSON.parse(readFileSync(priorPath, 'utf8')) as { companies?: Array<{ cage: string }> }
+      for (const c of prior.companies ?? []) {
+        if (!wanted.has(c.cage.toUpperCase())) { wanted.add(c.cage.toUpperCase()); carried += 1 }
       }
-    }
+    } catch { /* a corrupt prior index is not a reason to fail; it is a reason to rebuild */ }
   }
-  console.log(`referenced CAGEs: ${wanted.size}`)
+  console.log(`carried forward from the previous index: ${carried} -> ${wanted.size} to look up`)
 
   /* ------------------------------------------- 2. the corporate complex, whole (6 MB) */
   // Read H5 FIRST, so a referenced CAGE's siblings are pulled into the P_CAGE pass below and
@@ -191,7 +243,8 @@ async function main(): Promise<void> {
       referencedCages: wanted.size,
       resolvedCages: companies.size,
       unresolvedCages: missing.length,
-      feedDay: datasets.cornerMap.provenance.feedDay,
+      archiveDays: scan.days,
+      carriedForward: carried,
     },
     companies: [...companies.values()],
     associations: [...assoc.entries()]
