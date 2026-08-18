@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { readWorkbookSheets } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
+import { compareBySizeOfBuy, sizeOfBuy, totalKnownSize, type SizeOfBuy } from './size-of-buy'
 
 /**
  * HUBZONE SET-ASIDE SOLICITATIONS — real government buys reserved for HUBZone-certified small firms.
@@ -10,6 +11,12 @@ import { dataPath } from '@/lib/data-root'
  * if it is HUBZone certified, or it partners with one — so the surface frames them as intelligence and
  * a partner angle, never as "yours to bid" by default. Every field is read from the government export;
  * nothing is estimated except the labelled size figure (last unit price times quantity).
+ *
+ * THE SIZE FIGURE IS A `SizeOfBuy`, NOT A NUMBER. It used to be `price * qty : price ?? 0`, and that
+ * zero was an absence spelled as a measurement: it sorted an unsized buy below every priced one and
+ * added nothing to a total that claimed to be everything. All 23 rows on the current export carry both
+ * legs, so the shape changes and the rendered figures do not; the reasoning and the measurements are
+ * in size-of-buy.ts, which is the single owner of this arithmetic for both opportunity surfaces.
  */
 
 const FILE = 'suppliers/hubzone-matches.xlsx'
@@ -29,11 +36,20 @@ export type HubzoneMatch = {
   relatedPart: string | null
   /** T or U from the solicitation's ninth position: U disqualifies an alternate on the instant buy. */
   typeChar: 'T' | 'U' | null
-  estValue: number
+  /** The modeled size of this buy, or the stated reason there is not one. Never a zero. */
+  size: SizeOfBuy
 }
 
 export type HubzoneDataset =
-  | { ok: true; matches: HubzoneMatch[]; summary: { total: number; totalValue: number } }
+  | {
+      ok: true
+      matches: HubzoneMatch[]
+      /**
+       * `size` carries the total AND the count of rows that could not be sized, together, so a
+       * surface cannot print the money without being handed the disclosure that belongs beside it.
+       */
+      summary: { total: number; size: { usd: number; counted: number; unsized: number } }
+    }
   | { ok: false; reason: string }
 
 const clean = (v: string | undefined | null): string => (v ?? '').trim()
@@ -90,14 +106,19 @@ export function buildHubzoneMatches(): HubzoneDataset {
       relatedCage: clean(r['Related Cage']) || null,
       relatedPart: clean(r['Related Part']) || null,
       typeChar: typeCharOf(solicitation),
-      estValue: lastSoldPrice != null && quantity != null ? lastSoldPrice * quantity : lastSoldPrice ?? 0,
+      size: sizeOfBuy(lastSoldPrice, quantity),
     })
   }
-  // Soonest close first, then biggest.
-  matches.sort((a, b) => (a.closeDate ?? '9999').localeCompare(b.closeDate ?? '9999') || b.estValue - a.estValue)
+  // Soonest close first, because the deadline is what governs the work here. Size only breaks a
+  // tie, and it breaks it through the shared comparator, so an unsized row loses the tie rather
+  // than being ranked as though it were worth nothing.
+  matches.sort(
+    (a, b) => (a.closeDate ?? '9999').localeCompare(b.closeDate ?? '9999') || compareBySizeOfBuy(a, b),
+  )
 
-  cache = matches.length > 0
-    ? { ok: true, matches, summary: { total: matches.length, totalValue: matches.reduce((s, m) => s + m.estValue, 0) } }
-    : { ok: false, reason: 'The HUBZone export holds no solicitations.' }
+  cache =
+    matches.length > 0
+      ? { ok: true, matches, summary: { total: matches.length, size: totalKnownSize(matches) } }
+      : { ok: false, reason: 'The HUBZone export holds no solicitations.' }
   return cache
 }

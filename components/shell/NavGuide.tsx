@@ -57,16 +57,26 @@ export function NavGuide({ groups }: { groups: NavGroup[] }) {
         <p className={styles.flow}>
           <span className="mono">{FLOW}</span>
         </p>
+        {/* "a quote goes out and a purchase order comes back" described a send this product
+            does not perform. The outbound channel is disarmed by default (ONLYSOURCE_EMAIL_ARMED
+            absent) and its recipient allowlist holds one internal address, so no quote has ever
+            left here. Documents assembles the paperwork; a person still sends it. */}
         <p className={styles.lead}>
           The menu is the method, top to bottom: find the money, check the evidence, then
           work it to a close in the pipeline. Closing happens in Pipeline and Documents,
-          where a quote goes out and a purchase order comes back.
+          where you assemble the quote packet and the purchase order the deal needs.
         </p>
         {/* The help system teaches itself: this is the one place a brand-new operator is
             told what the eye mark means before meeting one (census 2026-08-17). */}
+        {/* NOT "which government file it was read from". Measured against lib/intelligence/help.ts,
+            2026-08-18: of 22 help entries, three name a source that is not a government file, and
+            naming a file would be the WRONG answer for each. `suppliers.prospect_score` reads a
+            researcher's workbook; `monopoly.availability_unknown` and `monopoly.ils` name an
+            ABSENT credential, which is the honest source of an abstention. The sentence below is
+            the promise every one of the 22 actually keeps. */}
         <p className={styles.lead}>
           Anywhere you see the small eye mark, press it: it says what that number means, what
-          to do with it, and exactly which government file it was read from.
+          to do with it, and exactly where it came from.
         </p>
 
         {groups.map((g) => (

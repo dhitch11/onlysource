@@ -75,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/monopoly',
         label: 'Monopoly Map',
         icon: 'map',
-        description: 'Parts only one company can make, where that company has gone quiet.',
+        description: 'Parts only one company is approved to make, where that company has gone quiet.',
       },
       {
         href: '/groups',
@@ -87,7 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/goldmine',
         label: 'No-Quote Goldmine',
         icon: 'goldmine',
-        description: 'Buys the government asked for and nobody answered. Zero competition.',
+        description: 'Buys the government asked for and nobody quoted. The lane was wide open last time.',
       },
       {
         href: '/hubzone',
@@ -106,13 +106,13 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/intelligence',
         label: 'Intelligence',
         icon: 'intelligence',
-        description: 'The whole market added up: where the money is and how prices moved.',
+        description: 'Everything we have captured, added up: where the money sits and how prices moved.',
       },
       {
         href: '/board',
         label: 'The Board',
         icon: 'board',
-        description: 'Every open government requirement today, ranked by measured signal.',
+        description: 'Every requirement in the DLA feed we captured, ranked by measured signal.',
       },
       {
         href: '/competitor',
@@ -132,13 +132,13 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Pipeline',
         icon: 'sales',
         tag: 'CRM',
-        description: 'Your deals, moved stage by stage to won. Hunter Mode, the autonomous outreach engine, lives here; it is not running until you switch it on.',
+        description: 'Your deals, moved stage by stage to won. Hunter Mode, the autonomous outreach engine, is built and gated here: it has never run and nothing sends.',
       },
       {
         href: '/suppliers',
         label: 'Suppliers',
         icon: 'suppliers',
-        description: 'Companies holding dead stock you could buy out, with real contacts.',
+        description: 'Manufacturers that stopped winning awards, ranked by how likely they hold stock worth buying, with real contacts.',
       },
       {
         href: '/documents',
@@ -163,7 +163,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/settings',
         label: 'Settings',
         icon: 'settings',
-        description: 'Your account, alerts and preferences.',
+        description: 'Which signals ping you, and on which channel.',
       },
     ],
   },

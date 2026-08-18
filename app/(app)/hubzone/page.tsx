@@ -104,9 +104,21 @@ export default async function HubzonePage() {
           <div className={styles.metricHelp}>
             <ExplainButton helpId="capability.modeled_size_of_buy" size="sm" />
           </div>
-          <span className={styles.metricN}>{hz.summary.totalValue > 0 ? usd0(hz.summary.totalValue) : '—'}</span>
+          <span className={styles.metricN}>
+            {hz.summary.size.counted > 0 ? usd0(hz.summary.size.usd) : '—'}
+          </span>
           <span className={styles.metricLabel}>total size of buys</span>
-          <span className={styles.metricHint}>last price times quantity, added up</span>
+          {/*
+           * The hint states WHAT THE TOTAL LEFT OUT, computed, never assumed. Every row on the
+           * current export carries both a price and a quantity, so today it reads as the
+           * everything-case; the day one does not, the operator is told the count rather than
+           * shown a total quietly missing rows.
+           */}
+          <span className={styles.metricHint}>
+            {hz.summary.size.unsized === 0
+              ? 'last price times quantity, every solicitation on the file'
+              : `last price times quantity. ${hz.summary.size.unsized.toLocaleString()} of ${hz.summary.total.toLocaleString()} have no computable size and are not in this total`}
+          </span>
         </div>
       </section>
 
@@ -161,7 +173,9 @@ export default async function HubzonePage() {
                     </td>
                     <td className={`mono ${styles.numCol}`}>{m.quantity?.toLocaleString() ?? '—'}</td>
                     <td className={`mono ${styles.numCol}`}>{usd(m.lastSoldPrice)}</td>
-                    <td className={`mono ${styles.numCol} ${styles.sizeCol}`}>{m.estValue > 0 ? usd0(m.estValue) : '—'}</td>
+                    <td className={`mono ${styles.numCol} ${styles.sizeCol}`}>
+                      {m.size.known ? usd0(m.size.usd) : '—'}
+                    </td>
                     <td className={styles.closeCell}>
                       {m.closeDate ? (
                         <span className={styles.closeRow}>
@@ -180,11 +194,7 @@ export default async function HubzonePage() {
                           nsn={m.nsn}
                           niin={m.niin || null}
                           item={m.description ?? ''}
-                          valueUsd={
-                            m.lastSoldPrice != null && m.quantity != null
-                              ? m.lastSoldPrice * m.quantity
-                              : null
-                          }
+                          valueUsd={m.size.known ? m.size.usd : null}
                           initiallyInPipeline={pursued.has(normalizeDealRef(m.nsn))}
                         />
                       ) : null}
@@ -197,7 +207,11 @@ export default async function HubzonePage() {
         </Scrollable>
         <p className={styles.tableFoot}>
           &ldquo;Size of buy&rdquo; is the last unit price times the quantity requested, a rough
-          figure, not a quote. The <span className="mono">T</span> and <span className="mono">U</span>{' '}
+          figure, not a quote.{' '}
+          {hz.summary.size.unsized > 0
+            ? `A dash in that column means the government file is missing one of the two legs, so the size cannot be computed: ${hz.summary.size.unsized.toLocaleString()} of these ${hz.summary.total.toLocaleString()} rows. Unknown is not the same as small, and none of them is ranked as though it were worth nothing. `
+            : ''}
+          The <span className="mono">T</span> and <span className="mono">U</span>{' '}
           chips are the solicitation&rsquo;s ninth character: both mark the automated award path,
           where the buy is decided by machine and an alternate offer cannot win it.
         </p>

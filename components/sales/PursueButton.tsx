@@ -29,7 +29,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { PURSUE_NEXT_ACTION, type DealOwner, type PipelineStage } from '@/lib/sales/pipeline'
+import { PURSUE_NEXT_ACTION, type PipelineStage } from '@/lib/sales/pipeline'
 import styles from './PursueButton.module.css'
 
 export interface PursueButtonProps {
@@ -74,7 +74,22 @@ export function PursueButton({
           niin,
           valueUsd,
           stage: 'opportunities' satisfies PipelineStage,
-          owner: 'DH' satisfies DealOwner,
+          /*
+           * NO `owner` FIELD. THAT ABSENCE IS THE FIX, NOT AN OVERSIGHT.
+           *
+           * This line used to read `owner: 'DH'`, a literal, so every deal any account
+           * created was filed under one man's initials. Reproduced in an audit on
+           * 2026-08-18: signed in as David Goodreau, pressed Pursue, and the card came back
+           * owned by DH. In a product with more than one login that is a false record of who
+           * did what, and it is the kind of record nobody re-reads until it matters.
+           *
+           * The repair is not to send the right initials from here. A browser cannot be
+           * trusted to assert an identity: whatever this file sends, a hand-rolled POST can
+           * send something else. The signed-in subject is already on the server in the gate
+           * token, so the server is the only place the stamp can honestly be made. The
+           * client's job is to say nothing about ownership and let the server decide, which
+           * is what this omission does.
+           */
           nextAction: PURSUE_NEXT_ACTION,
         }),
       })
