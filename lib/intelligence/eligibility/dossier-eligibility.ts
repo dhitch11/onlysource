@@ -73,6 +73,7 @@ import {
   type MaterialRequirementCode,
 } from '../../engine/eligibility'
 import {
+  identifierToken,
   loadAmscIndex,
   resolveBidEligibility,
   type AmscIndex,
@@ -124,7 +125,20 @@ export type { EligibilityCitation } from './citation'
  * on a row with one approved source. `AMSC-0` is the same trap wearing a zero, which is worse,
  * because a blessed 0 licenses "no approved sources". Written this way the digit abuts a letter,
  * which is exactly what `lib/ai/grounding.ts` reads as an identifier fragment on both sides: the
- * guard cannot spend it, and a memo quoting the token back is not falsely stripped.
+ * guard cannot spend it, and a memo quoting the token back verbatim is not falsely stripped.
+ *
+ * THE HALF OF THAT SENTENCE THAT WAS WRONG, STRUCK ON MEASUREMENT. It held only for VERBATIM
+ * quotation. The memo prompt asks for the gaps "verbatim in spirit" and the plan "tightened into
+ * prose", and a memo that writes `AMC 3` instead of `AMC-3` carries a bare digit the allowed set
+ * does not hold, so `groundBrief` deletes the whole sentence. MEASURED over 1,200 live board rows:
+ * on 835 of the 1,157 carrying an AMC (72%) the digit is absent from the allowed set. Withholding
+ * is the refusing direction and is right; withholding a CAUTION silently is not. So every sentence
+ * this module emits now keeps its operative clause free of any bare digit and puts the code
+ * identification in a sentence of its own, and `test/dossier-eligibility/false-refusal.test.ts`
+ * holds it there. The complete fix is symmetry in the tokenizer and it belongs to
+ * `lib/ai/grounding.ts`, which is another lane's file: `valueTokensIn` should read a digit run whose
+ * preceding word is a code or document label (AMC, AMSC, Table, Chapter, Part, section, Volume) as
+ * an identifier fragment, which neither blesses 3 in the allowed set nor strips it from the memo.
  *
  * `family` is here so a consumer filtering by table does not have to parse the token, and the
  * government's code is the text after the hyphen.
@@ -179,7 +193,13 @@ export type SurplusSupplyNote = {
 export type PublisherPublishes = 'yes' | 'no' | 'unknown'
 
 export type EligibilityPublisher = {
-  /** The primary inventory control activity, as the MOE Rule file carries it. */
+  /**
+   * The primary inventory control activity, in token form (`PICA-GX`, `PICA-17`).
+   *
+   * MEASURED: 13 of the 44 publishing activities on the real extract are numeric, so the bare code
+   * sat in a value position and licensed its own number in the memo. Token form, for the same
+   * reason and by the same mechanism as every other identifier here.
+   */
   readonly pica: string | null
   readonly publishesAmsc: PublisherPublishes
   /** The sentence a surface renders. Never a euphemism, never a blank. */
@@ -233,8 +253,16 @@ export type PursuitStance = 'no_recorded_bar' | 'proceed_with_stated_caution' | 
 
 export type DossierEligibility = {
   readonly kind: 'dossier_eligibility'
+  /**
+   * IDENTIFIERS, IN TOKEN FORM, AND THE PREFIX IS LOAD-BEARING. `NSN-5340001760600`, never the bare
+   * digits. This verdict rides on the pursuit package, which is the deal memo's grounding object,
+   * and `lib/ai/grounding.ts` harvests a bare digit string as its NUMERIC value. MEASURED: the NIIN
+   * `001760600` registered 1760600, and on that row, whose real modeled buy value is $57,634.32, the
+   * fabricated sentence "The modeled buy value is $1,760,600." passed the guard. See
+   * `identifierToken`. Empty string when the stock number is malformed and no lookup key exists.
+   */
   readonly nsn: string
-  /** The nine digit item number the lookup used, or '' when the stock number is malformed. */
+  /** The nine digit item number the lookup used, in token form, or '' when none could be read. */
   readonly niin: string
   readonly state: EligibilityState
   /**
@@ -311,9 +339,15 @@ function pinned(c: Citation): EligibilityCitation {
   return packageCitation(c)
 }
 
-/** Write a government code as the token this package carries. `AMC-3`, `AMSC-G`. */
+/**
+ * Write a government code as the token this package carries. `AMC-3`, `AMSC-G`.
+ *
+ * One mechanism, shared with every other identifier on this verdict (see `identifierToken` in
+ * `./bid-eligibility` for the measurement). Two mechanisms for one rule is how one of them ends up
+ * being the one nobody applied.
+ */
 function token(family: 'AMC' | 'AMSC', code: string | number): string {
-  return `${family}-${code}`
+  return identifierToken(family, code)
 }
 
 function verified<T>(value: T, citation: Citation): Verified<T> {
@@ -377,14 +411,21 @@ export function resolveDossierEligibility(
    * whole verdict to an abstention below rather than being dropped on the floor.
    */
   const amscCodeNotInTable = (() => {
-    if (base.state !== 'determined' || base.amscEntry !== null) return null
+    if (base.state !== 'abstained_suffix_code_not_in_table') return null
     const raw = (base.amsc ?? '').trim().toUpperCase()
-    // `resolveBidEligibility` abstains on an empty cell, so `raw` is non-empty here. The fallback
-    // is written anyway: this branch decides whether a row clears, and it must never depend on a
-    // caller having got an invariant right.
+    // `resolveBidEligibility` abstains on an empty cell before it reaches that state, so `raw` is
+    // non-empty here. The fallback is written anyway: this branch decides whether a row clears, and
+    // it must never depend on a caller having got an invariant right.
     return raw === '' ? 'AMSC-(no readable code on this row)' : token('AMSC', raw)
   })()
-  const determined = base.state === 'determined' && amscCodeNotInTable === null
+  /*
+   * READ OFF THE STATE, NOT INFERRED FROM A NULL. The engine now NAMES the unlisted-code state
+   * (`abstained_suffix_code_not_in_table`), so this is a lookup rather than a derivation. It used to
+   * be `state === 'determined' && amscEntry === null`, and every other surface had to re-derive the
+   * same thing for itself; `/monopoly` derived it wrongly and painted a MEASURED chip for a code
+   * nobody had read.
+   */
+  const determined = base.state === 'determined'
 
   /*
    * The AMC is read even while we abstain on the AMSC. They are two separate fields of the same
@@ -434,11 +475,11 @@ export function resolveDossierEligibility(
 
   return {
     kind: 'dossier_eligibility',
-    nsn: facts.stockNumber,
-    niin: base.niin,
+    nsn: identifierToken('NSN', facts.stockNumber),
+    niin: identifierToken('NIIN', base.niin),
     state: base.state,
     determined,
-    evidence: evidenceFor(base.state, amscCodeNotInTable),
+    evidence: evidenceFor(base.state),
     headline: headlineFor({
       state: base.state,
       reason: base.reason,
@@ -487,14 +528,27 @@ function readPublisher(pica: string | null, index: AmscIndex | AmscIndexUnavaila
       sentence: 'The managing activity for this item is not on record, so its publishing is not known.',
     }
   }
+  /*
+   * THE LOOKUP USES THE RAW CODE AND ONLY THE OUTPUT IS TOKENISED. Tokenising before the lookup
+   * would ask the publisher map a question about a string that is not in it, and this branch decides
+   * whether a row can clear.
+   *
+   * The activity is named in a SENTENCE OF ITS OWN. 13 of the 44 publishing activities on the real
+   * extract are numeric, so `(17)` inline put a spendable number in the memo's allowed set; and
+   * writing it `PICA-17` inline would have put the whole clause at risk of being withheld the moment
+   * a memo wrote it as `PICA 17`, taking "not the item being unrestricted" with it. One sentence
+   * carries the warning and no digits, the next carries the identifier and no claim.
+   */
   const publishes = index.publishers.has(pica)
   return {
-    pica,
+    pica: identifierToken('PICA', pica),
     publishesAmsc: publishes ? 'yes' : 'no',
     sentence: publishes
-      ? `The activity that manages this item (${pica}) publishes acquisition codes.`
-      : `The activity that manages this item (${pica}) does not publish acquisition codes at all, so a ` +
-        'blank here is that publisher being silent, not the item being unrestricted.',
+      ? 'The activity that manages this item publishes acquisition codes. The managing activity is ' +
+        `${identifierToken('PICA', pica)}.`
+      : 'The activity that manages this item does not publish acquisition codes at all, so a blank ' +
+        'here is that publisher being silent, not the item being unrestricted. The managing activity ' +
+        `is ${identifierToken('PICA', pica)}.`,
   }
 }
 
@@ -601,18 +655,17 @@ function undetermined(instrument: InstrumentType): SolicitationLane['surplusOffe
   }
 }
 
-function evidenceFor(state: EligibilityState, amscCodeNotInTable: string | null): EvidenceState {
-  /*
-   * UNREAD OUTRANKS MEASURED HERE. A character the transcribed table does not list is a code we
-   * have NOT read: the file was published, we hold it, and we cannot say what it means. Reporting
-   * that at MEASURED, which is what the state alone would have said, is the register of having
-   * measured something we did not.
-   */
-  if (amscCodeNotInTable !== null) return 'UNREAD'
+function evidenceFor(state: EligibilityState): EvidenceState {
   if (state === 'determined') return 'MEASURED'
   // The publisher answers nothing for this row: the field is not published, or the row carries none.
   if (state === 'abstained_pica_does_not_publish') return 'ABSENT'
-  // The government file exists and this row of it has not been read into the extract on disk.
+  /*
+   * UNREAD OUTRANKS MEASURED, AND IT IS NOW THE STATE THAT SAYS SO. A character the transcribed
+   * table does not list is a code we have NOT read: the file was published, we hold it, and we
+   * cannot say what it means. Reporting that at MEASURED, which is what the old `determined` state
+   * said, is the register of having measured something we did not. The remaining states are the same
+   * shape: the file exists and this row of it is not in the extract on disk.
+   */
   return 'UNREAD'
 }
 
@@ -629,13 +682,19 @@ function headlineFor(args: {
    * THE UNLISTED CODE IS NAMED IN THE HEADLINE, and the headline says not determined.
    * Printing "This item carries AMC-3." and stopping, which is what the code-shaped path did,
    * drops the one character the operator would have to settle before spending an hour.
+   *
+   * THE OPERATIVE CLAUSES CARRY NO CODE, AND THE CODES ARE A SENTENCE OF THEIR OWN. `groundBrief`
+   * withholds whole SENTENCES, and a memo that writes `AMC 3` rather than `AMC-3` loses the whole
+   * sentence carrying it. Written this way the loss can only ever be the identification, never
+   * "does not list", never "not a finding of no restriction".
    */
   if (amscCodeNotInTable !== null) {
     return (
-      `Bid eligibility is not determined for this item: ${publisher.sentence} This item carries ` +
-      `${amcToken === null ? 'no acquisition method code' : amcToken} and the suffix code ` +
-      `${amscCodeNotInTable}, which the transcribed suffix code table does not list, so no meaning ` +
-      'and no posture are asserted for it. The code is unread, which is not a finding of no restriction.'
+      `Bid eligibility is not determined for this item: ${publisher.sentence} The suffix code on ` +
+      'this row is one the transcribed suffix code table does not list, so no meaning and no posture ' +
+      'are asserted for it. The code is unread, which is not a finding of no restriction. This item ' +
+      `carries ${amcToken === null ? 'no acquisition method code' : amcToken} and the unlisted ` +
+      `suffix code ${amscCodeNotInTable}.`
     )
   }
   if (state === 'determined') {
@@ -675,34 +734,52 @@ function buildCautions(args: {
   const words = amscRead ? `The government's own words for this code are: "${amscRead.meaning}"` : ''
   const out: EligibilityCaution[] = []
 
-  if (state !== 'determined') {
+  if (state === 'abstained_suffix_code_not_in_table') {
+    /*
+     * DETERMINED BY THE PUBLISHER, UNREADABLE BY US, AND NAMED BY THE ENGINE. This branch used to
+     * be inferred here as `state === 'determined' && posture === null`; the engine now returns the
+     * state, so the caution cannot be missed by a chain that forgot to model it. Before there was
+     * any branch at all, an unlisted code emitted no caution, and no caution meant stance
+     * `no_recorded_bar` on a row nobody had read.
+     */
+    out.push({
+      code: 'acquisition_posture_not_determined',
+      sentence:
+        'The suffix code on this row is one the transcribed suffix code table does not list, so no ' +
+        'meaning and no posture are asserted for it. Treat the code as unread and settle it before ' +
+        'hours go in. It is not a finding that the item is unrestricted. The code on this row is ' +
+        `${amscCodeNotInTable ?? '(not recorded)'}.`,
+      evidence: 'UNREAD',
+      citation: pinned(AMSC_TABLE_CITATION),
+    })
+  } else if (state !== 'determined') {
     out.push({
       code: 'acquisition_posture_not_determined',
       sentence:
         'The acquisition codes for this stock number are not determined, so this package does not ' +
         'establish whether a new source needs engineering source approval. Settle that before hours ' +
         'go in, and do not read the absence as permission.',
-      evidence: evidenceFor(state, null),
+      evidence: evidenceFor(state),
       citation: null,
     })
   } else if (posture === null) {
     /*
-     * DETERMINED BY THE PUBLISHER, UNREADABLE BY US. On the determined path a posture is null if
-     * and only if the suffix code is one the transcribed table does not carry, so this branch is
-     * the unlisted code and the condition is written as `posture === null` rather than as the
-     * code check so that any future way of losing the posture lands here too, loudly. An else-if
-     * chain with no branch for this state emitted no caution at all, and no caution meant stance
-     * `no_recorded_bar` on a row nobody had read.
+     * A DETERMINED ROW WITH NO POSTURE IS AN ENGINE DEFECT, NOT A CLEAN ROW.
+     *
+     * It is unreachable today: on the determined path `resolveBidEligibility` has a table entry in
+     * hand and `amscPosture` is total, so it returns `unclassified_in_primary_source` rather than
+     * null. The branch stays because the cost of being wrong about that is a row clearing with no
+     * caution at all, which is exactly what happened the last time this chain had no branch for a
+     * state it did not expect. It abstains and says which field is missing.
      */
     out.push({
       code: 'acquisition_posture_not_determined',
       sentence:
-        `This row carries the acquisition method suffix code ${amscCodeNotInTable ?? '(not recorded)'}, ` +
-        'which the transcribed suffix code table does not list, so no meaning and no posture are ' +
-        'asserted for it. Treat the code as unread and settle it before hours go in. It is not a ' +
-        'finding that the item is unrestricted.',
+        'The acquisition codes read for this row, and no competitive posture came back for them. ' +
+        'That is a defect in this build rather than a fact about the item, so no posture is asserted ' +
+        'and nothing here is a finding that the item is unrestricted.',
       evidence: 'UNREAD',
-      citation: pinned(AMSC_TABLE_CITATION),
+      citation: null,
     })
   } else if (posture === 'restricted_attackable') {
     out.push({
@@ -738,12 +815,22 @@ function buildCautions(args: {
   }
 
   if (combination === 'invalid') {
+    /*
+     * THE WARNING COMES FIRST AND CARRIES NO CODE; THE PAIRING IS ITS OWN SENTENCE.
+     * MEASURED: written the other way round, `groundBrief` deleted the entire warning from the memo
+     * on any row whose AMC digit was not otherwise in the allowed set, because the model wrote
+     * "AMC 3 with AMSC C is not a pairing the transcribed table permits." and the bare 3 is not a
+     * number this build measured. The panel then explained the deletion as "sentences withheld: they
+     * carried numbers this build did not measure", which is a false statement about a code that is
+     * measured verbatim from the transcribed table, and the operator loses the caution silently.
+     */
     out.push({
       code: 'acquisition_code_combination_invalid',
       sentence:
-        `${amcToken ?? 'The acquisition method code'} with ${amsc ?? 'the suffix code on this row'} is ` +
-        'not a pairing the transcribed table permits, so this catalogue row is suspect and should be ' +
-        're-pulled. It is flagged as a data defect, never as a bid decision.',
+        'The acquisition method code and the suffix code on this row are not a pairing the ' +
+        'transcribed table permits, so this catalogue row is suspect and should be re-pulled. It is ' +
+        'flagged as a data defect, never as a bid decision. The pairing recorded on this row is ' +
+        `${amcToken ?? 'no acquisition method code'} with ${amsc ?? 'no suffix code'}.`,
       evidence: 'MEASURED',
       citation: pinned(AMSC_TABLE_CITATION),
     })

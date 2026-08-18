@@ -9,8 +9,10 @@ import { PriceSparkline } from "@/components/ui/PriceSparkline";
 import { PursueButton } from "@/components/sales/PursueButton";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
 import type { EnrichedCornerRow } from "@/lib/intelligence/monopoly-view";
+import type { EligibilityState } from "@/lib/intelligence/eligibility/bid-eligibility";
 import { dispositionLabel } from "@/lib/intelligence/scoring/evidence-state";
 import { isRisingPrice } from "@/lib/intelligence/rising-price";
+import { rowProvenanceEntries } from "./row-provenance";
 import styles from "./monopoly.module.css";
 
 /**
@@ -25,7 +27,15 @@ import styles from "./monopoly.module.css";
  * field would make that distinction impossible at the render layer, which is where it matters.
  */
 export type RowEligibility = {
-  state: "determined" | "abstained_pica_does_not_publish" | "abstained_not_in_catalogue" | "index_absent";
+  /*
+   * THE UNION IS IMPORTED, NEVER RESTATED. It was written out here as four literals and went
+   * stale the moment lib/intelligence/eligibility/bid-eligibility.ts added a fifth
+   * (`abstained_suffix_code_not_in_table`): a hardcoded list is a defect with a delay on it,
+   * and this one broke the build rather than lying, which was the lucky direction. Every cell
+   * below already abstains on anything that is not `determined`, so a new abstention state
+   * renders as an abstention with its own reason and needs no edit here.
+   */
+  state: EligibilityState;
   amsc: string | null;
   posture: string | null;
   explanation: string | null;
@@ -55,6 +65,34 @@ export type CornerRowWithAward = EnrichedCornerRow & {
 };
 
 // Amber is the award clock's alone. Watchlist is a neutral in-progress state, not an alarm.
+/**
+ * THE ACQUISITION-CODE CELL, EXPORTED SO IT CAN BE PRESSED RATHER THAN READ.
+ *
+ * MEASURED, and it is why this is a named function instead of an inline arrow: on a row whose
+ * suffix code the transcribed Table 71 does not list, this cell painted
+ * `<StatusChip tone="verified">AMSC E</StatusChip>` with provenance "measured" for a code nobody
+ * has read. `resolveBidEligibility` returned state "determined" with a non-empty `amsc` and a null
+ * table entry, and the only test here was `state !== "determined"`. The engine now returns
+ * `abstained_suffix_code_not_in_table` for exactly that row, so the abstention below is reached and
+ * renders the reason sentence the engine wrote. Both halves are asserted in
+ * test/dossier-eligibility/monopoly-acquisition-cell.test.ts against the fixture that produced the
+ * defect, which is the only way to know this cell abstains rather than to believe it.
+ *
+ * A blank AMSC is never rendered as "unrestricted". Fill is bimodal by managing activity: the
+ * activities that publish it publish on ~100% of their rows and the rest publish none, so an
+ * absence is a different PUBLISHER, not a permissive answer.
+ */
+export function acquisitionCodeCell(r: CornerRowWithAward): Cell {
+  const e = r.eligibility;
+  if (!e) return { state: "unknown", reason: "the acquisition-code index is not loaded" };
+  if (e.state !== "determined" || !e.amsc) return { state: "unknown", reason: e.reason };
+  return {
+    state: "known",
+    provenance: "measured",
+    value: <StatusChip tone="verified">{`AMSC ${e.amsc}`}</StatusChip>,
+  };
+}
+
 const DISPOSITION_TONE: Record<string, "verified" | "active" | "idle"> = {
   FLAG: "verified",
   WATCHLIST: "active",
@@ -239,16 +277,7 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     helpId: "monopoly.legs",
     width: "13ch",
     sortValue: (r) => (r.eligibility?.amsc ? r.eligibility.amsc.charCodeAt(0) : 999),
-    cell: (r): Cell => {
-      const e = r.eligibility;
-      if (!e) return { state: "unknown", reason: "the acquisition-code index is not loaded" };
-      if (e.state !== "determined" || !e.amsc) return { state: "unknown", reason: e.reason };
-      return {
-        state: "known",
-        provenance: "measured",
-        value: <StatusChip tone="verified">{`AMSC ${e.amsc}`}</StatusChip>,
-      };
-    },
+    cell: acquisitionCodeCell,
   },
   {
     id: "posture",
@@ -418,10 +447,32 @@ function pursueColumn(pursued: Set<string>): GridColumn<CornerRowWithAward> {
 export function MonopolyGrid({
   rows,
   pursuedRefs,
+  totals,
+  basis,
 }: {
+  /**
+   * THE ROWS THAT CROSSED THE WIRE, WHICH IS A BOUNDED SLICE OF THE MAP.
+   *
+   * `page.tsx` ships the top GRID_ROW_BUDGET rows by CornerScore, candidates first, because
+   * handing this component the whole served board measured a 25.98MB RSC flight payload per
+   * visit. Everything in here that needs to speak about the MAP reads `totals`, never
+   * `rows.length`: a count taken off this array is a count of the page, and printing it under
+   * a map-shaped label is how a bound becomes a lie.
+   */
   rows: CornerRowWithAward[];
   /** Normalized refs already in the deal store, read server-side. */
   pursuedRefs: string[];
+  /** The TRUE size of each tab, counted server-side over every served row. */
+  totals: { candidate: number; sole: number; all: number };
+  /**
+   * Which world this board is in, straight off `CornerMap.coverage.basis`.
+   *
+   * Read ONLY by the row provenance block, and required rather than inferred: a row with no
+   * feed day of its own means "the board is one capture and the header already cites it" on
+   * the single-day path and "this row could not be resolved to any archived day" on the window
+   * path, and those are opposite claims that the row itself cannot tell apart.
+   */
+  basis: "window" | "single_day";
 }) {
   const [filter, setFilter] = useState<Filter>("candidate");
   /**
@@ -487,11 +538,35 @@ export function MonopolyGrid({
     setChain("all");
   };
 
-  const tabs: Array<{ id: Filter; label: string; n: number }> = [
-    { id: "candidate", label: "Candidate corners", n: rows.filter(isCandidate).length },
-    { id: "sole", label: "Sole source", n: rows.filter((r) => r.soleSource).length },
-    { id: "all", label: "All with demand + source", n: rows.length },
+  // The tab counts are the MAP's counts, passed in from the server, not counts of the slice
+  // that happens to be loaded. `loaded` beside them is how many of each are actually here, and
+  // the sentence under the toolbar states the difference in words rather than leaving it to be
+  // inferred from two numbers that do not match.
+  const tabs: Array<{ id: Filter; label: string; noun: string; n: number; loaded: number }> = [
+    {
+      id: "candidate",
+      label: "Candidate corners",
+      noun: "candidate corners",
+      n: totals.candidate,
+      loaded: rows.filter(isCandidate).length,
+    },
+    {
+      id: "sole",
+      label: "Sole source",
+      noun: "sole-source positions",
+      n: totals.sole,
+      loaded: rows.filter((r) => r.soleSource).length,
+    },
+    {
+      id: "all",
+      label: "All with demand + source",
+      noun: "positions",
+      n: totals.all,
+      loaded: rows.length,
+    },
   ];
+  const activeTab = tabs.find((t) => t.id === filter) ?? tabs[2]!;
+  const bounded = activeTab.loaded < activeTab.n;
 
   const chips: Array<{ id: ToggleKey; label: string }> = [
     { id: "onForecast", label: "On forecast" },
@@ -563,6 +638,34 @@ export function MonopolyGrid({
         </div>
       </div>
 
+      {/* ------------------------------------------------------------------ the bound, stated
+       * WHAT IS ON THIS PAGE VERSUS WHAT THE MAP HOLDS, in a sentence, always visible.
+       *
+       * The board is bounded server-side because handing the browser all 5,366 served rows
+       * measured a 25.98MB flight payload per visit. A bounded board is honest and a silently
+       * bounded board is not, so the counts above are the map's and this line says how much of
+       * the map is actually loaded underneath them. Same register as /goldmine's "Showing the
+       * top 60 of 418 by size of buy".
+       */}
+      <p className={styles.bound}>
+        {bounded ? (
+          <>
+            Showing <b>{activeTab.loaded.toLocaleString()}</b> of{" "}
+            <b>{activeTab.n.toLocaleString()}</b> {activeTab.noun}. This page loads every
+            candidate corner first, then the highest-scoring of the rest, so the other{" "}
+            {(activeTab.n - activeTab.loaded).toLocaleString()} are counted in the funnel above
+            but are not here, and the filters and sorting below run over what is.
+          </>
+        ) : (
+          <>
+            Showing all <b>{activeTab.n.toLocaleString()}</b> {activeTab.noun} the map holds.
+            {rows.length < totals.all
+              ? ` The wider tabs are bounded: ${rows.length.toLocaleString()} of the map's ${totals.all.toLocaleString()} positions are loaded on this page, candidate corners first.`
+              : ""}
+          </>
+        )}
+      </p>
+
       {pending ? (
         <AiLoader
           title="Re-scoring the map"
@@ -585,7 +688,7 @@ export function MonopolyGrid({
         empty={{
           cause: "filtered",
           message:
-            "No position on this feed day matches this filter. The feed loaded correctly; this combination simply did not occur.",
+            "No position loaded on this page matches this filter. The feed loaded correctly; this combination simply did not occur among the rows shown above.",
           onClearFilters: clearAll,
         }}
         expansion={(r) => [
@@ -603,6 +706,13 @@ export function MonopolyGrid({
           { field: "Solicitation", value: r.solicitation },
           { field: "Quantity", value: r.quantity == null ? "(did not parse)" : `${r.quantity} ${r.unitOfIssue}`.trim() },
           { field: "Return date", value: r.returnDate || "(not published)" },
+          /*
+           * THE ROW'S OWN CITATION, which the truth strip above the grid tells the operator to
+           * open a row to read. It said that for a day while this array rendered none of it.
+           * Built by a pure function so a test can execute it on a synthetic row whose archive
+           * key differs from the map-level key; see ./row-provenance.ts.
+           */
+          ...rowProvenanceEntries(r.demand, basis),
           {
             field: "Approved sources",
             value: r.approvedSources.length

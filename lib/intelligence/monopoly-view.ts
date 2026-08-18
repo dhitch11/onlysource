@@ -1,8 +1,8 @@
-import { buildAllDatasets, type ServedFeedMeta } from '@/lib/intelligence/datasets'
+import { buildAllDatasets, cachePerIdentityDay, type ServedFeedMeta, type ServedWindowMeta } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
-import type { CornerRow, CornerMap } from '@/lib/intelligence/corner'
+import type { CornerRow, CornerMap, CornerFunnel } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
 
@@ -133,6 +133,23 @@ export type MonopolyView = {
    */
   feed: ServedFeedMeta
   summary: CornerMap['summary']
+  /**
+   * THE BASIS FOR EVERY COUNT ABOVE, so the page can print it rather than let a number stand
+   * alone. Carries the day span, the day list, the thin-day comparison and what the demand
+   * filter excluded. `coverage.basis` says whether this view is a window or a single day.
+   */
+  coverage: CornerMap['coverage']
+  /**
+   * The archived days the map was built over, each with its storage keys and recorded hash,
+   * so a row's `demand.feedDay` resolves to a citable government file. Null on a single day.
+   */
+  window: ServedWindowMeta | null
+  /**
+   * The same three funnel counts over the NEWEST DAY ALONE. Rendered BESIDE the window counts,
+   * never instead of them: a candidate count that grew sixty-fold with no stated basis reads
+   * as invention, and the cure is printing both numbers with their days.
+   */
+  newestDayFunnel: CornerFunnel | null
   provenance: CornerMap['provenance']
   rows: EnrichedCornerRow[]
   /** True when the award index (and so prices + listed stock) is joined. */
@@ -155,8 +172,17 @@ export function buildMonopolyView(): MonopolyView {
   // Resolve FIRST, then key: the served day is the only honest cache key, and it cannot be
   // known without asking. buildAllDatasets is memoised on that same identity, so this is a
   // map read on the warm path rather than a second build.
-  const { cornerMap, feed } = buildAllDatasets()
-  const key = `${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}`
+  const { cornerMap, feed, window, newestDayFunnel } = buildAllDatasets()
+  // THE KEY CARRIES THE WINDOW, not only the newest day. A backfill that lands an OLDER
+  // capture changes every count on this view without moving `feed.feedDay`, and a key blind to
+  // that would serve the pre-backfill view for the life of the process.
+  //
+  // AND IT CARRIES THE DAY DEMAND WAS JUDGED AGAINST, which is the day the map was computed on
+  // rather than a feed day. Solicitations close on the government's calendar whether or not a
+  // capture lands, so the same archive answers differently tomorrow, and a key that could not
+  // see that would pin this process to the first morning it served a request.
+  const judgedOn = cornerMap.coverage.excludedFromDemand?.asOf ?? 'single_day'
+  const key = `${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}|${cornerMap.coverage.basis}|${cornerMap.coverage.firstDay}|${cornerMap.coverage.dayCount}|${judgedOn}`
   const hit = viewCache.get(key)
   if (hit) return hit
 
@@ -205,6 +231,9 @@ export function buildMonopolyView(): MonopolyView {
     feedDay: cornerMap.provenance.feedDay,
     feed,
     summary: cornerMap.summary,
+    coverage: cornerMap.coverage,
+    window,
+    newestDayFunnel,
     provenance: cornerMap.provenance,
     rows,
     awardsJoined: awardByNsn != null,
@@ -215,8 +244,9 @@ export function buildMonopolyView(): MonopolyView {
     availCount,
   }
 
-  viewCache.set(key, view)
-  return view
+  // One view per archive state, not one per day the process has been up: the key ends in the
+  // day demand was judged against, and this drops the previous day's build with it.
+  return cachePerIdentityDay(viewCache, key, view)
 }
 
 /** Tests only: drop the memo so a suite can assert cold and warm agree. */

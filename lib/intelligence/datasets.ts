@@ -23,10 +23,22 @@ import type { Cage, Niin } from './niin'
 import { parseNsn } from './niin'
 import type { ApprovedSourceIndex, DailyIndex } from './seed/feed'
 import { readSeedWorkbook, readDate, type SeedProvenance } from './seed/xlsx'
-import { buildCornerMap, type CornerMap } from './corner'
+import { buildCornerMap, cornerFunnel, type CornerFunnel, type CornerMap } from './corner'
 import { buildNsnAwardIndex } from './awards/nsn-now'
 import { seedPath } from '@/lib/data-root'
 import { resolveServedFeedDay, type ServedFeedDay, type SkippedFeedDay } from './feed-day'
+import {
+  openDemand,
+  resolveServedWindow,
+  unionFeedDays,
+  type DemandReference,
+  type ServedWindow,
+  type WindowCoverage,
+  type WindowDay,
+  type WindowSummary,
+} from './feed-window'
+import { measureFeedFreshness } from '@/lib/ingest/feed-days'
+import { systemClock, type Clock } from '@/lib/time/clock'
 
 /* ------------------------------------------------------------------------------------ */
 /* WHERE THE REAL FILES LIVE                                                              */
@@ -387,14 +399,64 @@ export type ServedFeedMeta = {
   indexStorageKey: string
 }
 
+/**
+ * THE ARCHIVED WINDOW THE CORNER MAP WAS BUILT OVER, WITH ITS PROVENANCE INTACT.
+ *
+ * `days` is the whole point: a union that cannot say which government file each of its rows
+ * came from is worse than the single day it replaced, because it looks bigger and cites less.
+ * Every row on the map carries its own `demand.feedDay`, and this array resolves that day to
+ * the archived index capture, the archived quoting zip, the member inside it and the hash the
+ * manifest recorded for it.
+ */
+export type ServedWindowMeta = {
+  newestDay: string
+  oldestDay: string
+  /** Oldest first. Every one was byte-re-verified and parse-verified individually. */
+  daysIncluded: string[]
+  dayCount: number
+  /** Days the archive holds at all, including any that could not be served. */
+  daysHeld: number
+  /** Days held but not servable, by name and reason. Never hidden, never silently dropped. */
+  skipped: SkippedFeedDay[]
+  /** The span, and whether the newest day is thin against the window's own mean. */
+  coverage: WindowCoverage
+  /** The union's own census: distinct stock numbers, observations, open, closed, recurring. */
+  summary: WindowSummary
+  /** Requirements the window holds that are NOT counted as demand, with the reason. */
+  excludedFromDemand: {
+    closed: number
+    undated: number
+    asOf: string
+    /** What `asOf` IS, in words. Carried so no surface can print the day without its basis. */
+    asOfBasis: string
+    statement: string
+  }
+  /** One entry per included day, naming its archived files and recorded hash. */
+  days: WindowDay[]
+}
+
 export type IntelligenceDatasets = {
   cornerMap: CornerMap
   noQuote: NoQuoteDataset
   distressed: DistressedDataset
+  /** The NEWEST SERVED DAY's approved-source file, unchanged. The window's union is on `window`. */
   approved: ApprovedSourceIndex
+  /** The NEWEST SERVED DAY's index, unchanged, so a caller asking for "today" still gets today. */
   index: DailyIndex
   /** Which day is being served and why, one resolution shared by every surface. */
   feed: ServedFeedMeta
+  /**
+   * The window the corner map was actually built over, or null when only one day was used
+   * (a pinned build, or an archive whose window could not be resolved). Null never means
+   * "no window exists"; `cornerMap.coverage.basis` says which world the map is in.
+   */
+  window: ServedWindowMeta | null
+  /**
+   * The identical funnel over the newest feed day alone: the three numbers this product
+   * showed before the window was wired. Carried so a surface prints both, labelled, rather
+   * than replacing a small number with a large one and explaining nothing.
+   */
+  newestDayFunnel: CornerFunnel | null
 }
 
 /**
@@ -406,17 +468,132 @@ export type IntelligenceDatasets = {
  */
 const datasetCache = new Map<string, IntelligenceDatasets>()
 
+/**
+ * STORE ONE ENTRY PER IDENTITY WHEN THE LAST KEY SEGMENT IS A DAY.
+ *
+ * The window path's memo key now ends in the day demand was judged against, which is correct
+ * (the same archive answers differently tomorrow) and, left alone, is an unbounded map that
+ * grows by one full corner map every morning a process stays up. Measured on this archive a
+ * single entry serialises to 11.8MB, so a month of uptime would retain hundreds of megabytes
+ * of boards nobody can ever ask for again.
+ *
+ * Only entries that differ from the incoming key in that LAST segment are dropped, so a
+ * different archive state, a different seed set or a pinned single day keeps its own entry.
+ * Exported because the monopoly view and the portfolio memoise on the same day dimension and a
+ * second hand-written copy of this rule would drift from this one.
+ */
+export function cachePerIdentityDay<V>(cache: Map<string, V>, key: string, value: V): V {
+  const cut = key.lastIndexOf('|')
+  if (cut > 0) {
+    const prefix = key.slice(0, cut + 1)
+    for (const existing of [...cache.keys()]) {
+      if (existing !== key && existing.startsWith(prefix)) cache.delete(existing)
+    }
+  }
+  cache.set(key, value)
+  return value
+}
+
+/**
+ * Build everything the screens read.
+ *
+ * TWO WORLDS, AND THE CALLER CHOOSES BY ARGUMENT, DELIBERATELY.
+ *
+ * With NO argument this is the serving path, and the serving path is the WINDOW: demand is
+ * the union of every archived day that parse-verifies, narrowed to the requirements whose own
+ * published return date has not passed. That is the fix this function exists to carry. The
+ * archive held twenty days and the product served one of them, which on a Friday meant 18
+ * candidate corners out of 562 already on disk.
+ *
+ * With a `feedOverride` this stays exactly what it always was: one named day, computed from
+ * that day's own two files, with `window` null and `cornerMap.coverage.basis` reading
+ * `single_day`. That is not a legacy branch left lying around. It is how a suite pins measured
+ * values to an immutable archived day, and how any future day-picker will ask for one day. A
+ * window silently substituted under a caller that asked for 2026-08-11 would answer a question
+ * nobody asked.
+ *
+ * THE MEMO KEY CARRIES THE WINDOW'S IDENTITY, not just the newest day's. A backfill that lands
+ * an OLDER capture changes the union without changing the newest day, and a key built only
+ * from the newest day would serve the pre-backfill map forever.
+ *
+ * AND IT CARRIES THE REFERENCE DAY, because the window path now judges retirement against the
+ * day it is computed on rather than against the newest day the archive holds. Without the
+ * reference day in the key the answer would freeze at the first request of the process, which
+ * is the same defect in a different costume: a board that is correct the morning it is built
+ * and quietly wrong every morning after.
+ *
+ * `clock` is a parameter so a suite can pin the reference day. It defaults to the system clock
+ * and is read exactly once per build, here, so nothing deeper in the chain reads wall time.
+ */
 export function buildAllDatasets(
   feedOverride?: ServedFeedDay,
   seeds: SeedPaths = SEED_PATHS,
+  clock: Clock = systemClock,
 ): IntelligenceDatasets {
-  const feed = feedOverride ?? resolveServedOrThrow()
-  const cacheKey = `${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}|${seeds.awardSilence}|${seeds.noQuotes}`
+  const seedKey = `${seeds.awardSilence}|${seeds.noQuotes}`
+
+  if (feedOverride) {
+    const cacheKey = `day|${feedOverride.feedDay}|${feedOverride.indexStorageKey}|${feedOverride.archive.storageKey}|${seedKey}`
+    const hit = datasetCache.get(cacheKey)
+    if (hit) return hit
+    const built = buildSingleDayDatasets(feedOverride, seeds)
+    datasetCache.set(cacheKey, built)
+    return built
+  }
+
+  const resolution = resolveServedWindow()
+  if (!resolution.ok) {
+    // A window that cannot resolve is not an empty state to render, it is an archive that
+    // could not be read at all, and the single-day resolver produces the same failure with a
+    // per-day breakdown. Falling through to it keeps ONE description of that failure.
+    const feed = resolveServedOrThrow()
+    const cacheKey = `day|${feed.feedDay}|${feed.indexStorageKey}|${feed.archive.storageKey}|${seedKey}`
+    const hit = datasetCache.get(cacheKey)
+    if (hit) return hit
+    const built = buildSingleDayDatasets(feed, seeds)
+    datasetCache.set(cacheKey, built)
+    return built
+  }
+
+  const window = resolution.window
+  const reference = demandReference(window.newestDay, clock)
+  // The reference day is the LAST segment deliberately: `cachePerIdentityDay` reads it there to
+  // keep exactly one build per archive state rather than one per day the process has been up.
+  const cacheKey = `window|${window.newestDay}|${window.oldestDay}|${window.coverage.dayCount}|${window.newest.indexStorageKey}|${window.newest.archive.storageKey}|${seedKey}|${reference.day}`
   const hit = datasetCache.get(cacheKey)
   if (hit) return hit
-  const built = buildAllDatasetsUncached(feed, seeds)
-  datasetCache.set(cacheKey, built)
-  return built
+  return cachePerIdentityDay(datasetCache, cacheKey, buildWindowedDatasets(window, seeds, reference))
+}
+
+/**
+ * THE DAY THE BOARD IS JUDGED AGAINST: TODAY, ON THE PUBLISHER'S OWN CALENDAR.
+ *
+ * Not the newest archived day. DLA publishes a close date per requirement and that date passes
+ * whether or not our capture ran, so a board judged against the newest capture serves expired
+ * solicitations for exactly as long as the capture has been missed, and the error is invisible
+ * because every surface says "open". MEASURED on this machine 2026-08-18 against an archive
+ * whose newest day was 2026-08-14: 5,122 of 10,488 served rows, 48.8%, had already closed. The
+ * same measurement on the pre-window single-day board was 3 of 186, because every row on it had
+ * been issued that morning. So this is a regression the window introduced, not an inherited
+ * condition, and it is fixed by asking the clock.
+ *
+ * EASTERN, VIA `measureFeedFreshness`, ON PURPOSE. DLA operates on the US federal business
+ * calendar, and `measuredOn` is already this estate's one definition of "the Eastern civil date
+ * now". Reusing it means the freshness pill in the chrome and the demand filter under the board
+ * can never name two different todays, and the business-day count it returns gives the sentence
+ * below its honest gap between the day we judged on and the day we last captured.
+ */
+function demandReference(newestArchivedDay: string, clock: Clock): DemandReference {
+  const freshness = measureFeedFreshness(newestArchivedDay, clock.now())
+  const day = freshness.measuredOn
+  const behind = `${freshness.businessDaysBehind} US federal business day${freshness.businessDaysBehind === 1 ? '' : 's'}`
+  const basis =
+    day === newestArchivedDay
+      ? 'the day this was computed, which is also the newest archived feed day'
+      : day > newestArchivedDay
+        ? `the day this was computed, ${behind} after the newest archived feed day ${newestArchivedDay}`
+        : `the day this was computed, which is earlier than the newest archived feed day ${newestArchivedDay}`
+  return { day, basis }
 }
 
 /**
@@ -434,8 +611,12 @@ function resolveServedOrThrow(): ServedFeedDay {
   )
 }
 
-function buildAllDatasetsUncached(feed: ServedFeedDay, seeds: SeedPaths): IntelligenceDatasets {
-  const { approved, index } = feed
+/**
+ * The two inputs the corner map needs that come from neither the feed nor the window: who has
+ * gone award-silent, and who self-reports stock. Read once and shared by both build paths so
+ * the single-day comparison and the window map cannot be computed against different books.
+ */
+function sharedCornerInputs(seeds: SeedPaths) {
   const distressed = buildDistressed(seeds)
   const awardSilentCages = new Set<Cage>(distressed.firms.map((f) => f.cage))
 
@@ -460,38 +641,69 @@ function buildAllDatasetsUncached(feed: ServedFeedDay, seeds: SeedPaths): Intell
     }
   }
 
+  return { distressed, awardSilentCages, availabilityByNsn }
+}
+
+/**
+ * The provenance block, always naming the NEWEST SERVED DAY.
+ *
+ * That stays true on the window path and it is not a compromise: this block feeds the
+ * freshness pill and the header, which are about how current the product is, and the answer to
+ * that is the newest capture. WHICH archived file each individual ROW came from is a different
+ * question with a different answer, and it is carried per row on `CornerRow.demand`.
+ */
+function cornerProvenance(feed: ServedFeedDay, seeds: SeedPaths) {
+  return {
+    feedDay: feed.feedDay,
+    // The archived original, exactly as the manifest records it. Never a derived file.
+    sourceArchiveKey: feed.archive.storageKey,
+    // Non-null on every capture in this archive (measured: 20 of 20 `bq` rows carry
+    // content_sha256). The fallback is a stated absence, never a fabricated hash, and it
+    // is deliberately a word rather than hex so a truncated render cannot read as one.
+    sourceArchiveSha256: feed.archive.sha256 ?? 'unrecorded',
+    // THE MEMBER INSIDE THE ARCHIVED ZIP, not the derived extraction beside it. The chain
+    // from a rendered number to a government-published byte now has no derived file in it.
+    approvedSourceFile: `${feed.archive.storageKey}!${feed.archive.member}`,
+    indexFile: feed.indexStorageKey,
+    silenceListFile: seeds.awardSilence,
+    /*
+     * NOT A CLOCK READ, DELIBERATELY. `new Date().toISOString()` stood here until
+     * 2026-08-17. Nothing in the tree renders this field today (the only references are
+     * this assignment and the type in corner.ts), but a wall-clock string riding on a
+     * server-rendered object is one `toLocale*` away from the React #418 class this repo
+     * has already been burned by three times. It was also wrong on its own terms:
+     * buildAllDatasets is memoised per served feed day, so the value named the first
+     * request of the process rather than "now", and it changed on every restart while the
+     * data did not. The map is a pure function of the captured bytes plus the pinned seed
+     * workbooks, so the only instant that carries information is the capture instant, and
+     * it is labelled as what it is rather than posing as a build clock.
+     */
+    computedAt: `archive capture ${feed.archive.retrievedAt}`,
+  }
+}
+
+function feedMeta(feed: ServedFeedDay): ServedFeedMeta {
+  return {
+    feedDay: feed.feedDay,
+    daysHeld: feed.daysHeld,
+    skipped: feed.skipped,
+    archive: feed.archive,
+    indexPath: feed.indexPath,
+    indexStorageKey: feed.indexStorageKey,
+  }
+}
+
+/** One named day, computed from that day\'s own two files. The pinned-suite path. */
+function buildSingleDayDatasets(feed: ServedFeedDay, seeds: SeedPaths): IntelligenceDatasets {
+  const { approved, index } = feed
+  const { distressed, awardSilentCages, availabilityByNsn } = sharedCornerInputs(seeds)
+
   const cornerMap = buildCornerMap({
     approved,
     index,
     awardSilentCages,
     availabilityByNsn,
-    provenance: {
-      feedDay: feed.feedDay,
-      // The archived original, exactly as the manifest records it. Never a derived file.
-      sourceArchiveKey: feed.archive.storageKey,
-      // Non-null on every capture in this archive (measured: 20 of 20 `bq` rows carry
-      // content_sha256). The fallback is a stated absence, never a fabricated hash, and it
-      // is deliberately a word rather than hex so a truncated render cannot read as one.
-      sourceArchiveSha256: feed.archive.sha256 ?? 'unrecorded',
-      // THE MEMBER INSIDE THE ARCHIVED ZIP, not the derived extraction beside it. The chain
-      // from a rendered number to a government-published byte now has no derived file in it.
-      approvedSourceFile: `${feed.archive.storageKey}!${feed.archive.member}`,
-      indexFile: feed.indexStorageKey,
-      silenceListFile: seeds.awardSilence,
-      /*
-       * NOT A CLOCK READ, DELIBERATELY. `new Date().toISOString()` stood here until
-       * 2026-08-17. Nothing in the tree renders this field today (the only references are
-       * this assignment and the type in corner.ts), but a wall-clock string riding on a
-       * server-rendered object is one `toLocale*` away from the React #418 class this repo
-       * has already been burned by three times. It was also wrong on its own terms:
-       * buildAllDatasets is memoised per served feed day, so the value named the first
-       * request of the process rather than "now", and it changed on every restart while the
-       * data did not. The map is a pure function of the captured bytes plus the pinned seed
-       * workbooks, so the only instant that carries information is the capture instant, and
-       * it is labelled as what it is rather than posing as a build clock.
-       */
-      computedAt: `archive capture ${feed.archive.retrievedAt}`,
-    },
+    provenance: cornerProvenance(feed, seeds),
   })
 
   return {
@@ -500,14 +712,123 @@ function buildAllDatasetsUncached(feed: ServedFeedDay, seeds: SeedPaths): Intell
     distressed,
     approved,
     index,
-    feed: {
-      feedDay: feed.feedDay,
-      daysHeld: feed.daysHeld,
-      skipped: feed.skipped,
-      archive: feed.archive,
-      indexPath: feed.indexPath,
-      indexStorageKey: feed.indexStorageKey,
+    feed: feedMeta(feed),
+    window: null,
+    newestDayFunnel: null,
+  }
+}
+
+/**
+ * THE SERVING PATH. Demand is the union of every archived day, narrowed to what is still open.
+ *
+ * The order of the two operations is the whole correctness argument and it is worth writing
+ * down. UNION FIRST, because the daily index publishes the requirements ISSUED that day and
+ * consecutive days are therefore very nearly disjoint: 81.6% of the stock numbers in this
+ * archive appear on exactly one of the twenty days. NARROW SECOND, because roughly half of
+ * what that union recovers has already reached its own published return date, and a closed
+ * solicitation is history, not an opportunity.
+ *
+ * THE NEWEST-DAY FUNNEL BESIDE IT IS JUDGED AGAINST THE SAME REFERENCE DAY. That is the
+ * second half of the same repair and it was missing until 2026-08-18. Before the reference day
+ * moved to today the two bases coincided, so building the comparison over the newest day's RAW
+ * index was near enough true. Once the window started being judged against today and the
+ * newest day was not, the surface printed two numbers side by side at equal confidence where
+ * one had been narrowed by retirement and the other had not. MEASURED on this archive at three
+ * reference days: 273 window candidates against 18 unjudged on 2026-08-18, 11 against 18 on
+ * 2026-08-25, and 0 against 18 on 2026-09-01, under a sentence claiming both came from the
+ * identical computation. Judged the same way the newest day reads 17, 1 and 0.
+ *
+ * So the newest day is routed through `unionFeedDays([feed])` (a union of one, which is what
+ * gives the rows the lifecycle machinery `openDemand` judges) and then through the SAME
+ * `openDemand(index, reference)` call the window uses. MEASURED that the union-of-one changes
+ * nothing else: over the newest archived day of this archive the raw daily index and the
+ * unjudged union of one produce the identical funnel, 186 / 130 / 18, so the only difference
+ * the routing introduces is the retirement judgement it exists to add.
+ *
+ * The comparison the surface prints is therefore one definition of "candidate corner"
+ * evaluated on two inputs and judged on one day, not two definitions or two days that happen
+ * to agree on the morning a capture lands.
+ */
+function buildWindowedDatasets(
+  window: ServedWindow,
+  seeds: SeedPaths,
+  reference: DemandReference,
+): IntelligenceDatasets {
+  const feed = window.newest
+  const { distressed, awardSilentCages, availabilityByNsn } = sharedCornerInputs(seeds)
+  const provenance = cornerProvenance(feed, seeds)
+
+  /*
+   * THE NEWEST DAY AS A UNION OF ONE, so it can be judged by the same function on the same day.
+   *
+   * `unionFeedDays` returns null ONLY for an empty list, and this list holds exactly one day.
+   * Reaching the branch would mean that contract had changed underneath this call, and the
+   * honest response to that is to refuse rather than to fall back to the raw index: the
+   * fallback is precisely the unjudged comparison this block exists to remove, and it would
+   * come back silently, printed at equal confidence beside a judged number.
+   */
+  const newestOnly = unionFeedDays([feed])
+  if (newestOnly == null) {
+    throw new Error(
+      `the newest archived day ${feed.feedDay} could not be unioned with itself, so the newest-day comparison cannot be judged against ${reference.day}; refusing to print an unjudged number beside a judged one`,
+    )
+  }
+
+  // THE REFERENCE DAY IS TODAY, NOT `window.newestDay`. See `demandReference` above for the
+  // measurement that made this a defect rather than a preference.
+  const demand = openDemand(window.index, reference)
+  // The SAME `reference`, by construction: one binding, read twice, so the two funnels the
+  // surface prints cannot have been judged against different days.
+  const newestDayDemand = openDemand(newestOnly.index, reference)
+  const newestDayMap = buildCornerMap({
+    approved: newestOnly.approved,
+    index: newestDayDemand.index,
+    awardSilentCages,
+    availabilityByNsn,
+    provenance,
+  })
+  const excludedFromDemand = {
+    closed: demand.closedExcluded,
+    undated: demand.undatedExcluded,
+    asOf: demand.asOf,
+    asOfBasis: demand.reference.basis,
+    statement: demand.statement,
+  }
+
+  const cornerMap = buildCornerMap({
+    approved: window.approved,
+    index: demand.index,
+    awardSilentCages,
+    availabilityByNsn,
+    provenance,
+    window: {
+      days: window.days,
+      coverage: window.coverage,
+      newestDayFunnel: cornerFunnel(newestDayMap),
+      excludedFromDemand,
     },
+  })
+
+  return {
+    cornerMap,
+    noQuote: buildNoQuoteGoldmine(seeds),
+    distressed,
+    approved: feed.approved,
+    index: feed.index,
+    feed: feedMeta(feed),
+    window: {
+      newestDay: window.newestDay,
+      oldestDay: window.oldestDay,
+      daysIncluded: window.daysServed,
+      dayCount: window.coverage.dayCount,
+      daysHeld: window.daysHeld,
+      skipped: window.skipped,
+      coverage: window.coverage,
+      summary: window.summary,
+      excludedFromDemand,
+      days: window.days,
+    },
+    newestDayFunnel: cornerFunnel(newestDayMap),
   }
 }
 

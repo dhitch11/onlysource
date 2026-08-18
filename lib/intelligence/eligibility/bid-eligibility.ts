@@ -114,10 +114,48 @@ export type EligibilityState =
   | 'determined'
   /** We hold a row, but this PICA publishes no AMSC. NOT "unrestricted". */
   | 'abstained_pica_does_not_publish'
+  /**
+   * THE PUBLISHER PUBLISHED AND WE CANNOT READ WHAT IT SAID.
+   *
+   * The activity publishes acquisition codes, this row carries a suffix code, and the transcribed
+   * Table 71 does not list that character. It is a NAMED state rather than `determined` with a null
+   * entry, because every render was inferring the difference at its own render site and one of them
+   * got it wrong: `/monopoly` painted a `verified` / `measured` chip reading the raw character for a
+   * code nobody has read, because its only test was `state !== 'determined'`. A state a surface has
+   * to derive is a state some surface will derive differently. This one is not derivable.
+   */
+  | 'abstained_suffix_code_not_in_table'
   /** The stock number is not in the MOE Rule extract at all. */
   | 'abstained_not_in_catalogue'
   /** No index on disk. Every surface renders its stated empty state. */
   | 'index_absent'
+
+/**
+ * A MACHINE IDENTIFIER, WRITTEN SO THE MEMO'S NUMBER GUARD CANNOT SPEND IT.
+ *
+ * MEASURED, and this is the second time the same leak moved rather than closed. The pursuit
+ * package is the grounding object for the deal memo: `lib/ai/grounding.ts` harvests every digit run
+ * in it into the set of numbers the memo is allowed to state, and it harvests a bare digit string
+ * as its NUMERIC value. So the NIIN `001760600` registered 1760600, and on NSN 5340001760600, whose
+ * real modeled buy value is $57,634.32, the fabricated sentence "The modeled buy value is
+ * $1,760,600." passed the guard. 4,744 of the 28,119 rows in the derived index carry a NIIN whose
+ * numeric value is short enough to be spent this way. The managing activity is the same shape: 13
+ * of the 44 publishing activities on the real extract are numeric (17, 18, 19, 28, 47, 48, 54, 75,
+ * 80, 86, 92, 93, 94), so `(17)` in a rendered sentence licensed the number 17.
+ *
+ * The rewrite is the one mechanism this estate already uses for pins and citation keys: a digit run
+ * that abuts a letter is an identifier fragment on BOTH sides of the guard, so it is neither
+ * harvested into the allowed set nor read as a value claim in the memo. `PICA-17` names the same
+ * activity to a person and is invisible to the tokenizer. It must never be applied to a measured
+ * figure: a quantity a person reads has to stay a quantity.
+ */
+export function identifierToken(
+  label: 'NSN' | 'NIIN' | 'PICA' | 'AMC' | 'AMSC',
+  value: string | number | null | undefined,
+): string {
+  const v = String(value ?? '').trim()
+  return v === '' ? '' : `${label}-${v}`
+}
 
 export type BidEligibility = {
   niin: string
@@ -203,9 +241,16 @@ export function resolveBidEligibility(
     return {
       niin,
       state: 'abstained_pica_does_not_publish',
+      /*
+       * THE ACTIVITY IS NAMED IN A SENTENCE OF ITS OWN, AND IN TOKEN FORM. Two separate reasons.
+       * The token stops a numeric activity code being spent as a quantity (see `identifierToken`).
+       * The sentence break stops the fix creating a false refusal: `groundBrief` withholds whole
+       * SENTENCES, so a sentence that carried both the identifier and the warning would have taken
+       * "must not be read as unrestricted" with it the moment a memo wrote the code in prose.
+       */
       reason: publishes
-        ? `the activity that manages this item (${row.pica}) publishes acquisition codes, but this row carries none`
-        : `the activity that manages this item (${row.pica}) does not publish acquisition codes, so restriction is not determined here and must not be read as unrestricted`,
+        ? `the activity that manages this item publishes acquisition codes, but this row carries none. The managing activity is ${identifierToken('PICA', row.pica)}`
+        : `the activity that manages this item does not publish acquisition codes, so restriction is not determined here and must not be read as unrestricted. The managing activity is ${identifierToken('PICA', row.pica)}`,
       ...ABSENT,
       amc: row.amc || null,
       aac: row.aac || null,
@@ -215,17 +260,51 @@ export function resolveBidEligibility(
 
   const entry = amscEntry(amscCell)
   const amcNum = /^\d$/.test(row.amc) ? Number(row.amc) : null
+
+  /*
+   * THE CHARACTER THE TRANSCRIBED TABLE DOES NOT LIST GETS ITS OWN STATE.
+   *
+   * `amsc.ts` names E, F, I, J, O, W and X as codes absent from the transcription, so the domain
+   * says the input occurs. Returning `determined` with a null entry left every consumer to notice
+   * the null for itself, and `/monopoly` did not: its acquisition-code cell tested `state !==
+   * 'determined'` and therefore painted a VERIFIED, MEASURED chip reading the raw character for a
+   * code nobody has read. The state is the honest one and it is not derivable, so no render can
+   * derive it wrongly. The raw character still travels on `amsc` because we DO hold it; what is
+   * absent is a reading of it, which is `amscEntry` and `posture`, both null.
+   */
+  if (!entry) {
+    return {
+      niin,
+      state: 'abstained_suffix_code_not_in_table',
+      reason:
+        'the activity that manages this item publishes acquisition codes and this row carries a suffix ' +
+        'code the transcribed table does not list, so its meaning is not determined here and must not ' +
+        `be read as unrestricted. The managing activity is ${identifierToken('PICA', row.pica)} and the ` +
+        `code on this row is ${identifierToken('AMSC', amscCell)}`,
+      amc: row.amc || null,
+      amsc: amscCell,
+      aac: row.aac || null,
+      pica: row.pica,
+      amscEntry: null,
+      amcEntry: amcEntry(amcNum),
+      posture: null,
+      combination: amcAmscCombinationValid(amcNum, amscCell),
+    }
+  }
+
   return {
     niin,
     state: 'determined',
-    reason: `the managing activity (${row.pica}) publishes acquisition codes and this item carries AMSC ${amscCell}`,
+    reason:
+      'the managing activity publishes acquisition codes and this item carries the suffix code ' +
+      `${identifierToken('AMSC', amscCell)}. The managing activity is ${identifierToken('PICA', row.pica)}`,
     amc: row.amc || null,
     amsc: amscCell,
     aac: row.aac || null,
     pica: row.pica,
     amscEntry: entry,
     amcEntry: amcEntry(amcNum),
-    posture: entry ? amscPosture(entry.code as AmscCode) : null,
+    posture: amscPosture(entry.code as AmscCode),
     combination: amcAmscCombinationValid(amcNum, amscCell),
   }
 }

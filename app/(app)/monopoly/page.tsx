@@ -8,6 +8,7 @@ import { readDeals } from "@/lib/sales/deals-store";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
 import { ExplainButton } from "@/components/ui/ExplainButton";
 import { MonopolyGrid } from "./MonopolyGrid";
+import { boundRowsForWire, GRID_ROW_BUDGET } from "./wire-bound";
 import styles from "./monopoly.module.css";
 
 export const metadata: Metadata = { title: "Monopoly Map · ONLYSOURCE" };
@@ -57,7 +58,7 @@ export default async function MonopolyPage() {
   // freshness, only ~2s of TTFB on the page the daily loop starts on. Rendering stays
   // force-dynamic; only the pure computation is reused.
   const view = buildMonopolyView();
-  const { summary, provenance, rows: baseRows } = view;
+  const { summary, provenance, newestDayFunnel, rows: baseRows } = view;
 
   /**
    * BID ELIGIBILITY, joined here rather than inside `monopoly-view` on purpose.
@@ -89,7 +90,21 @@ export default async function MonopolyPage() {
    * person decides. The grid shows the count and the evidence and lets them.
    */
   const cageIndex = loadCageIndex();
-  const enriched = baseRows.map((r) => {
+
+  /*
+   * THE WIRE BOUND, APPLIED BEFORE THE ENRICHMENT RATHER THAN AFTER IT.
+   *
+   * The rule and the measurements live in ./wire-bound.ts, which is a pure function so the
+   * behaviour is settled by test/feed-window/wire-bound.test.ts on inputs whose answer is known
+   * in advance, rather than by reading this page. `totals` comes back from the same call and is
+   * counted over every served row, so the grid's tab counts stay the MAP's counts while its
+   * rows are a slice. Bounding before the enrichment also spares the catalogue and CAGE lookups
+   * for the thousands of rows nobody was going to receive.
+   */
+  const bound = boundRowsForWire(baseRows, GRID_ROW_BUDGET);
+  const gridTotals = bound.totals;
+
+  const enriched = bound.shipped.map((r) => {
     const e = resolveBidEligibility(r.nsn, amscIndex);
     const ops = groupByOperator(r.approvedSources.map(String), cageIndex);
     const merged = ops.clusters.find((c) => c.cages.length > 1) ?? null;
@@ -116,10 +131,16 @@ export default async function MonopolyPage() {
     };
   });
   // Two priced counts, two denominators, NEVER implied into one another: the map-wide figure
-  // spans every enriched row, while the candidate figure is scoped to the funnel's own 115.
+  // spans every SERVED row, while the candidate figure is scoped to the funnel's narrowest step.
   // The strip sentence below names both denominators explicitly because a bare count directly
   // under a candidate-scoped sentence reads as candidate coverage, an 18x overstatement.
+  //
+  // THE MAP-WIDE DENOMINATOR IS `view.rows.length`, NOT `enriched.length`. `pricedCount` is
+  // counted in monopoly-view over every served row; `enriched` is now the bounded slice that
+  // crosses the wire, so printing its length beside that count would have divided a whole-map
+  // numerator by a page-sized denominator and overstated coverage roughly tenfold.
   const { pricedCount, candidatePricedCount, forecastCount, availCount } = view;
+  const servedRowCount = view.rows.length;
   const awardsJoined = view.awardsJoined;
   const forecastJoined = view.forecastJoined;
 
@@ -129,13 +150,33 @@ export default async function MonopolyPage() {
     .map((d) => normalizeDealRef(d.ref))
     .filter((r) => r.length > 0);
 
-  // The funnel, widest to narrowest. Each step is a real count, and the width is proportional
-  // to the widest step so the narrowing reads at a glance without exaggeration.
+  /**
+   * THE SPAN AND THE INSTANT, both printed rather than implied.
+   *
+   * `coverage` is built by lib/intelligence/corner.ts over the whole window and was rendered
+   * nowhere, while the header and this strip named ONE archived file. Measured before this fix:
+   * the page printed "Counted from dibbs-rfq-daily/2026-08-14/.../bq260814.zip" beside counts
+   * where 184 of 10,488 rows, 1.8%, came from that file and the other 98.2% came from thirteen
+   * other captures with thirteen other hashes. The archive key and hash are correct PER ROW and
+   * stay there; the map-level line now states the span the counts were actually taken over.
+   */
+  const coverage = view.coverage;
+  const isWindow = coverage.basis === "window";
+  const spanLabel = isWindow
+    ? `${coverage.dayCount} archived feed days, ${coverage.firstDay} to ${coverage.lastDay}`
+    : `the single archived feed day ${coverage.firstDay}`;
+  const judgedOn = coverage.excludedFromDemand?.asOf ?? null;
+
+  // The funnel, widest to narrowest. Each step is a real count over every served row, never
+  // over the bounded slice the grid receives, and the width is proportional to the widest step
+  // so the narrowing reads at a glance without exaggeration.
   const funnel = [
     {
       n: summary.withDemandAndSource,
       label: "held by an approved source, under open demand",
-      hint: "a company is approved to make it, and DLA is buying it now",
+      hint: judgedOn
+        ? `a company is approved to make it, and its solicitation had not closed as of ${judgedOn}`
+        : "a company is approved to make it, and DLA is buying it now",
       tone: "base" as const,
     },
     {
@@ -156,7 +197,10 @@ export default async function MonopolyPage() {
   return (
     <main className={styles.page}>
       <header className={styles.head}>
-        <p className={styles.eyebrow}>Intelligence · feed day {provenance.feedDay}</p>
+        {/* The eyebrow named ONE feed day while every count beside it was counted across the
+            whole window. It names the span now; the newest capture keeps its own billing in
+            the freshness pill in the shell, which is a claim about currency, not about basis. */}
+        <p className={styles.eyebrow}>Intelligence · counted across {spanLabel}</p>
         <div className={styles.titleRow}>
           <h1 className={styles.h1}>Monopoly Map</h1>
           {/* The page-level explainer for the whole tool, written and registered since the
@@ -197,12 +241,26 @@ export default async function MonopolyPage() {
       </section>
 
       {/* ---------------------------------------------------------------- the counts */}
-      <section className={styles.stats} aria-label="Measured counts for this feed day">
+      <section className={styles.stats} aria-label={`Measured counts across ${spanLabel}`}>
         <div className={`${styles.stat} ${styles.statHot}`}>
           <div className={styles.statN}>{summary.candidateCorners.toLocaleString()}</div>
           <div className={styles.statL}>
             <b>candidate corners</b>
-            <span className={styles.statHint}>sole source, under open demand, award-silent</span>
+            {/* BOTH NUMBERS OR NEITHER, AND BOTH JUDGED ON THE SAME DAY. A count that grew
+                from 18 to the hundreds between two deploys, with nothing on the screen saying
+                the basis changed, reads as invention. The newest day's own figure is computed
+                by the same builder over that day's own files AND narrowed by the same
+                `openDemand` reference, so the two numbers here are like for like. Until
+                2026-08-18 only the window was judged: measured a week past the newest capture
+                that printed 11 beside an unjudged 18, and two weeks past it, 0 beside 18. */}
+            <span className={styles.statHint}>
+              sole source, under open demand, award-silent
+              {newestDayFunnel
+                ? ` · the newest archived day alone, ${coverage.lastDay}${
+                    judgedOn ? `, judged against the same ${judgedOn}` : ""
+                  }, shows ${newestDayFunnel.candidateCorners.toLocaleString()}`
+                : ""}
+            </span>
           </div>
         </div>
         <div className={styles.stat}>
@@ -253,18 +311,36 @@ export default async function MonopolyPage() {
             at <b>zero</b> until a verified availability feed is connected. Nothing here is estimated
             to fill a gap.
           </p>
+          {/* THE BASIS, IN THE WORDS THE BUILDER WROTE IT IN. One sentence, one definition
+              (lib/intelligence/corner.ts `cornerCoverageStatement`), so this strip cannot drift
+              from the dashboard or from the dossier the AI brief is written out of. It carries
+              the span, the thin-day comparison, what was excluded from demand and on which day,
+              and what the newest archived day alone shows judged against that same day. */}
+          <p className={styles.truthProv}>{coverage.statement}</p>
+          {/* THE INSTRUCTION HAS TO BE FOLLOWABLE. This sentence told the operator to open a
+              row to read that row's archived file and hash while the expansion rendered
+              neither: `grep -c -e sha256 -e archiveStorageKey -e feedDay` over MonopolyGrid.tsx
+              returned 0. The fields were on the wire and paid for in bytes and were simply
+              never drawn. They are drawn now, by ./row-provenance.ts, under the two headings
+              named here, so the sentence says WHERE the citation is rather than that one
+              exists. */}
           <p className={styles.truthProv}>
-            Counted from{" "}
+            Each row cites the archived government file <b>its own feed day</b> published, with
+            that day&rsquo;s recorded sha256. Expand any row: they are the{" "}
+            <b>Feed day</b> and <b>Archived file</b> lines, and the hash is printed whole so it
+            can be checked against the file. The newest capture is{" "}
             <code>{provenance.sourceArchiveKey}</code>{" "}
             <span className={styles.faint}>
               sha256 {provenance.sourceArchiveSha256.slice(0, 12)}…
-            </span>{" "}
-            · source status inferred from public award silence, which federal reporting does not
-            require below the micro-purchase threshold, so it is a signal and not a death notice.
+            </span>
+            , which is one of {coverage.daysIncluded.length.toLocaleString()} captures behind these
+            counts and not the source of all of them. Source status is inferred from public award
+            silence, which federal reporting does not require below the micro-purchase threshold,
+            so it is a signal and not a death notice.
           </p>
           <p className={styles.truthProv}>
             {awardsJoined
-              ? `Award history is joined from the NSN-Now export where present: ${candidatePricedCount.toLocaleString()} of the ${summary.candidateCorners.toLocaleString()} candidate corners now carry a real paid price and its ten-year trend. Across the whole corner map (${enriched.length.toLocaleString()} positions): ${pricedCount.toLocaleString()}. The rest await the full export and say so per row.`
+              ? `Award history is joined from the NSN-Now export where present: ${candidatePricedCount.toLocaleString()} of the ${summary.candidateCorners.toLocaleString()} candidate corners now carry a real paid price and its ten-year trend. Across the whole corner map (${servedRowCount.toLocaleString()} positions): ${pricedCount.toLocaleString()}. The rest await the full export and say so per row.`
               : "No NSN-Now export is loaded yet, so award price reads as unread on every row rather than as an estimate."}
           </p>
           {forecastJoined ? (
@@ -279,7 +355,12 @@ export default async function MonopolyPage() {
         </div>
       </div>
 
-      <MonopolyGrid rows={enriched} pursuedRefs={pursuedRefs} />
+      <MonopolyGrid
+        rows={enriched}
+        pursuedRefs={pursuedRefs}
+        totals={gridTotals}
+        basis={coverage.basis}
+      />
     </main>
   );
 }

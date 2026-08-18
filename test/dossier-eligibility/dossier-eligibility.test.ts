@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { AMC_TABLE, AMSC_TABLE } from '@/lib/engine/eligibility'
-import { valueTokensIn } from '@/lib/ai/grounding'
+import { allowedNumberSet, valueTokensIn } from '@/lib/ai/grounding'
 import { citationLabel, knownCitationKeys } from '@/lib/intelligence/eligibility/citation'
 import {
   resolveDossierEligibility,
@@ -91,7 +91,10 @@ describe('a PICA that does not publish AMSC yields an ABSTENTION, never "open" a
     // ABSENT, not UNREAD: the publisher does not publish this field at all, which is a different
     // statement from "the file exists and we have not read it".
     expect(v.evidence).toBe('ABSENT')
-    expect(v.publisher.pica).toBe('ZW')
+    // TOKEN FORM, and the prefix is load-bearing: 13 of the 44 publishing activities on the real
+    // extract are numeric, and a bare `17` in a value position is a number the memo may then state
+    // as a quantity. See `identifierToken` in ./bid-eligibility for the measurement.
+    expect(v.publisher.pica).toBe('PICA-ZW')
     expect(v.publisher.publishesAmsc).toBe('no')
     expectNoPermissionAnywhere(v)
   })
@@ -383,21 +386,50 @@ function keys(value: unknown, into: Set<string> = new Set()): Set<string> {
  */
 const EVERY_CODE = (() => {
   const rows: Array<{ niin: string; amc: string; amsc: string; pica: string }> = []
-  let n = 100000000
+  /*
+   * ZERO-PADDED, AND THE PADDING IS THE POINT. Every NIIN in the government file is nine digits and
+   * 28,119 of 28,119 rows in the derived index start with a zero, so a fixture built from bare
+   * counters (this one used to start at 100000000) is a shape the feed never produces. It is also
+   * the exact shape that hid a leak: `Number('001760600')` is 1760600, seven digits, which the memo
+   * may spend, while the nine-digit run it came from is one the brief side ignores. The seed is the
+   * real NIIN from that measurement.
+   */
+  let n = 1760600
+  const niin = () => String(n++).padStart(9, '0')
   for (const a of AMC_TABLE) {
     for (const e of AMSC_TABLE) {
-      rows.push({ niin: String(n++), amc: String(a.code), amsc: e.code, pica: 'GX' })
+      rows.push({ niin: niin(), amc: String(a.code), amsc: e.code, pica: 'GX' })
     }
   }
   // Plus the codes the transcription does not carry, which are the defect-3 shape.
   for (const c of ['E', 'F', 'I', 'J', 'O', 'W', 'X']) {
-    rows.push({ niin: String(n++), amc: '3', amsc: c, pica: 'GX' })
+    rows.push({ niin: niin(), amc: '3', amsc: c, pica: 'GX' })
   }
-  const idx = index(rows, ['GX'])
-  return rows.flatMap((r) => [
-    resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber: 'SPE7L426U1037' }, idx),
-    resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber: 'SPE4A626T15HA' }, idx),
-  ])
+  const byLetteredActivity = index(rows, ['GX'])
+  /*
+   * THE SAME ROWS UNDER A NUMERIC MANAGING ACTIVITY. 13 of the 44 publishing activities on the real
+   * extract are numeric (17, 18, 19, 28, 47, 48, 54, 75, 80, 86, 92, 93, 94), and a fixture that
+   * only ever uses GX and ZW cannot see an activity code sitting in a value position. It could not,
+   * and the sweep below was green while `PICA 17` was licensing the number 17 in a memo.
+   */
+  const numeric = rows.map((r) => ({ ...r, pica: '17' }))
+  const byNumericActivity = index(numeric, ['17'])
+  const lanes = ['SPE7L426U1037', 'SPE4A626T15HA']
+  const out = rows.flatMap((r) =>
+    lanes.flatMap((solicitationNumber) => [
+      resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber }, byLetteredActivity),
+      resolveDossierEligibility({ stockNumber: r.niin, solicitationNumber }, byNumericActivity),
+    ]),
+  )
+  // And the shapes that are not a catalogue hit at all, because every one of them still renders.
+  const first = rows[0]!
+  out.push(
+    resolveDossierEligibility({ stockNumber: `5325${first.niin}` }, byLetteredActivity),
+    resolveDossierEligibility({ stockNumber: '999999999' }, byLetteredActivity),
+    resolveDossierEligibility({ stockNumber: 'not-a-stock-number' }, byLetteredActivity),
+    resolveDossierEligibility({ stockNumber: first.niin }, { ok: false, reason: 'no index on disk' }),
+  )
+  return out
 })()
 
 describe('NOTHING THAT NAMES A PERSON OR A MACHINE REACHES THE PARTNER-FACING PACKAGE', () => {
@@ -464,22 +496,46 @@ describe('THE VERDICT SPENDS NO NUMBER: the grounding guard is not widened by pr
    */
   const AMSC_L_THRESHOLD = 10000
 
+  /**
+   * THE ALLOWLIST. One entry, named, with the reason it belongs: it is a measured fact about the
+   * item in the government's own words. Everything else the eligibility block has ever contributed
+   * was citation plumbing or a machine identifier. A number that turns up here and is not on this
+   * list is a defect until somebody adds it deliberately and says why.
+   */
+  const ALLOWED = new Set([String(AMSC_L_THRESHOLD), AMSC_L_THRESHOLD.toFixed(2)])
+
   it('★ CONTROL: across every code in both tables, the only value the verdict adds is the one named above', () => {
-    const spent = new Map<number, string>()
+    /*
+     * THE REAL HARVESTER, NOT A MODEL OF IT. THIS CONTROL USED TO PASS FOR THE WRONG REASON.
+     *
+     * It walked the verdict with `valueTokensIn` and skipped every digit run of 8 or more
+     * characters, on the stated premise that "8+ contiguous digits is an identifier, not a value
+     * claim, on both sides of the guard". That premise is false and it was the assumption under
+     * test. Only the BRIEF side skips long runs; `collectNumbers`, which builds the allowed set,
+     * harvests them and `Number()` collapses the leading zeros. MEASURED on this file's own
+     * fixture: `resolveDossierEligibility({stockNumber:'000000002'})` made
+     * `allowedNumberSet(verdict)` equal {'2','2.00'} while this control computed an empty spent
+     * set and passed. On the live corner map the same shape licensed "The modeled buy value is
+     * $1,760,600." on a row whose real modeled value is $57,634.32. A control that passes for the
+     * wrong reason is worse than no control, because it retires the question.
+     *
+     * So the harvest is now `allowedNumberSet` itself, the exact function the product runs, and
+     * the per-leaf attribution below is asserted to reconstruct it exactly rather than to
+     * approximate it.
+     */
+    const spent = new Map<string, string>()
     for (const v of EVERY_CODE) {
       for (const [where, text] of strings(v)) {
-        for (const t of valueTokensIn(text)) {
-          // 8+ contiguous digits is an identifier, not a value claim, on both sides of the guard.
-          if (t.raw.replace(/[^\d]/g, '').length >= 8) continue
-          if (!spent.has(t.n)) spent.set(t.n, `${where} :: ${text}`)
-        }
+        for (const n of allowedNumberSet(text)) if (!spent.has(n)) spent.set(n, `${where} :: ${text}`)
       }
       for (const n of collectNumbers(v)) {
-        if (String(Math.abs(n)).length >= 8) continue
-        if (!spent.has(n)) spent.set(n, 'a numeric field')
+        for (const f of allowedNumberSet(n)) if (!spent.has(f)) spent.set(f, `a numeric field carrying ${n}`)
       }
+      // The attribution must BE the real set, or the diagnostic above is a fiction and a number
+      // could be donated by a leaf shape this walk does not visit.
+      for (const n of allowedNumberSet(v)) expect(spent.has(n)).toBe(true)
     }
-    expect([...spent.entries()].filter(([n]) => n !== AMSC_L_THRESHOLD)).toEqual([])
+    expect([...spent.entries()].filter(([n]) => !ALLOWED.has(n))).toEqual([])
   })
 
   it('the AMSC L threshold is present, and it is present as the government wrote it', () => {

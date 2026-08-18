@@ -21,8 +21,13 @@
  * size swung 10-20x by weekday. An operator who opened it on a Friday saw a product that
  * looked broken.
  *
+ * Those figures are a reading of ONE archive state, twenty days ending 2026-08-14. Nothing in
+ * this module is calibrated on them: the day count, the day list and every derived total are
+ * read from whatever the archive holds at call time, so a twenty-first capture landing changes
+ * the numbers and changes no code.
+ *
  * ---------------------------------------------------------------------------------------
- * THE FIVE RULES THIS MODULE IS BUILT ON
+ * THE SEVEN RULES THIS MODULE IS BUILT ON
  * ---------------------------------------------------------------------------------------
  * 1. PROVENANCE STAYS EXACT. A single day traced a rendered number to one archived
  *    government byte. The window traces it to a NAMED DAY inside the window: every row
@@ -35,13 +40,33 @@
  *    nomenclature on different days. Averaging would invent a number nobody published;
  *    silently picking one would hide that DLA changed the buy. So the newest published line
  *    is displayed and `changes[]` carries the full per-day history of every field that moved.
+ *    `summary.changedAcrossDays` reads 5,350 rather than 5,002, and the gap is not an error:
+ *    this module tracks SIX fields and the sentence above names four, so 348 rows moved only
+ *    their unit of issue or their purchase-request number. Re-measured 2026-08-18: closeDate
+ *    4,535, purchaseRequest 3,182, solicitation 3,114, quantity 2,381, nomenclature 459.
  *
  * 3. A ROW RETIRES HONESTLY, AGAINST THE GOVERNMENT'S OWN CLOSE DATE. Every index line in
  *    this archive carries a return date (39,223 of 39,223 parse at MM/DD/YY), so retirement
- *    is decided by that date, not by a row quietly vanishing. Measured against the newest
- *    held day: 14,553 stock numbers have already closed and 14,606 have not. A closed row is
- *    LABELLED closed and kept, because a row that disappears without explanation is how an
- *    operator stops trusting a board.
+ *    is decided by that date, not by a row quietly vanishing. Re-measured 2026-08-18 against
+ *    the newest held day, 2026-08-14: 14,539 stock numbers have already closed and 14,620 have
+ *    not. This paragraph read 14,553 and 14,606 when the module was written and those figures
+ *    did NOT reproduce; the totals agree, the split moves by 14, and the boundary rule is not
+ *    the explanation (861 rows close exactly ON the reference day and every one of them is
+ *    open, because a solicitation closing today has not closed). Whatever produced the older
+ *    pair, the numbers above are what this code returns from this archive today.
+ *
+ *    THE BOUNDARY IS `closeDate < asOf`, deliberately. A row closing on the reference day is
+ *    OPEN. A closed row is LABELLED closed and kept, because a row that disappears without
+ *    explanation is how an operator stops trusting a board.
+ *
+ *    AND THE REFERENCE DAY IS THE CALLER'S, NOT THIS MODULE'S. `unionFeedDays` can only know
+ *    the newest day it was handed, so that is what it stamps; `openDemand` re-judges against
+ *    the day its caller names and rewrites the stamp to match. Judging a board against the
+ *    newest ARCHIVED day is only correct on the morning the capture lands. Measured on this
+ *    machine 2026-08-18, with the newest archived day 2026-08-14: 5,122 of the 10,488 rows the
+ *    board served, 48.8%, had a government-published return date that had already gone, under
+ *    a grid header reading "under open DLA demand" and a funnel hint reading "DLA is buying it
+ *    now". Every day the capture does not run, that number grows and nothing says so.
  *
  * 4. A MALFORMED STOCK NUMBER IS A FIRST-CLASS ROW. `lib/ingest/parse/dibbs.ts` already
  *    records that these "are not well-formed 13-digit NSNs and they are REAL requirements".
@@ -60,6 +85,31 @@
  *    is a small number. The point is that it is a KNOWN number and must not become an
  *    unknown one as the window grows.
  *
+ * 6. THE UNION IS NOT THE DEMAND, AND THE DEMAND IS DATED. `openDemand()` is the only door
+ *    between this module and a board, and it exists because rule 3 keeps closed rows. MEASURED
+ *    on the twenty days: 14,620 of the 29,159 stock numbers were still open against the newest
+ *    held day and 14,539 had already closed, so a caller that served the raw union would put a
+ *    fortnight of expired solicitations on a screen that says "DLA is buying this now". That is
+ *    a larger and more embarrassing inaccuracy than the thin single day it replaced. A row with
+ *    no readable close date is excluded from demand as well: a blank is not an open
+ *    solicitation, it is a publisher that did not answer, and the two must never render alike.
+ *
+ *    `openDemand` takes a `DemandReference`, a day AND a sentence saying what that day is, and
+ *    both travel out on `OpenDemand.statement` so the count on the screen carries the instant
+ *    it was true at. A day with no stated basis is how the first version of this door judged
+ *    an August board against a four-day-old capture and told nobody.
+ *
+ * 7. BOTH NUMBERS OR NEITHER. A count that grows sixty-fold overnight with no stated basis
+ *    destroys more trust than the small count did. `coverage` carries the first day, the last
+ *    day, the day list, the day count and the newest day's own size against the window's own
+ *    mean, and `coverageStatement()` is the single definition of the sentence, so a surface
+ *    can say, as the Monopoly Map now can, "562 candidate corners across twenty days captured
+ *    2026-07-17 to 2026-08-14, of which the newest day alone accounts for 18" rather than an
+ *    unexplained 562 where 18 stood yesterday.
+ *    The thin-day disclosure is part of that: this archive's Fridays publish roughly a sixth
+ *    of the mean, and until now a starved Friday rendered exactly as confidently as a rich
+ *    Tuesday because nothing in the product had ever compared two days.
+ *
  * ---------------------------------------------------------------------------------------
  * WHAT THIS MODULE DOES NOT DO
  * ---------------------------------------------------------------------------------------
@@ -68,11 +118,13 @@
  * and parse-verification the single-day path runs, and single-day resolution stays exported
  * and tested so a suite can keep pinning measured values to one immutable archived day.
  *
- * It reads NO CLOCK. Retirement is evaluated against the newest day the archive holds, which
- * is a fact about the data rather than about the process, so the answer is identical on
- * every request, survives memoisation, and cannot differ between the server that rendered it
- * and the browser that hydrated it. `lifecycleAsOf` is exported for a surface that wants to
- * re-evaluate against a real clock at the edge, deliberately outside anything memoised.
+ * It reads NO CLOCK, and it never will. Every retirement judgement in here is a string
+ * comparison against a reference day the CALLER supplies, so this module stays a pure function
+ * of its inputs: a test can pin any instant it likes, and the value that ships is computed once
+ * on the server and travels as static text, so it cannot differ between the server that
+ * rendered it and the browser that hydrated it. Reading the clock is the serving path's job
+ * (`lib/intelligence/datasets.ts`), and the day it reads has to reach the memo key there or the
+ * answer freezes at the first request of the process.
  */
 
 import { discoverFeedDays, type FeedDayDiscovery } from '@/lib/ingest/feed-days'
@@ -230,24 +282,34 @@ export type RowLifecycle = {
   status: LifecycleStatus
   /** ISO close date from the NEWEST observation, or null. Never inferred, never averaged. */
   closeDate: string | null
-  /** The day retirement was judged against: the newest day the archive holds. Not a clock. */
+  /**
+   * THE DAY THIS JUDGEMENT WAS MADE AGAINST, and it is not always the newest archived day.
+   *
+   * `unionFeedDays` stamps the newest archived day here, because that is the only instant the
+   * union itself knows about. `openDemand` RE-JUDGES against the reference day its caller
+   * supplies and rewrites this field to match, because the serving path judges retirement
+   * against the day the page is computed on. The two are different claims and this field is
+   * the discriminator, so nothing downstream may assume it names a feed day.
+   */
   asOf: string
-  /** Whether this stock number appears on that newest day's index at all. A fact, not a warning. */
+  /** Whether this stock number appears on the newest archived day's index. A fact, not a warning. */
   onNewestDay: boolean
 }
 
 /**
  * Judge one row's retirement against a reference day.
  *
- * `asOf` is the NEWEST DAY THE ARCHIVE HOLDS on every path this product renders, which makes
- * the answer a pure function of the captured bytes: identical on every request, stable under
- * memoisation, and identical on the server and in the browser. The reference day is stated in
- * the rendered sentence rather than implied, because "open" against a fortnight-old archive
- * and "open" against this morning's capture are different claims and the operator must be
- * able to tell which one is on the screen.
+ * THE REFERENCE DAY IS AN ARGUMENT, NOT A CONVENTION, AND THE CALLER OWNS IT. Judging the
+ * whole archive against the newest day the archive HOLDS is correct only on the morning the
+ * capture lands: every day the capture does not run, a board judged that way keeps serving
+ * solicitations whose government-published return date has already gone, and the error grows
+ * silently with the staleness. Measured on this machine on 2026-08-18 against an archive whose
+ * newest day was 2026-08-14: 5,122 of 10,488 served rows, 48.8%, had already closed while the
+ * grid header read "under open DLA demand". So `openDemand` takes the day the page is computed
+ * on, and this function is the one place the comparison is written.
  *
- * Exported so a surface can re-judge against a real clock at the edge if it wants to; do that
- * OUTSIDE anything memoised, or the answer freezes at the first request of the process.
+ * No clock is read here or anywhere in this module. The day arrives as a string, so the
+ * function stays a pure comparison that a test can pin to any instant it likes.
  */
 export function lifecycleAsOf(input: {
   closeDate: string | null
@@ -275,12 +337,16 @@ export function lifecycleStatement(lifecycle: RowLifecycle, lastSeen: string): s
   if (status === 'last_seen_only') {
     return `No readable close date in the published line. Last published on the ${lastSeen} index. Whether it is still open is not something this data answers.`
   }
+  // `asOf` is the day the judgement was made against and is NOT necessarily a feed day, so
+  // this copy says what it is rather than naming it as a capture. The earlier wording read
+  // "the newest feed day held", which became false the moment the serving path started
+  // judging retirement against the day the page is computed on.
   if (status === 'closed') {
-    return `Closed ${closeDate}. Its own published return date passed before the newest feed day held, ${asOf}. Kept as history, not as a live opportunity.`
+    return `Closed ${closeDate}. Its own published return date had already passed on ${asOf}, the day this was judged against. Kept as history, not as a live opportunity.`
   }
   return onNewestDay
-    ? `Open until ${closeDate}, published on the newest feed day held, ${asOf}.`
-    : `Open until ${closeDate}. Published on the ${lastSeen} index; the daily index lists the requirements ISSUED that day, so a later day not repeating it is expected and is not a withdrawal.`
+    ? `Open until ${closeDate}, judged against ${asOf}. Published on the newest feed day held, ${lastSeen}.`
+    : `Open until ${closeDate}, judged against ${asOf}. Published on the ${lastSeen} index; the daily index lists the requirements ISSUED that day, so a later day not repeating it is expected and is not a withdrawal.`
 }
 
 /**
@@ -367,6 +433,15 @@ export type ApprovedSourceWindow = {
   /** The newest day that published an approved-source row for this item. */
   sourceDay: string
   cages: Cage[]
+  /**
+   * The newest day's published rows for this item, VERBATIM, so the part numbers the
+   * government file carried survive the union. An earlier draft of this module rebuilt the
+   * entries from the cage list alone and wrote `nsn: niin` with `partNumber: ''`, which put a
+   * nine-digit item number in a field named for the thirteen-digit stock number and an empty
+   * string where a part number would be read. Both are placeholders in slots that belong to
+   * the publisher, and a downstream reader cannot tell either one from a real value.
+   */
+  entries: ApprovedSourceEntry[]
   firstSeen: string
   lastSeen: string
   daysObserved: number
@@ -406,6 +481,13 @@ export type WindowSummary = {
   observations: number
   seenOnOneDayOnly: number
   recurring: number
+  /**
+   * Lifecycle counted against THE NEWEST ARCHIVED DAY, which is the only instant the union
+   * itself knows. The board is narrowed by `openDemand` against the day it is computed on, so
+   * these three and `coverage.excludedFromDemand` will disagree whenever a capture has been
+   * missed. That disagreement is the staleness, not an error, and neither figure may be quoted
+   * as the other.
+   */
   open: number
   closed: number
   lastSeenOnly: number
@@ -417,20 +499,32 @@ export type WindowSummary = {
   niinsUnderMultipleFscs: number
 }
 
-export type ServedWindow = {
+/**
+ * The union itself, with no knowledge of where the days came from.
+ *
+ * `unionFeedDays` returns this and nothing else, so the whole deduplication, newest-wins and
+ * retirement contract can be exercised against days a test constructed by hand.
+ */
+export type UnionOfDays = {
   newestDay: string
   oldestDay: string
+  index: WindowedIndex
+  approved: WindowedApprovedSourceIndex
+  /** One entry per day folded in, oldest first, each naming its archived files and hash. */
+  days: WindowDay[]
+  summary: WindowSummary
+  /** The span, and how the newest day compares to the window's own mean. */
+  coverage: WindowCoverage
+}
+
+export type ServedWindow = UnionOfDays & {
   /** Oldest first. Every one of these was byte-re-verified and parse-verified individually. */
   daysServed: string[]
   daysHeld: number
   /** Days the archive holds that could not be served, by name and reason. Never hidden. */
   skipped: SkippedFeedDay[]
-  index: WindowedIndex
-  approved: WindowedApprovedSourceIndex
   /** The newest day, whole, exactly as the single-day path resolves it. */
   newest: ServedFeedDay
-  days: WindowDay[]
-  summary: WindowSummary
 }
 
 export type WindowResolution =
@@ -480,13 +574,7 @@ function buildWindow(discovery: FeedDayDiscovery, root?: string): WindowResoluti
   }
 
   const skipped: SkippedFeedDay[] = []
-  const days: WindowDay[] = []
-  const acc = new Map<string, Accumulated>()
-  const approvedByNiin = new Map<Niin, Array<{ feedDay: string; cages: Cage[] }>>()
-  let offWidthRows = 0
-  let unparsedNsn = 0
-  let unparsedSourceLines = 0
-  let newest: ServedFeedDay | null = null
+  const served: ServedFeedDay[] = []
 
   // Oldest first, so "newest wins" is simply "the last write wins" and needs no comparison.
   const ordered = [...discovery.days].sort((a, b) => a.logicalDate.localeCompare(b.logicalDate))
@@ -497,9 +585,62 @@ function buildWindow(discovery: FeedDayDiscovery, root?: string): WindowResoluti
       skipped.push({ feedDay: held.logicalDate, reason: resolution.reason })
       continue
     }
-    const served = resolution.served
+    served.push(resolution.served)
+  }
+
+  const union = unionFeedDays(served)
+  if (union == null) {
+    return {
+      ok: false,
+      reason: 'no day in the archive could be parse-verified, so the window is empty',
+      skipped,
+    }
+  }
+
+  return {
+    ok: true,
+    window: {
+      ...union,
+      daysServed: union.days.map((d) => d.feedDay),
+      daysHeld: discovery.days.length,
+      skipped,
+      newest: served[served.length - 1]!,
+    },
+  }
+}
+
+/**
+ * THE UNION ITSELF, over days already admitted, with no filesystem in it.
+ *
+ * Separated from `buildWindow` so the deduplication, the newest-wins rule, the change history
+ * and the retirement judgement can be settled with SYNTHETIC days whose answer is known in
+ * advance. A verification written against the real archive can only ever confirm what the
+ * archive happens to contain, and this estate has a recorded incident where a hand-written
+ * check reproduced the parser bug it was checking for and agreed with itself.
+ *
+ * Days may arrive in any order; they are sorted oldest first here rather than by contract, so
+ * a caller that iterates a Map cannot silently invert which observation is the newest.
+ *
+ * Returns null for an empty list. An empty window is not a window, and a caller must say so
+ * rather than render zeroes.
+ */
+export function unionFeedDays(input: ServedFeedDay[]): UnionOfDays | null {
+  if (input.length === 0) return null
+
+  const days: WindowDay[] = []
+  const acc = new Map<string, Accumulated>()
+  const approvedByNiin = new Map<
+    Niin,
+    Array<{ feedDay: string; cages: Cage[]; entries: ApprovedSourceEntry[] }>
+  >()
+  let offWidthRows = 0
+  let unparsedNsn = 0
+  let unparsedSourceLines = 0
+
+  const ordered = [...input].sort((a, b) => a.feedDay.localeCompare(b.feedDay))
+
+  for (const served of ordered) {
     const feedDay = served.feedDay
-    newest = served
     offWidthRows += served.index.offWidthRows
     unparsedNsn += served.index.unparsedNsn
     unparsedSourceLines += served.approved.unparsedLines
@@ -535,11 +676,19 @@ function buildWindow(discovery: FeedDayDiscovery, root?: string): WindowResoluti
       pushValues(existing.values, row, close.iso, feedDay)
     }
 
-    for (const [niin, cages] of served.approved.byNiin) {
+    // Grouped from the published ENTRIES rather than from `byNiin`, because `byNiin` collapses
+    // to a cage set and the part number the file carried is not recoverable from it.
+    const entriesByNiin = new Map<Niin, ApprovedSourceEntry[]>()
+    for (const entry of served.approved.entries) {
+      const list = entriesByNiin.get(entry.niin)
+      if (list) list.push(entry)
+      else entriesByNiin.set(entry.niin, [entry])
+    }
+    for (const [niin, entries] of entriesByNiin) {
+      const cages = [...new Set(entries.map((e) => e.cage))].sort()
       const list = approvedByNiin.get(niin)
-      const sorted = [...cages].sort()
-      if (list) list.push({ feedDay, cages: sorted })
-      else approvedByNiin.set(niin, [{ feedDay, cages: sorted }])
+      if (list) list.push({ feedDay, cages, entries })
+      else approvedByNiin.set(niin, [{ feedDay, cages, entries }])
     }
 
     days.push({
@@ -552,14 +701,6 @@ function buildWindow(discovery: FeedDayDiscovery, root?: string): WindowResoluti
       indexRows: served.index.rows.length,
       newStockNumbers: acc.size - before,
     })
-  }
-
-  if (newest == null || days.length === 0) {
-    return {
-      ok: false,
-      reason: 'no day in the archive could be parse-verified, so the window is empty',
-      skipped,
-    }
   }
 
   const newestDay = days[days.length - 1]!.feedDay
@@ -635,20 +776,225 @@ function buildWindow(discovery: FeedDayDiscovery, root?: string): WindowResoluti
   }
 
   return {
-    ok: true,
-    window: {
-      newestDay,
-      oldestDay,
-      daysServed: days.map((d) => d.feedDay),
-      daysHeld: discovery.days.length,
-      skipped,
-      index: { rows, byNiin, byKey, offWidthRows, unparsedNsn },
-      approved,
-      newest,
-      days,
-      summary,
-    },
+    newestDay,
+    oldestDay,
+    index: { rows, byNiin, byKey, offWidthRows, unparsedNsn },
+    approved,
+    days,
+    summary,
+    coverage: coverageOf(days, newestDay, oldestDay),
   }
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* COVERAGE, AND THE THIN-DAY DISCLOSURE                                                 */
+/* ------------------------------------------------------------------------------------ */
+
+export type WindowCoverage = {
+  firstDay: string
+  lastDay: string
+  dayCount: number
+  /** Every day actually folded into the union, oldest first. Not the days held: the days USED. */
+  days: string[]
+  /** Index lines each included day published. The weekday swing is visible in this column. */
+  indexRowsByDay: Array<{ feedDay: string; indexRows: number }>
+  newestDayIndexRows: number
+  /** The window's own mean and median, so the newest day is judged against its own archive. */
+  meanIndexRowsPerDay: number
+  medianIndexRowsPerDay: number
+  /** TRUE when the newest day published fewer lines than the window's own mean. */
+  newestDayBelowMean: boolean
+  /** Newest over mean, two decimals. 1 is an average day; this archive's Fridays run near 0.2. */
+  newestDayShareOfMean: number
+  /** The one definition of the operator sentence. Produced by `coverageStatement`. */
+  statement: string
+}
+
+/**
+ * THE SENTENCE THAT KEEPS A SIXTY-FOLD JUMP HONEST.
+ *
+ * Stored on the coverage object rather than derived at each call site, because there is
+ * exactly ONE coverage object per built window and a stored sentence cannot drift from the
+ * facts beside it when both come out of this function. That is the opposite of the per-row
+ * case above, where 29,159 copies of derivable prose would be megabytes on the wire.
+ *
+ * Exported so a surface that needs to restate it can call the same definition instead of
+ * writing a second one.
+ */
+export function coverageStatement(coverage: WindowCoverage): string {
+  const span =
+    coverage.dayCount === 1
+      ? `the single archived feed day ${coverage.firstDay}`
+      : `${coverage.dayCount} archived feed days, ${coverage.firstDay} to ${coverage.lastDay}`
+  const thin = coverage.newestDayBelowMean
+    ? `The newest day, ${coverage.lastDay}, published ${groupDigits(coverage.newestDayIndexRows)} lines against a window mean of ${groupDigits(coverage.meanIndexRowsPerDay)}, so it is a THIN day and a board built on it alone would understate the market.`
+    : `The newest day, ${coverage.lastDay}, published ${groupDigits(coverage.newestDayIndexRows)} lines against a window mean of ${groupDigits(coverage.meanIndexRowsPerDay)}, so it is a normal publishing day for this archive.`
+  return `Counted across ${span}. ${thin}`
+}
+
+function coverageOf(days: WindowDay[], newestDay: string, oldestDay: string): WindowCoverage {
+  const sizes = days.map((d) => d.indexRows)
+  const total = sizes.reduce((t, n) => t + n, 0)
+  const mean = Math.round((total / sizes.length) * 10) / 10
+  const sorted = [...sizes].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median =
+    sorted.length % 2 === 1 ? sorted[mid]! : Math.round(((sorted[mid - 1]! + sorted[mid]!) / 2) * 10) / 10
+  const newestRows = days[days.length - 1]!.indexRows
+  const coverage: WindowCoverage = {
+    firstDay: oldestDay,
+    lastDay: newestDay,
+    dayCount: days.length,
+    days: days.map((d) => d.feedDay),
+    indexRowsByDay: days.map((d) => ({ feedDay: d.feedDay, indexRows: d.indexRows })),
+    newestDayIndexRows: newestRows,
+    meanIndexRowsPerDay: mean,
+    medianIndexRowsPerDay: median,
+    newestDayBelowMean: newestRows < mean,
+    newestDayShareOfMean: mean === 0 ? 0 : Math.round((newestRows / mean) * 100) / 100,
+    statement: '',
+  }
+  coverage.statement = coverageStatement(coverage)
+  return coverage
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* OPEN DEMAND: THE ONLY DOOR FROM THE UNION TO A BOARD                                  */
+/* ------------------------------------------------------------------------------------ */
+
+/**
+ * THE DAY A BOARD IS JUDGED AGAINST, AND WHAT THAT DAY IS.
+ *
+ * A pair, not a bare string, deliberately. `openDemand` used to take an `asOf` it did not
+ * actually use: it read the lifecycle `unionFeedDays` had already frozen against the newest
+ * archived day, so the row set was identical for every argument while a different day was
+ * printed into the sentence that shipped to the operator. That is a measurement labelled with
+ * a basis that did not produce it, and it also made the staleness defect unfixable from the
+ * outside: a caller that tried to correct it by passing today's date saw the numbers not move
+ * and concluded nothing was stale.
+ *
+ * Requiring the basis alongside the day means a caller cannot supply a reference day without
+ * saying, in words a person reads, what that day IS. The sentence is the point: "open" against
+ * a four-day-old archive and "open" against this morning's capture are different claims.
+ */
+export type DemandReference = {
+  /** ISO `YYYY-MM-DD`. Retirement is judged against this and nothing else. */
+  day: string
+  /** What that day is, in the operator's words. Rendered in the statement, never implied. */
+  basis: string
+}
+
+export type OpenDemand = {
+  /** The same shape a single day serves, so every consumer written against a day still works. */
+  index: WindowedIndex
+  /**
+   * The day retirement was judged against, and its stated basis. Every row inside `index`
+   * carries the same day on `row.window.lifecycle.asOf`, because they were re-judged here.
+   */
+  reference: DemandReference
+  /** The reference day alone. Kept because it is what most callers store and print. */
+  asOf: string
+  /** Rows whose own published close date had already passed. Kept in the window, not in demand. */
+  closedExcluded: number
+  /** Rows with no readable close date. A blank is not an open solicitation. */
+  undatedExcluded: number
+  /** The one definition of the operator sentence for what was left out. */
+  statement: string
+}
+
+/**
+ * Narrow a window to the requirements the government's own close date says are still open,
+ * JUDGED AGAINST THE REFERENCE DAY THE CALLER SUPPLIES.
+ *
+ * THE WINDOW KEEPS CLOSED ROWS AND A BOARD MUST NOT SHOW THEM. Rule 3 keeps a closed row and
+ * labels it, because a row that vanishes without explanation is how an operator stops trusting
+ * a board. Rule 6 is the other half of that bargain: the moment those rows are called DEMAND,
+ * the product is claiming DLA is buying something whose solicitation closed a fortnight ago.
+ * MEASURED on the twenty days ending 2026-08-14: 14,539 of 29,159 stock numbers had already
+ * closed, so serving the raw union would have made half the board false.
+ *
+ * THE JUDGEMENT IS MADE HERE, NOT READ BACK FROM THE UNION, and that is the whole repair.
+ * This function used to read `row.window.lifecycle.status`, which `unionFeedDays` had already
+ * frozen against the newest ARCHIVED day, so the `asOf` argument decorated the sentence and
+ * governed nothing. Measured with two hand-built days closing 2026-01-30 and a reference day
+ * of 2030-01-01: two rows came back as open demand, with `closedExcluded` at 0 and a statement
+ * naming 2030. Every row is now re-judged with `lifecycleAsOf` and the SURVIVOR IS REWRITTEN
+ * with the judgement that admitted it, so `row.window.lifecycle.asOf` and everything derived
+ * from it downstream (`CornerRow.demand.asOf`, `.lifecycle`) name the day that actually
+ * decided the row rather than a different one.
+ *
+ * `last_seen_only` is excluded with the closed rows and counted separately. It means the
+ * published line carried no readable return date, which is a publisher silence, not a promise
+ * that the requirement is live. Measured on this archive: zero rows, which is exactly why the
+ * branch has to be written now rather than the first morning a malformed date lands.
+ *
+ * `offWidthRows` and `unparsedNsn` are carried through unchanged and deliberately: they count
+ * LINES THE FILES CARRIED, a shape fact about the captures, and filtering rows for lifecycle
+ * cannot retroactively change how many lines failed the published width.
+ */
+export function openDemand(index: WindowedIndex, reference: DemandReference): OpenDemand {
+  const rows: WindowRow[] = []
+  let closedExcluded = 0
+  let undatedExcluded = 0
+  for (const row of index.rows) {
+    const lifecycle = lifecycleAsOf({
+      closeDate: row.window.lifecycle.closeDate,
+      onNewestDay: row.window.lifecycle.onNewestDay,
+      asOf: reference.day,
+    })
+    if (lifecycle.status === 'open') {
+      // The row that survives carries the judgement that admitted it. Handing on the union's
+      // older stamp would make every downstream `asOf` name a day that did not decide anything.
+      rows.push({ ...row, window: { ...row.window, lifecycle } })
+      continue
+    }
+    if (lifecycle.status === 'closed') closedExcluded += 1
+    else undatedExcluded += 1
+  }
+
+  const byNiin = new Map<Niin, WindowRow[]>()
+  const byKey = new Map<string, WindowRow>()
+  for (const row of rows) {
+    byKey.set(row.window.key, row)
+    if (row.window.niin == null) continue
+    const list = byNiin.get(row.window.niin)
+    if (list) list.push(row)
+    else byNiin.set(row.window.niin, [row])
+  }
+
+  return {
+    index: { rows, byNiin, byKey, offWidthRows: index.offWidthRows, unparsedNsn: index.unparsedNsn },
+    reference,
+    asOf: reference.day,
+    closedExcluded,
+    undatedExcluded,
+    statement: openDemandStatement(closedExcluded, undatedExcluded, reference),
+  }
+}
+
+/**
+ * The one definition of the exclusion sentence. Exported so a surface restates rather than
+ * rewrites.
+ *
+ * IT NAMES THE INSTANT AND WHAT THE INSTANT IS. A count of what was excluded is only readable
+ * beside the day it was excluded on, and "the newest day we hold" and "today" are different
+ * days whenever a capture has been missed, which is the condition this sentence exists to make
+ * visible rather than to smooth over.
+ */
+export function openDemandStatement(
+  closed: number,
+  undated: number,
+  reference: DemandReference,
+): string {
+  const parts = [
+    `${groupDigits(closed)} requirement${closed === 1 ? '' : 's'} whose own published return date had already passed`,
+  ]
+  if (undated > 0) {
+    parts.push(
+      `${groupDigits(undated)} whose published line carried no readable return date, which this product will not read as open`,
+    )
+  }
+  return `Held in the archive and excluded from demand as of ${reference.day}, ${reference.basis}: ${parts.join(', and ')}. They stay searchable and labelled; they are not counted as an opportunity.`
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -709,7 +1055,7 @@ function collectChanges(
  * window, so this is a small and inspectable set rather than a silent policy.
  */
 function buildApprovedWindow(
-  observations: Map<Niin, Array<{ feedDay: string; cages: Cage[] }>>,
+  observations: Map<Niin, Array<{ feedDay: string; cages: Cage[]; entries: ApprovedSourceEntry[] }>>,
   unparsedLines: number,
 ): WindowedApprovedSourceIndex {
   const entries: ApprovedSourceEntry[] = []
@@ -724,17 +1070,21 @@ function buildApprovedWindow(
     windowByNiin.set(niin, {
       sourceDay: newest.feedDay,
       cages: newest.cages,
+      entries: newest.entries,
       firstSeen: list[0]!.feedDay,
       lastSeen: newest.feedDay,
       daysObserved: new Set(list.map((o) => o.feedDay)).size,
       changed,
-      history: changed ? list : [],
+      history: changed ? list.map((o) => ({ feedDay: o.feedDay, cages: o.cages })) : [],
     })
+
+    // The published rows themselves, so `nsn` is the thirteen-digit value the file carried and
+    // `partNumber` is the publisher's, not a placeholder standing in for either.
+    for (const entry of newest.entries) entries.push(entry)
 
     const set = new Set<Cage>(newest.cages)
     byNiin.set(niin, set)
     for (const cage of newest.cages) {
-      entries.push({ niin, nsn: niin, cage, partNumber: '' })
       const owned = byCage.get(cage)
       if (owned) owned.add(niin)
       else byCage.set(cage, new Set([niin]))
@@ -742,6 +1092,22 @@ function buildApprovedWindow(
   }
 
   return { entries, byNiin, byCage, unparsedLines, windowByNiin }
+}
+
+/**
+ * Thousands separators without a locale read.
+ *
+ * `toLocaleString()` is the defect class this repository has shipped three times: it can
+ * resolve differently on a server and in a browser and it is a hydration mismatch waiting for
+ * an ICU difference. These strings are computed once on the server, but the function is
+ * exported territory and a client could call it, so the formatting is written out rather than
+ * borrowed from the runtime.
+ */
+function groupDigits(value: number): string {
+  const negative = value < 0
+  const [whole, fraction] = Math.abs(value).toString().split('.')
+  const grouped = (whole ?? '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `${negative ? '-' : ''}${grouped}${fraction ? `.${fraction}` : ''}`
 }
 
 /**

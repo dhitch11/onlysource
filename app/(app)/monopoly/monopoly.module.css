@@ -492,3 +492,18 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ---------- the wire bound, stated in visible text ----------
+   The grid receives a bounded slice of the served board (see GRID_ROW_BUDGET in page.tsx),
+   so this line has to be readable rather than decorative: it is the only place the operator
+   learns that the table under a map-sized count is not the whole map. */
+.bound {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  line-height: 1.5;
+  margin-top: calc(-1 * var(--sp-2));
+}
+.bound b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}

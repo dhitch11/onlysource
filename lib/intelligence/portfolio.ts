@@ -1,9 +1,9 @@
-import { buildAllDatasets } from '@/lib/intelligence/datasets'
+import { buildAllDatasets, cachePerIdentityDay } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { isRisingPrice } from '@/lib/intelligence/rising-price'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
-import type { CornerRow } from '@/lib/intelligence/corner'
+import type { CornerFunnel, CornerMap, CornerRow } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
 
@@ -41,6 +41,18 @@ export type CountBar = { label: string; value: number }
 export type Portfolio = {
   ok: boolean
   feedDay: string
+  /**
+   * THE BASIS FOR `totals.candidateCorners`, carried so the dashboard never prints a count
+   * without its span. This book is now the archived WINDOW rather than one feed day, and a
+   * headline that grows sixty-fold between two deploys with nothing explaining it reads as a
+   * product that started making numbers up.
+   */
+  coverage: CornerMap['coverage']
+  /**
+   * The same candidate definition over the NEWEST DAY ALONE: what this dashboard showed before
+   * the window was wired. Printed beside the window count, never in place of it.
+   */
+  newestDayFunnel: CornerFunnel | null
   totals: {
     candidateCorners: number
     onForecast: number
@@ -96,12 +108,24 @@ function enrich(
   }
 }
 
-let cache: Portfolio | null = null
+/**
+ * KEYED, NOT A SINGLE SLOT. This was one module-level `Portfolio | null` with no key at all,
+ * so the first build of a process was the only build of that process: a capture landing, or a
+ * backfill widening the window, could never invalidate it. The key is the corner map's own
+ * basis, which is exactly the identity `buildAllDatasets` memoises on, so the two caches
+ * cannot disagree about which archive state is being served.
+ */
+const cache = new Map<string, Portfolio>()
 
 export function buildPortfolio(): Portfolio {
-  if (cache) return cache
-
-  const { cornerMap } = buildAllDatasets()
+  const { cornerMap, newestDayFunnel } = buildAllDatasets()
+  // The day demand was judged against is part of the identity: the same archive yields a
+  // smaller open book tomorrow, because return dates pass on the government's calendar and not
+  // on our capture schedule.
+  const judgedOn = cornerMap.coverage.excludedFromDemand?.asOf ?? 'single_day'
+  const cacheKey = `${cornerMap.provenance.feedDay}|${cornerMap.coverage.basis}|${cornerMap.coverage.firstDay}|${cornerMap.coverage.dayCount}|${judgedOn}`
+  const hit = cache.get(cacheKey)
+  if (hit) return hit
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
   const awardBy = awardIx.ok ? awardIx.byNsn : null
@@ -173,9 +197,11 @@ export function buildPortfolio(): Portfolio {
 
   const topCorners = [...candidates].sort((a, b) => b.score - a.score).slice(0, 10)
 
-  cache = {
+  const portfolio: Portfolio = {
     ok: candidates.length > 0,
     feedDay: cornerMap.provenance.feedDay,
+    coverage: cornerMap.coverage,
+    newestDayFunnel,
     totals: {
       candidateCorners: candidates.length,
       onForecast: candidates.filter((c) => c.onForecast).length,
@@ -193,13 +219,23 @@ export function buildPortfolio(): Portfolio {
     escalationLeaders,
     topCorners,
   }
-  return cache
+  // Keyed with the judged-against day last, so yesterday's book is dropped rather than kept.
+  return cachePerIdentityDay(cache, cacheKey, portfolio)
+}
+
+/** Tests only: drop the memo so a suite can assert cold and warm agree. */
+export function resetPortfolioCache(): void {
+  cache.clear()
 }
 
 /** The compact dossier the AI portfolio brief is written from. Only measured aggregates + top plays. */
 export function buildPortfolioDossier(pf: Portfolio) {
   return {
     feedDay: pf.feedDay,
+    // The span every total below was counted over, so the language model writing the brief
+    // cannot describe a twenty-day book as if it were today's solicitations.
+    coveredDays: pf.coverage.daysIncluded,
+    coverageBasis: pf.coverage.statement,
     totals: pf.totals,
     supplyChainMix: pf.bySupplyChain.slice(0, 8),
     dispositionMix: pf.byDisposition,

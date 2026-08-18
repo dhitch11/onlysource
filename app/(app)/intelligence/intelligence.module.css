@@ -28,6 +28,21 @@
   max-width: 72ch;
   line-height: 1.55;
 }
+/*
+ * THE BASIS SENTENCE. Quieter than .sub because it is provenance rather than a subtitle, but
+ * it is NOT hidden and it is not behind a disclosure: it names the span every total above was
+ * counted across, what was excluded from demand and on which day, and what the newest archived
+ * day alone shows. Same register as the truth strip on /monopoly, same single definition
+ * (lib/intelligence/corner.ts cornerCoverageStatement) so the two surfaces cannot drift.
+ */
+.basis {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  max-width: 88ch;
+  line-height: 1.6;
+  border-left: 2px solid var(--line);
+  padding-left: var(--sp-3);
+}
 
 /* ------------------------------------------------------------------ metrics */
 .metricStrip {

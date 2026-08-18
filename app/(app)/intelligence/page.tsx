@@ -46,6 +46,24 @@ export default async function IntelligencePage() {
 
   const pf = buildPortfolio()
 
+  /**
+   * THE BASIS FOR EVERY TOTAL BELOW, AND IT IS A SPAN.
+   *
+   * This header read "Intelligence · feed day 2026-08-14" over "The whole candidate book for
+   * this feed day", while `buildPortfolio` counts across the whole archived window. MEASURED
+   * through the serving path: the rows behind these totals cite 13 distinct feed days across a
+   * 20-day span, and only 3.4% of them come from the capture that was named. `pf.coverage` has
+   * carried the honest sentence since the window landed and was rendered on no surface at all;
+   * it is rendered here, from the one definition in lib/intelligence/corner.ts, so this page
+   * and /monopoly cannot describe the same book two different ways.
+   */
+  const coverage = pf.coverage
+  const spanLabel =
+    coverage.basis === 'window'
+      ? `${coverage.dayCount} archived feed days, ${coverage.firstDay} to ${coverage.lastDay}`
+      : `the single archived feed day ${coverage.firstDay}`
+  const judgedOn = coverage.excludedFromDemand?.asOf ?? null
+
   const metrics: Array<{ n: number; label: string; hint: string }> = [
     { n: pf.totals.candidateCorners, label: 'candidate corners', hint: 'sole source, under open demand, award-silent' },
     { n: pf.totals.onForecast, label: 'on the DLA Forecast', hint: 'forward demand is measured' },
@@ -57,12 +75,22 @@ export default async function IntelligencePage() {
   return (
     <main className={styles.page}>
       <header className={styles.head}>
-        <p className={styles.eyebrow}>Intelligence · feed day {pf.feedDay}</p>
+        <p className={styles.eyebrow}>Intelligence · counted across {spanLabel}</p>
         <h1 className={styles.h1}>Where the money is</h1>
         <p className={styles.sub}>
-          The whole candidate book for this feed day, aggregated. The brief and every chart read the
-          same measured numbers. Start with the AI read, then work the ranked plays.
+          The whole candidate book across{' '}
+          {coverage.basis === 'window'
+            ? `every archived feed day this build could parse-verify, ${coverage.firstDay} to ${coverage.lastDay}`
+            : `the single archived feed day ${coverage.firstDay}`}
+          , aggregated
+          {judgedOn ? `, with open demand judged against ${judgedOn}` : ''}. The brief and every
+          chart read the same measured numbers. Start with the AI read, then work the ranked
+          plays.
         </p>
+        {/* The stored sentence, not a second hand-written copy of it: the span, the thin-day
+            disclosure, what was excluded from demand and on which day, and what the newest
+            archived day alone shows judged the same way. */}
+        <p className={styles.basis}>{coverage.statement}</p>
       </header>
 
       {/* --------------------------------------------------------- AI portfolio brief */}

@@ -50,9 +50,31 @@ export default async function WorkspacePage() {
   // absent every figure abstains rather than showing a fabricated zero.
   const present = resolveDataRoot().present
   const cm = present ? buildAllDatasets().cornerMap.summary : null
-  // The feed day the whole workspace is reading. The hero names it because "live" would be a
-  // claim about freshness this snapshot cannot make; the honest sentence names the day.
+  // The NEWEST archived capture. It is a claim about CURRENCY (how fresh the data is) and it
+  // is still true, so it keeps its billing in the freshness chrome. It is NOT the basis of any
+  // count on this page, which is the distinction `coverage` below exists to carry.
   const feedDay = present ? buildAllDatasets().cornerMap.provenance.feedDay : null
+  /**
+   * THE BASIS FOR THE COUNTS, WHICH IS A SPAN AND NOT A DAY.
+   *
+   * The candidate-corners tile and the hero lede named ONE archived feed day while the number
+   * under them is counted across the whole window. MEASURED through the serving path on this
+   * archive: 183 of the 5,366 rows behind that count, 3.4%, come from the file that was cited,
+   * and the rows cite 13 distinct feed days across a 20-day span. Same defect and same cure as
+   * /monopoly: the span and the day demand was judged against are stated, and the archive key
+   * survives as "the newest of N captures" rather than as the source of everything.
+   */
+  const coverage = present ? buildAllDatasets().cornerMap.coverage : null
+  const spanNote =
+    coverage == null
+      ? null
+      : coverage.basis === 'window'
+        ? `${coverage.dayCount} archived feed days, ${coverage.firstDay} to ${coverage.lastDay}`
+        : `the single archived feed day ${coverage.firstDay}`
+  // Null on the single-day path and that null is honest: that path evaluates no close date at
+  // all, so there is no day it was judged against and none is printed.
+  const judgedOn = coverage?.excludedFromDemand?.asOf ?? null
+  const judgedNote = judgedOn ? `, with open demand judged against ${judgedOn}` : ''
   const nq = present ? buildAllDatasets().noQuote.summary : null
   const signals = present ? computeSignals().signals : []
   const awardIx = present ? buildNsnAwardIndex() : null
@@ -86,6 +108,18 @@ export default async function WorkspacePage() {
     onForecast: boolean
     price: number | null
     quantity: number | null
+    /**
+     * THE DAY THIS ROW'S OWN DEMAND WAS PUBLISHED, not the newest day the archive holds.
+     *
+     * The score explainer's `asOf` read the build's newest capture, which is a claim about how
+     * fresh the WORKSPACE is. This card is one row, and on a windowed board a row's newest
+     * published line can be any of the archived days: the sample measured for this repair was
+     * last published 2026-08-13 on a board whose newest capture is 2026-08-14, and other rows
+     * reach back three weeks. Naming the newest capture there would overstate the freshness of
+     * this particular score. Null only where the row carries no day of its own, and the
+     * fallback then is the build's newest capture, which on that path IS the row's source.
+     */
+    asOfFeedDay: string | null
   } | null = null
   let candidateCount = 0
   if (present) {
@@ -111,6 +145,7 @@ export default async function WorkspacePage() {
           onForecast: !!r.forecast?.onForecast,
           price: r.award?.latestPrice ?? null,
           quantity: r.quantity,
+          asOfFeedDay: r.demand?.source.feedDay ?? null,
         }
       }
     }
@@ -138,7 +173,12 @@ export default async function WorkspacePage() {
    * passed live (never typed into static help text) so it can never go stale against the data.
    */
   const base = (p: string) => path.basename(p)
-  const feedNote = feedDay ? `feed day ${feedDay}` : 'no feed loaded'
+  /*
+   * WHAT THE WORKSPACE IS SERVING, in the words the builder computed it in. This used to read
+   * `feed day ${feedDay}` and was appended to every tile's explainer, which put a single-day
+   * label under five counts, only one of which is a single-day figure at all.
+   */
+  const feedNote = spanNote ? `the workspace is serving ${spanNote}` : 'no feed is loaded'
   const nqProv = present ? buildAllDatasets().noQuote.provenance : null
   const cmProv = present ? buildAllDatasets().cornerMap.provenance : null
   const nsnNowFiles = (awardIx?.ok ? awardIx.provenance : fcIx?.ok ? fcIx.provenance : []).map((p) => base(p.path))
@@ -164,7 +204,10 @@ export default async function WorkspacePage() {
           href: '/monopoly',
           hot: true,
           helpId: 'monopoly.candidate_corner',
-          sourceDetail: `Counted from ${cmProv?.sourceArchiveKey ?? 'the daily archive'} · ${feedNote}`,
+          sourceDetail:
+            coverage?.basis === 'window'
+              ? `Counted across ${spanNote}${judgedNote}. The newest of those ${coverage.dayCount} captures is ${cmProv?.sourceArchiveKey ?? 'the daily archive'}; it is one of them, not the source of all of them. Each row on the Monopoly Map cites the archived file its own feed day published.`
+              : `Counted on ${spanNote ?? 'no feed'}, from ${cmProv?.sourceArchiveKey ?? 'the daily archive'}.`,
         },
         {
           n: (nq?.makeSideOnly ?? 0).toLocaleString(),
@@ -173,7 +216,7 @@ export default async function WorkspacePage() {
           href: '/goldmine',
           hot: true,
           helpId: 'capability.no_quote',
-          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · workspace ${feedNote}`,
+          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · ${feedNote}`,
         },
         {
           n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(),
@@ -181,7 +224,7 @@ export default async function WorkspacePage() {
           hint: 'the government will buy these again',
           href: '/monopoly',
           helpId: 'monopoly.forecast_nsns',
-          sourceDetail: `Counted from the DLA Forecast sheets of ${nsnNowNote} · workspace ${feedNote}`,
+          sourceDetail: `Counted from the DLA Forecast sheets of ${nsnNowNote} · ${feedNote}`,
         },
         {
           n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(),
@@ -189,7 +232,7 @@ export default async function WorkspacePage() {
           hint: 'real prices and ten-year trends',
           href: '/monopoly',
           helpId: 'monopoly.award_history_nsns',
-          sourceDetail: `Counted from the procurement history sheets of ${nsnNowNote} · workspace ${feedNote}`,
+          sourceDetail: `Counted from the procurement history sheets of ${nsnNowNote} · ${feedNote}`,
         },
         {
           n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(),
@@ -198,7 +241,7 @@ export default async function WorkspacePage() {
           href: '/suppliers',
           hot: true,
           helpId: 'monopoly.distressed_tier_a',
-          sourceDetail: `Counted from ${supIx?.ok ? supIx.provenance.map((p) => base(p.path)).join(' + ') : 'the researched workbook'} · workspace ${feedNote}`,
+          sourceDetail: `Counted from ${supIx?.ok ? supIx.provenance.map((p) => base(p.path)).join(' + ') : 'the researched workbook'} · ${feedNote}`,
         },
       ]
     : []
@@ -209,8 +252,10 @@ export default async function WorkspacePage() {
         <p className="eyebrow">Operator command center</p>
         <h1 className="h1">The market, mapped and ranked by money.</h1>
         <p className="lede">
-          {feedDay
-            ? `Built from the real DLA files for feed day ${feedDay}. `
+          {/* THE SPAN, NOT ONE DAY. This read "for feed day 2026-08-14" three lines above a
+              tile counted across twenty of them. */}
+          {spanNote
+            ? `Built from the real DLA files: ${spanNote}${judgedNote}. `
             : 'Built from the real DLA files; no feed is loaded here yet. '}
           Every number here is measured from a government file, and every position carries its own
           evidence and gaps. Start with the strongest corner, or work the book of business.
@@ -248,7 +293,9 @@ export default async function WorkspacePage() {
               <ExplainButton
                 helpId="score.corner_v0"
                 size="sm"
-                sourceDetail={`Scored from the feed-day corner row joined to the NSN-Now export · ${feedNote}`}
+                sourceDetail={`Scored from this row's own published line${
+                  topCorner.asOfFeedDay ? ` of ${topCorner.asOfFeedDay}` : ''
+                }, joined to the NSN-Now export · ${feedNote}`}
                 computation={
                   feedDay
                     ? {
@@ -257,7 +304,10 @@ export default async function WorkspacePage() {
                           contribution: x.points,
                         })),
                         modelVersion: 'cornerscore-v0',
-                        asOf: feedDay,
+                        // This row's own published day, falling back to the build's newest
+                        // capture only where the row carries none. Never the other way round:
+                        // the fallback direction is the one that abstains.
+                        asOf: topCorner.asOfFeedDay ?? feedDay,
                       }
                     : undefined
                 }
