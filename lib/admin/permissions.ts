@@ -160,6 +160,58 @@ export function role(key: string): Role | undefined {
   return ROLES.find((r) => r.key === key)
 }
 
+/**
+ * THE KEY THAT MATCHES NO ROLE, AND THE ROLE THAT HOLDS NOTHING.
+ *
+ * A stored role key can stop being a real role in three ordinary ways: an admin deletes or
+ * renames a role, or somebody hand-edits the state file and mistypes. What must NOT happen is
+ * the thing that shipped on 2026-08-18 and was measured on 2026-08-18: `read_onlyy`, a one
+ * character typo of the smallest role in the product, was repaired at read time into
+ * `operator` and handed its holder `document.view` and `margin.view`, the two sensitive
+ * permissions the read-only role exists to withhold. A repair like that is a grant nobody made
+ * and nothing recorded.
+ *
+ * So the answer to an unrecognised key is this role. It holds no permissions, so every
+ * `can()` is false and every gated route refuses, and it carries a NAME that says what
+ * happened, so the console prints "Unrecognised role" instead of a real role's name. An
+ * unknown is typed as unknown and it says so on screen.
+ *
+ * It is deliberately NOT a member of `ROLES`: it must never appear in a role picker, never be
+ * assignable, and never be granted. `assertNoRoleUsesUnrecognisedKey()` keeps that true.
+ */
+export const UNRECOGNISED_ROLE_KEY = 'unrecognised'
+
+export const UNRECOGNISED_ROLE: Role = {
+  key: UNRECOGNISED_ROLE_KEY,
+  name: 'Unrecognised role',
+  plane: 'operator',
+  permissions: [],
+  builtin: false,
+}
+
+/**
+ * The role behind a stored key, fail closed.
+ *
+ * The one resolver for persisted role keys, used by the directory and by the account layer, so
+ * the name the console prints and the permissions the API enforces can never come from two
+ * different answers to the same question.
+ */
+export function roleOrUnrecognised(key: string): Role {
+  return role(key) ?? UNRECOGNISED_ROLE
+}
+
+/** The sentinel is only safe while no real role claims its key. Asserted, never assumed. */
+export function assertNoRoleUsesUnrecognisedKey(): void {
+  const clash = ROLES.find((r) => r.key === UNRECOGNISED_ROLE_KEY)
+  if (clash) {
+    throw new RoleShapeError(
+      `Role "${clash.key}" uses the reserved key "${UNRECOGNISED_ROLE_KEY}", which is how an ` +
+        'unrecognised stored role is represented. A real role holding it would turn every ' +
+        'unreadable key into a working grant.',
+    )
+  }
+}
+
 export class RoleShapeError extends Error {
   constructor(message: string) {
     super(message)

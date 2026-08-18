@@ -76,11 +76,104 @@ export function guardRoleChange(
     return { ok: false, reason: 'That role does not exist.' }
   }
   if (nextRoleKey === user.roleKey) return OK
-  // Losing owner matters. Gaining it never does.
+  /*
+   * THIS RULE IS ABOUT THE ROSTER, NOT ABOUT THE CALLER, AND THAT IS THE WHOLE POINT.
+   *
+   * It answers "does the organization survive this change", which is why the directory can ask
+   * it with no caller in hand to decide whether a control is live. It deliberately does NOT ask
+   * what the caller may hand out. This comment used to read "Losing owner matters. Gaining it
+   * never does", which was true only while nobody could grant a role at all, and false the
+   * moment `roles.manage` reached this route. `guardRoleGrant` is the missing half and the
+   * route runs both.
+   */
   if (isOwnerRole(user.roleKey) && user.status === 'active' && activeOwnersOtherThan(users, id) === 0) {
     return { ok: false, reason: LAST_OWNER_REASON }
   }
   return OK
+}
+
+/**
+ * NOBODY HANDS OUT MORE ACCESS THAN THEY HOLD. The other half of the sign-in rule.
+ *
+ * ==========================================================================================
+ * THE ESCALATION THIS CLOSES, WALKED END TO END ON A REAL ACCOUNT ON 2026-08-18.
+ * ==========================================================================================
+ * `guardSignInChange` already bounds a PASSWORD by the caller's own permission set, and until
+ * this function landed a ROLE GRANT was bounded by nothing whatsoever. One human holding the
+ * seeded `admin` role reached `owner` alone, in three permitted requests, and every one of
+ * them answered 200:
+ *
+ *   1. Create a second account at their OWN rank. `roles.manage` is held, and naming `admin`
+ *      is naming a role they already have, so nothing was out of reach.
+ *   2. Set a password on it. `guardSignInChange` passed, correctly: the puppet held exactly
+ *      what the caller held.
+ *   3. Sign in as the puppet and grant `owner` to the FIRST account. `guardSelfRoleChange` did
+ *      not fire, because the caller was now the puppet and the target was somebody else.
+ *
+ * Same person throughout. The audit trail reads as two accounts cooperating, which is exactly
+ * the social recovery `guardSelfRoleChange` was written to require, and the second account was
+ * minted by the first for the purpose. So "no privilege increase is ever a single person act"
+ * was FALSE as shipped, and comparing caller ids can never make it true.
+ *
+ * THE RULE THAT DOES: a caller may only grant a role whose permissions are a SUBSET of what
+ * they themselves hold. It is the same shape as the sign-in rule and it is compared between
+ * PERMISSION SETS, not role names, so it keeps working when an admin authors a fifth role. The
+ * puppet chain now dies at step 3, because `owner` holds `org.manage` and `admin` does not,
+ * however many puppets are standing in between.
+ *
+ * `callerHeld` for the break-glass session is the owner set (see `callerPermissions`), so
+ * first-run setup can still create an owner. That is correct: the door is only open while no
+ * credential exists anywhere.
+ */
+export function guardRoleGrant(callerHeld: readonly string[], nextRoleKey: string): RosterGuard {
+  const target = role(nextRoleKey)
+  // Not a real role, so there is nothing to grant. The route refuses this earlier with the
+  // same sentence; it is repeated here so the rule is complete on its own.
+  if (!target) return { ok: false, reason: 'That role does not exist.' }
+
+  const beyond = target.permissions.filter((key) => !can(callerHeld, key))
+  if (beyond.length === 0) return OK
+
+  const first = permission(beyond[0] as string)?.label ?? (beyond[0] as string)
+  return {
+    ok: false,
+    reason:
+      `You cannot give somebody the ${target.name} role, because it includes "${first}", which ` +
+      'your own role does not hold. Nobody hands out more access than they have. Somebody with ' +
+      'at least that access has to make this change.',
+  }
+}
+
+/**
+ * NOBODY TAKES A ROLE AWAY FROM AN ACCOUNT THAT OUTRANKS THEM EITHER.
+ *
+ * The mirror of `guardRoleGrant`, and the same argument `guardSignInChange` makes about
+ * passwords: an account holding access the caller does not hold is not the caller's to
+ * rewrite. Without it an admin could strip an owner down to read-only and take the
+ * organization's governance apart without ever gaining a permission, which is a hostile act
+ * even though it is not, strictly, an escalation.
+ *
+ * A no-op is not a change, so asking for the role somebody already holds passes here, matching
+ * `guardRoleChange`.
+ */
+export function guardRoleRemoval(callerHeld: readonly string[], user: GuardedUser, nextRoleKey: string): RosterGuard {
+  if (nextRoleKey === user.roleKey) return OK
+  const current = role(user.roleKey)
+  // An unrecognised stored role holds nothing, so there is nothing being taken away, and the
+  // row needs to stay repairable by anybody who may change roles at all.
+  if (!current) return OK
+
+  const beyond = current.permissions.filter((key) => !can(callerHeld, key))
+  if (beyond.length === 0) return OK
+
+  const first = permission(beyond[0] as string)?.label ?? (beyond[0] as string)
+  return {
+    ok: false,
+    reason:
+      `You cannot change the role for ${user.name}, because that account holds access your own ` +
+      `role does not, starting with "${first}". Somebody with at least that access has to ` +
+      'change it.',
+  }
 }
 
 /**

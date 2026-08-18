@@ -2,7 +2,7 @@ import 'server-only'
 import { buildUsers } from '@/lib/admin/directory'
 import { readRoster, setOverride, updateMember, type RosterStatus } from '@/lib/admin/roster-store'
 import { hashPassword, passwordProblem, verifyPassword } from './credentials'
-import { role, type Role } from '@/lib/admin/permissions'
+import { roleOrUnrecognised, type Role } from '@/lib/admin/permissions'
 
 /**
  * ACCOUNTS. Real per-person sign in over the roster, replacing the shared pre-release phrase.
@@ -49,25 +49,21 @@ const DUMMY_CREDENTIAL =
   'scrypt$32768$8$1$YWJjZGVmZ2hpamtsbW5vcA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
 
 /**
- * A role key that matches no role. It holds NOTHING, and it says so where a role name is shown.
+ * The role behind a stored key. Never a default, because a default role is a grant nobody made.
  *
- * This is the answer to a stored key the permission model does not recognise, which happens
- * when a role is deleted, renamed, or hand-edited into the state file. The previous answer was
- * the operator role, chosen by array index, and that is a silent grant: a typo in a JSON file
- * would have handed somebody the whole operator plane with nothing to see and nothing logged.
+ * `UNRECOGNISED_ROLE` holds NOTHING and says so where a role name is shown. It answers a stored
+ * key the permission model does not recognise, which happens when a role is deleted, renamed,
+ * or hand-edited into the state file.
+ *
+ * ★ THIS WAS DEAD CODE UNTIL 2026-08-18, AND THE COMMIT THAT ADDED IT CLAIMED OTHERWISE. The
+ * roster store repaired every unrecognised key to `operator` before this function ever saw it,
+ * so `UNRECOGNISED_ROLE` was unreachable and a mistyped key in the state file really did hand
+ * out the whole operator plane. Measured, not inferred: `"roleKey": "read_onlyy"` resolved to
+ * the operator role and POST /api/packets answered 200. The store now preserves what it read,
+ * so this line is finally the answer it always claimed to be, and
+ * `test/t7-admin/roster-store.test.ts` fails if the repair comes back.
  */
-const UNRECOGNISED_ROLE: Role = {
-  key: 'unrecognised',
-  name: 'Unrecognised role',
-  plane: 'operator',
-  permissions: [],
-  builtin: false,
-}
-
-/** The role behind a stored key. Never a default, because a default role is a grant nobody made. */
-function roleFor(key: string): Role {
-  return role(key) ?? UNRECOGNISED_ROLE
-}
+const roleFor = roleOrUnrecognised
 
 type RosterCredential = { id: string; passwordHash: string | null }
 

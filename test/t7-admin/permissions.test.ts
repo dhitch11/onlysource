@@ -3,11 +3,15 @@ import {
   ROLES,
   PERMISSIONS,
   RoleShapeError,
+  UNRECOGNISED_ROLE,
+  UNRECOGNISED_ROLE_KEY,
+  assertNoRoleUsesUnrecognisedKey,
   assertRoleWellFormed,
   can,
   canReachAdminPlane,
   describeRole,
   permission,
+  roleOrUnrecognised,
   type Role,
 } from '@/lib/admin/permissions'
 
@@ -127,5 +131,58 @@ describe('role explanations are derived, never hand-written', () => {
     const r = role({ permissions: ['board.view'] })
     expect(describeRole(r)).toEqual(['View the board'])
     expect(describeRole(role({ permissions: ['board.view', 'board.quote'] }))).toHaveLength(2)
+  })
+})
+
+/**
+ * AN UNRECOGNISED STORED ROLE, WHICH USED TO BE A SILENT GRANT OF THE OPERATOR PLANE.
+ *
+ * Measured on 2026-08-18, through the real code: a roster member stored with
+ * `"roleKey": "read_onlyy"` was repaired at read time into `operator` and resolved to eight
+ * permissions, including `document.view` and `margin.view`, the two SENSITIVE ones read_only
+ * exists to withhold. The fail-closed role existed and was unreachable. It is reachable now,
+ * and these are the properties it has to keep.
+ */
+describe('an unrecognised role key resolves to nothing, and names itself', () => {
+  it('holds no permissions at all, so every gate refuses it', () => {
+    expect(UNRECOGNISED_ROLE.permissions).toEqual([])
+    for (const p of PERMISSIONS) {
+      expect(can(UNRECOGNISED_ROLE.permissions, p.key)).toBe(false)
+    }
+    // And it cannot reach the admin console, which is the failure that ends a company.
+    expect(canReachAdminPlane(UNRECOGNISED_ROLE)).toBe(false)
+  })
+
+  it('says what it is where a role name is shown, rather than borrowing a real role name', () => {
+    expect(UNRECOGNISED_ROLE.name).toBe('Unrecognised role')
+    expect(ROLES.map((r) => r.name)).not.toContain(UNRECOGNISED_ROLE.name)
+  })
+
+  it('is never assignable: the sentinel key matches no real role and is not in the picker', () => {
+    expect(ROLES.some((r) => r.key === UNRECOGNISED_ROLE_KEY)).toBe(false)
+    expect(() => assertNoRoleUsesUnrecognisedKey()).not.toThrow()
+  })
+
+  it('POSITIVE CONTROL: the collision assertion actually fires when a role claims the key', () => {
+    // Proving the guard is not vacuous. A shipped role named `unrecognised` would turn every
+    // unreadable stored key into a working grant, which is the exact defect being closed.
+    const original = ROLES as Role[]
+    const claimed = { ...(original[0] as Role), key: UNRECOGNISED_ROLE_KEY }
+    original.push(claimed)
+    try {
+      expect(() => assertNoRoleUsesUnrecognisedKey()).toThrow(RoleShapeError)
+    } finally {
+      original.pop()
+    }
+    expect(() => assertNoRoleUsesUnrecognisedKey()).not.toThrow()
+  })
+
+  it('resolves an unknown key to it, and a known key to the real role', () => {
+    for (const key of ['read_onlyy', 'super_admin', 'root', '', ' owner ']) {
+      expect(roleOrUnrecognised(key).permissions).toEqual([])
+    }
+    // POSITIVE CONTROL: the resolver is not simply denying everything.
+    expect(roleOrUnrecognised('owner').key).toBe('owner')
+    expect(roleOrUnrecognised('read_only').key).toBe('read_only')
   })
 })

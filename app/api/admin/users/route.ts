@@ -19,6 +19,8 @@ import {
 import {
   guardRemove,
   guardRoleChange,
+  guardRoleGrant,
+  guardRoleRemoval,
   guardSelfRoleChange,
   guardSignInChange,
   guardStatusChange,
@@ -39,8 +41,16 @@ export const runtime = 'nodejs'
  * session holding `read_only`, the weakest role the product ships with, POSTed its own id with
  * `roleKey: 'owner'`, was promoted, and then set a password on the seeded owner account. Full
  * takeover, from the role designed to see the least. Every handler below now resolves WHO is
- * calling and asks the permission model what they may do, and a role change additionally
- * refuses the caller's own row, so no privilege increase is ever a single-person act.
+ * calling and asks the permission model what they may do.
+ *
+ * ★ AND THE SECOND HALF, WHICH THE FIRST VERSION OF THIS COMMENT CLAIMED AND DID NOT HAVE. It
+ * said "a role change additionally refuses the caller's own row, so no privilege increase is
+ * ever a single-person act". Refusing the caller's own row is defeated by a second identity,
+ * and on 2026-08-18 the seeded `admin` account walked to `owner` alone in three permitted
+ * requests by creating one, giving it a password, and promoting itself from it. Every request
+ * answered 200. The claim was false as written. What makes it true is `guardRoleGrant` and
+ * `guardRoleRemoval`: a caller may only hand out, or take away, a role whose permissions are a
+ * subset of what they themselves hold, on the create path as well as the change path.
  *
  * The screen disables a control the server would refuse, which is a courtesy. THIS is the
  * control: every write below re-runs the same `roster-rules` functions the page used, against
@@ -164,6 +174,16 @@ export async function POST(req: NextRequest) {
     const roleDenied = permissionRefusal(caller, 'roles.manage')
     if (roleDenied) return roleDenied
 
+    /*
+     * AND THE ROLE NAMED HAS TO BE ONE THIS CALLER COULD GIVE AWAY. The create path is checked
+     * for the same reason the change path is, and it is not redundant with it: the measured
+     * escalation started HERE, with an admin minting a second account to act through. Bounding
+     * only the change path would leave "create an owner, then set its password, then sign in as
+     * it" standing, which is the same takeover with one fewer request.
+     */
+    const grant = guardRoleGrant(callerPermissions(caller), check.value.roleKey)
+    if (!grant.ok) return refuse('role_refused', grant.reason)
+
     const now = systemClock.now()
     try {
       return ok(
@@ -232,6 +252,25 @@ export async function POST(req: NextRequest) {
     // And nobody changes their OWN role, whatever they hold. See `guardSelfRoleChange`.
     const self = guardSelfRoleChange(guarded(users), callerAccountId(caller), id, nextRole)
     if (!self.ok) return refuse('self_role_refused', self.reason)
+    /*
+     * AND NOBODY HANDS OUT MORE THAN THEY HOLD, OR TAKES AWAY MORE THAN THEY HOLD.
+     *
+     * `guardSelfRoleChange` compares ids, so it is defeated by a second identity, and one was
+     * minted and used on 2026-08-18 to walk an `admin` account to `owner` in three permitted
+     * requests. These two rules compare PERMISSION SETS instead, which no number of puppets can
+     * change. They are the role-shaped twin of `guardSignInChange` above.
+     */
+    const held = callerPermissions(caller)
+    const grant = guardRoleGrant(held, nextRole)
+    if (!grant.ok) return refuse('role_refused', grant.reason)
+    const strip = guardRoleRemoval(held, {
+      id: target.id,
+      name: target.name,
+      roleKey: target.roleKey,
+      status: target.status,
+      seeded: target.seeded,
+    }, nextRole)
+    if (!strip.ok) return refuse('role_refused', strip.reason)
     const g = guardRoleChange(guarded(users), id, nextRole)
     if (!g.ok) return refuse('role_refused', g.reason)
     patch.roleKey = nextRole

@@ -68,6 +68,20 @@ export type ViewerLimits = {
   selfRoleReason: string
   /** Row id to the reason its sign in is out of this viewer's reach. Absent means allowed. */
   signInBlocked: Record<string, string>
+  /**
+   * The role keys this viewer may actually hand out, from `guardRoleGrant` on the server.
+   *
+   * Nobody grants a role holding access they do not hold themselves, which is the rule that
+   * closes the puppet-account escalation. The API enforces it whatever this list says; the list
+   * exists so the option is dead in the picker rather than accepted and then refused after the
+   * click, which the roster-rules header calls the worse failure of the two.
+   */
+  grantableRoleKeys: string[]
+  /**
+   * Row id to the reason THAT ROW's role is out of reach, from `guardRoleRemoval`. An account
+   * holding access the viewer does not hold is not the viewer's to rewrite in either direction.
+   */
+  roleTargetBlocked: Record<string, string>
 }
 
 const emptyDraft = (roleKey: string): Draft => ({ name: '', email: '', title: '', roleKey })
@@ -93,8 +107,15 @@ export function AdminConsole({
   /** Who is looking, and what the server will let them do. Never decided in this file. */
   viewer: ViewerLimits
 }) {
+  /*
+   * The default for a NEW user is the first role this viewer may actually grant, preferring
+   * `operator`. Defaulting to a role the server would refuse would arm the form with a value
+   * that cannot be submitted, and the operator would read the refusal as a broken screen.
+   */
+  const canGrant = (key: string) => viewer.grantableRoleKeys.includes(key)
+  const grantable = roleOptions.filter((r) => canGrant(r.key))
   const defaultRole =
-    roleOptions.find((r) => r.key === 'operator')?.key ?? roleOptions[0]?.key ?? 'operator'
+    grantable.find((r) => r.key === 'operator')?.key ?? grantable[0]?.key ?? roleOptions[0]?.key ?? 'operator'
   const [users, setUsers] = useState<DirectoryUser[]>(initial)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState<Draft>(emptyDraft(defaultRole))
@@ -295,8 +316,8 @@ export function AdminConsole({
             onChange={(e) => setDraft({ ...draft, roleKey: e.target.value })}
           >
             {roleOptions.map((r) => (
-              <option key={r.key} value={r.key}>
-                {r.name}
+              <option key={r.key} value={r.key} disabled={!canGrant(r.key)}>
+                {canGrant(r.key) ? r.name : `${r.name} (beyond your own role)`}
               </option>
             ))}
           </select>
@@ -344,12 +365,21 @@ export function AdminConsole({
             ? viewer.roleBlockedReason
             : u.id === viewer.id
               ? viewer.selfRoleReason
-              : null
+              : (viewer.roleTargetBlocked[u.id] ?? null)
           const signInBlock = viewer.signInBlocked[u.id] ?? null
+          /*
+           * A stored role the build does not recognise is stated, not glossed. It holds NO
+           * permissions, which is a fact the operator has to be told before they wonder why
+           * this person cannot reach anything, and it is repairable from the select beside it.
+           */
+          const unknownRole = roleOptions.some((r) => r.key === u.roleKey)
+            ? null
+            : `The stored role for ${u.name} is "${u.roleKey}", which this build does not ` +
+              'recognise, so that account holds no permissions at all. Pick a real role to fix it.'
           const reasons = [roleVerdict, statusVerdict, ...(u.seeded ? [] : [removeVerdict])]
             .filter((v) => !v.allowed && v.reason)
             .map((v) => v.reason as string)
-          const shownReasons = Array.from(new Set([...reasons, roleBlock, signInBlock].filter(
+          const shownReasons = Array.from(new Set([...reasons, unknownRole, roleBlock, signInBlock].filter(
             (r): r is string => Boolean(r),
           )))
 
@@ -374,9 +404,18 @@ export function AdminConsole({
                   disabled={rowBusy || !canMutate || !roleVerdict.allowed || Boolean(roleBlock)}
                   onChange={(e) => patch(u.id, 'role', { roleKey: e.target.value })}
                 >
+                  {/* THE STORED ROLE MAY NOT BE A REAL ROLE. Without an option carrying its
+                      exact key, `value` matches nothing and the browser shows the FIRST option,
+                      which is Owner: the screen would name a role this person does not hold.
+                      The option is rendered, disabled, and says what it is. */}
+                  {roleOptions.some((r) => r.key === u.roleKey) ? null : (
+                    <option value={u.roleKey} disabled>
+                      {u.roleName}
+                    </option>
+                  )}
                   {roleOptions.map((r) => (
-                    <option key={r.key} value={r.key}>
-                      {r.name}
+                    <option key={r.key} value={r.key} disabled={!canGrant(r.key)}>
+                      {canGrant(r.key) ? r.name : `${r.name} (beyond your own role)`}
                     </option>
                   ))}
                 </select>

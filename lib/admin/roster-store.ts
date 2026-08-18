@@ -1,6 +1,6 @@
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { ROLES } from './permissions'
+import { ROLES, UNRECOGNISED_ROLE_KEY } from './permissions'
 
 /**
  * THE ROSTER STORE. The operator's real, persisted user list.
@@ -53,7 +53,29 @@ import { ROLES } from './permissions'
  *
  * Bad or unknown shapes coerce to safe values rather than throwing, exactly like the deal
  * store, because a hand edited or half written state file must never take the console down.
- * An unknown role coerces to `operator`, the least privileged real role, never to `owner`.
+ *
+ * ==========================================================================================
+ * AN UNKNOWN ROLE IS PRESERVED, NEVER REPAIRED. THIS HEADER USED TO SAY THE OPPOSITE.
+ * ==========================================================================================
+ * It said "an unknown role coerces to `operator`, the least privileged real role, never to
+ * `owner`", and that sentence was wrong twice over. `operator` is NOT the least privileged
+ * real role, `read_only` is strictly smaller: operator holds `supplier.identity.view`,
+ * `margin.view`, `document.view` and `data.export`, every one of them marked sensitive, and
+ * read_only holds none of them. And the coercion itself was the defect, not the safety net it
+ * claimed to be. Measured on 2026-08-18: a member stored with `"roleKey": "read_onlyy"`, a one
+ * character typo, resolved through this file to the `operator` role with eight permissions,
+ * and POST /api/packets, which is gated on the sensitive `document.view`, answered 200.
+ *
+ * A read that silently upgrades a broken value is a grant nobody made. So the stored string
+ * survives this file EXACTLY as written, and `permissions.roleOrUnrecognised()` answers it
+ * with the zero permission `UNRECOGNISED_ROLE`, which denies everything and says "Unrecognised
+ * role" where a role name is shown. A value that is not even a string cannot be preserved, so
+ * it lands on the reserved sentinel key, which also matches no role.
+ *
+ * Writes are still validated, and that is where validation belongs: the route refuses a role
+ * key that is not a real role before anything reaches the disk (`validateNewUser`,
+ * `guardRoleChange`). Reading is not the place to fix data, because a reader that fixes data
+ * hides the fact that it was ever broken.
  */
 
 export type RosterStatus = 'active' | 'deactivated'
@@ -96,11 +118,20 @@ export type Roster = {
 
 export const EMPTY_ROSTER: Roster = { overrides: {}, added: [] }
 
-/** The safe landing role for a value that is not a real role key. Least privilege, never owner. */
-const FALLBACK_ROLE = 'operator'
-
-function knownRole(key: unknown): string {
-  return typeof key === 'string' && ROLES.some((r) => r.key === key) ? key : FALLBACK_ROLE
+/**
+ * The role key exactly as it is stored, with NO repair.
+ *
+ * A non-empty string is returned untouched, whether or not it names a real role, so the later
+ * lookup can answer honestly instead of being handed a key that was quietly corrected. It is
+ * not even trimmed: `" owner "` is not the owner role, and treating it as one would be the
+ * same silent grant in a smaller disguise.
+ *
+ * Only a value that is not a usable string at all (a number, an object, null, an empty string)
+ * lands on the reserved sentinel, because there is nothing to preserve and a blank role name
+ * on screen would read as no role rather than an unreadable one.
+ */
+function storedRoleKey(key: unknown): string {
+  return typeof key === 'string' && key.length > 0 ? key : UNRECOGNISED_ROLE_KEY
 }
 
 export function isKnownRole(key: unknown): key is string {
@@ -125,7 +156,7 @@ function coerceOverride(raw: unknown): RosterOverride | null {
   const out: RosterOverride = {
     updatedAt: typeof r.updatedAt === 'number' && Number.isFinite(r.updatedAt) ? r.updatedAt : 0,
   }
-  if (r.roleKey !== undefined) out.roleKey = knownRole(r.roleKey)
+  if (r.roleKey !== undefined) out.roleKey = storedRoleKey(r.roleKey)
   if (typeof r.title === 'string') out.title = r.title
   if (r.status !== undefined) out.status = coerceStatus(r.status)
   // Only a well-formed credential survives a read. A hand-edited or truncated value is dropped
@@ -150,7 +181,7 @@ function coerceMember(raw: unknown): RosterMember | null {
     name,
     email,
     title: typeof r.title === 'string' ? r.title.trim() : '',
-    roleKey: knownRole(r.roleKey),
+    roleKey: storedRoleKey(r.roleKey),
     status: coerceStatus(r.status),
     passwordHash:
       typeof r.passwordHash === 'string' && r.passwordHash.startsWith('scrypt$') ? r.passwordHash : null,

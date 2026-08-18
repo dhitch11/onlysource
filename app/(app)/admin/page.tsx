@@ -10,7 +10,7 @@ import { StatusChip } from '@/components/ui/StatusChip'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { getDirectory } from '@/lib/admin/directory'
 import { describeRole } from '@/lib/admin/permissions'
-import { SELF_ROLE_REASON, guardSignInChange } from '@/lib/admin/roster-rules'
+import { SELF_ROLE_REASON, guardRoleGrant, guardRoleRemoval, guardSignInChange } from '@/lib/admin/roster-rules'
 import { AdminConsole } from './AdminConsole'
 import styles from './Admin.module.css'
 
@@ -102,6 +102,14 @@ export default async function AdminPage() {
    */
   const held = callerPermissions(caller)
   const signInBlocked: Record<string, string> = {}
+  /*
+   * The role rules added on 2026-08-18, asked here for the SAME viewer the route will ask them
+   * for. `guardRoleGrant` decides which options may be offered at all; `guardRoleRemoval`
+   * decides which ROWS this viewer may rewrite. Asking them here is what keeps the picker from
+   * offering a promotion the API is about to refuse, which is the failure mode the roster-rules
+   * header calls worse than a control that is honestly dead.
+   */
+  const roleTargetBlocked: Record<string, string> = {}
   for (const u of users) {
     const g = guardSignInChange(held, {
       id: u.id,
@@ -111,8 +119,26 @@ export default async function AdminPage() {
       seeded: u.seeded,
     })
     if (!g.ok) signInBlocked[u.id] = g.reason
+
+    /*
+     * Asked with a role that is certainly a change, so the guard answers "may this viewer touch
+     * this row's role at all" rather than short-circuiting on a no-op. `read_only` is the
+     * smallest role in the product, so any account it does not equal is a real removal.
+     */
+    const probe = u.roleKey === 'read_only' ? 'operator' : 'read_only'
+    const strip = guardRoleRemoval(held, {
+      id: u.id,
+      name: u.name,
+      roleKey: u.roleKey,
+      status: u.status,
+      seeded: u.seeded,
+    }, probe)
+    if (!strip.ok) roleTargetBlocked[u.id] = strip.reason
   }
   const canManageRoles = callerCan(caller, 'roles.manage')
+  const grantableRoleKeys = roleOptions
+    .filter((r) => guardRoleGrant(held, r.key).ok)
+    .map((r) => r.key)
   const viewer = {
     id: callerAccountId(caller),
     canManageRoles,
@@ -121,6 +147,8 @@ export default async function AdminPage() {
       : 'Changing somebody\'s role needs the "Manage roles" permission, which your role does not hold.',
     selfRoleReason: SELF_ROLE_REASON,
     signInBlocked,
+    grantableRoleKeys,
+    roleTargetBlocked,
   }
 
   return (

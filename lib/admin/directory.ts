@@ -1,7 +1,7 @@
 import 'server-only'
 import { env } from '@/lib/env'
-import { ROLES, type Role } from './permissions'
-import { readRoster, rosterWritable, type Roster, type RosterStatus } from './roster-store'
+import { ROLES, roleOrUnrecognised, type Role } from './permissions'
+import { isKnownRole, readRoster, rosterWritable, type Roster, type RosterStatus } from './roster-store'
 import {
   guardRemove,
   guardRoleChange,
@@ -207,9 +207,16 @@ const CONNECTORS: ConnectorState[] = [
   },
 ]
 
-function roleFor(key: string): Role {
-  return ROLES.find((r) => r.key === key) ?? (ROLES[2] as Role)
-}
+/**
+ * The role behind a stored key, for the NAME the console prints.
+ *
+ * This used to be `ROLES.find(...) ?? (ROLES[2] as Role)`, a second copy of the same silent
+ * grant `roster-store.ts` carried: `ROLES[2]` is `operator`, so a row whose stored key was a
+ * typo printed "Operator" in the roster and read as a person holding the whole operator plane.
+ * It is now the shared fail closed resolver, so an unreadable key is named "Unrecognised role"
+ * on screen and holds nothing anywhere.
+ */
+const roleFor = roleOrUnrecognised
 
 /** Two letters from a name. Computed, never invented, and never longer than the avatar. */
 export function initialsFor(name: string): string {
@@ -266,6 +273,19 @@ export function mergeRoster(roster: Roster): Omit<DirectoryUser, 'actions'>[] {
   return [...seeded, ...added]
 }
 
+/**
+ * A real role to ask `guardRoleChange` about, given the role a row currently holds.
+ *
+ * Owner probes with `admin` so the last-owner rule is the thing being asked. A recognised role
+ * probes with itself, which `guardRoleChange` treats as a no-op and allows. An UNRECOGNISED key
+ * probes with `operator`, a role that exists, so the answer is about the roster rule and not
+ * about the broken key, and the select stays live enough to fix it.
+ */
+function probeRoleFor(roleKey: string): string {
+  if (roleKey === 'owner') return 'admin'
+  return isKnownRole(roleKey) ? roleKey : 'operator'
+}
+
 /** Attach the server's verdict on every action to every row. */
 export function withActions(rows: Omit<DirectoryUser, 'actions'>[]): DirectoryUser[] {
   const guarded: GuardedUser[] = rows.map((r) => ({
@@ -282,7 +302,12 @@ export function withActions(rows: Omit<DirectoryUser, 'actions'>[]): DirectoryUs
       // "Can this row's role be changed at all" is asked with the one role change that could
       // ever be refused: moving the last active owner off owner. Asking with a specific target
       // role would make the answer depend on which option the operator happened to hover.
-      changeRole: verdict(guardRoleChange(guarded, r.id, r.roleKey === 'owner' ? 'admin' : r.roleKey)),
+      //
+      // The probe role must itself be a REAL role. A row whose stored key is unreadable would
+      // otherwise probe with that unreadable key, `guardRoleChange` would answer "That role
+      // does not exist", and the console would disable the one control that can repair the row.
+      // A rescue path that the damage disables is not a rescue path.
+      changeRole: verdict(guardRoleChange(guarded, r.id, probeRoleFor(r.roleKey))),
       deactivate: verdict(guardStatusChange(guarded, r.id, 'deactivated')),
       activate: verdict(guardStatusChange(guarded, r.id, 'active')),
       remove: verdict(guardRemove(guarded, r.id)),

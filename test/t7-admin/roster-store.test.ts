@@ -25,8 +25,16 @@ import { buildUsers, initialsFor, mergeRoster } from '@/lib/admin/directory'
  *
  * The coercion tests matter more than they look. This file is hand editable and lives on a
  * server; a half written or hand mangled roster must degrade to something safe rather than
- * take the admin console down or, far worse, silently grant a role nobody assigned. An
- * unknown role must land on `operator`, the least privileged real role, and never on `owner`.
+ * take the admin console down or, far worse, silently grant a role nobody assigned.
+ *
+ * ★ THIS HEADER USED TO END "an unknown role must land on `operator`, the least privileged real
+ * role, and never on `owner`", AND THE TEST BELOW ASSERTED IT. Both were wrong, and the test is
+ * why the defect shipped: it certified the bug. `operator` is not the least privileged real
+ * role, `read_only` is, and operator holds four SENSITIVE permissions read_only deliberately
+ * withholds. Measured on 2026-08-18: a member stored with `"roleKey": "read_onlyy"` resolved to
+ * the operator role with eight permissions and POST /api/packets, gated on `document.view`,
+ * answered 200. An unknown role must now land on NOTHING: the stored string is preserved
+ * verbatim, `roleOrUnrecognised` answers it with a zero-permission role, and every gate refuses.
  */
 
 let dir: string
@@ -145,13 +153,46 @@ describe('a broken state file degrades safely instead of taking the console down
     expect(back.added[0]?.name).toBe('Real Person')
   })
 
-  it('coerces an unknown role to operator and NEVER to owner', () => {
+  /**
+   * POSITIVE CONTROL for the read-time repair. Restoring the old `knownRole()` (returning
+   * `'operator'` for any key not in ROLES) fails all three assertions below, because all three
+   * are about the key SURVIVING rather than about which role it lands on.
+   */
+  it('PRESERVES an unknown role instead of repairing it into a real one', () => {
     const r = coerceRoster({
       overrides: { 'seed:goodreau': { roleKey: 'super_admin', updatedAt: 0 } },
-      added: [{ id: 'user:1', name: 'X Y', email: 'x@y.co', roleKey: 'root' }],
+      added: [
+        { id: 'user:1', name: 'X Y', email: 'x@y.co', roleKey: 'root' },
+        // The measured case: one character away from the smallest role in the product.
+        { id: 'user:2', name: 'T P', email: 't@p.co', roleKey: 'read_onlyy' },
+      ],
     })
-    expect(r.overrides['seed:goodreau']?.roleKey).toBe('operator')
-    expect(r.added[0]?.roleKey).toBe('operator')
+    expect(r.overrides['seed:goodreau']?.roleKey).toBe('super_admin')
+    expect(r.added[0]?.roleKey).toBe('root')
+    expect(r.added[1]?.roleKey).toBe('read_onlyy')
+  })
+
+  it('resolves every one of those preserved keys to a role holding NOTHING', async () => {
+    const { roleOrUnrecognised, UNRECOGNISED_ROLE_KEY } = await import('@/lib/admin/permissions')
+    for (const key of ['super_admin', 'root', 'read_onlyy', ' owner ', UNRECOGNISED_ROLE_KEY]) {
+      const resolved = roleOrUnrecognised(key)
+      expect(resolved.permissions).toEqual([])
+      expect(resolved.name).toBe('Unrecognised role')
+    }
+    // And a real key still resolves to the real role, so the resolver is not simply denying.
+    expect(roleOrUnrecognised('owner').permissions.length).toBeGreaterThan(0)
+  })
+
+  it('lands a role key that is not a usable string on the reserved sentinel, never on a real role', async () => {
+    const { UNRECOGNISED_ROLE_KEY, role } = await import('@/lib/admin/permissions')
+    const r = coerceRoster({
+      overrides: { 'seed:goodreau': { roleKey: 7, updatedAt: 0 } },
+      added: [{ id: 'user:1', name: 'X Y', email: 'x@y.co', roleKey: '' }],
+    })
+    expect(r.overrides['seed:goodreau']?.roleKey).toBe(UNRECOGNISED_ROLE_KEY)
+    expect(r.added[0]?.roleKey).toBe(UNRECOGNISED_ROLE_KEY)
+    // The sentinel is only safe while it matches no real role.
+    expect(role(UNRECOGNISED_ROLE_KEY)).toBeUndefined()
   })
 
   it('keeps a role that IS real, so the coercion is not simply overwriting everything', () => {
