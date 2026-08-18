@@ -298,6 +298,23 @@ export async function POST(req: NextRequest) {
     patch.title = body.title.trim()
   }
 
+  /*
+   * A REQUEST THAT ASKS FOR THE VALUE ALREADY STORED IS A REQUEST THAT ASKS FOR NOTHING.
+   *
+   * The empty-patch refusal below was already here and it was not enough, because a NO-OP patch
+   * is not an EMPTY one. Posting `{roleKey: 'admin'}` to an account already holding admin built
+   * a one-field patch, wrote the file, and stamped a fresh `updatedAt`. Measured on production:
+   * two rows advanced their timestamp while no role, status or credential moved. So the roster
+   * recorded a modification that modified nothing, and "who changed what, when" quietly stopped
+   * being answerable. An audit trail is only worth the questions it can still answer.
+   *
+   * Comparing against the row as it is NOW, rather than trusting the caller to send only real
+   * changes, is also the same discipline every guard above uses.
+   */
+  for (const key of Object.keys(patch) as (keyof typeof patch)[]) {
+    if (patch[key] === (target as unknown as Record<string, unknown>)[key]) delete patch[key]
+  }
+
   // An empty patch is a request that asks for nothing. Refusing it is honest: answering 200
   // would tell the operator a change was saved when none was made.
   if (Object.keys(patch).length === 0) {

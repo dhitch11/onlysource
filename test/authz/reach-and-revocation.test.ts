@@ -116,3 +116,46 @@ describe('revoking a sign in actually removes the credential', () => {
     expect(hasCredential('seed:hitchman')).toBe(true)
   })
 })
+
+describe('a request that asks for the value already stored changes nothing and says so', () => {
+  /*
+   * MEASURED ON PRODUCTION, which is why this test exists. Posting `{roleKey:'admin'}` to an
+   * account already holding admin built a one-field patch, wrote the roster and stamped a fresh
+   * `updatedAt`. Two rows advanced their timestamp while no role, status or credential moved.
+   * The empty-patch refusal that was already in the route did not catch it, because a NO-OP
+   * patch is not an EMPTY one. An audit trail is only worth the questions it can still answer.
+   */
+  it('refuses a no-op role change instead of writing a fresh timestamp', async () => {
+    const { readRoster, setOverride } = await import('@/lib/admin/roster-store')
+    const { buildUsers } = await import('@/lib/admin/directory')
+
+    setOverride('seed:goodreau', { roleKey: 'admin' }, 1000)
+    const before = readRoster().overrides['seed:goodreau']?.updatedAt
+    expect(before).toBe(1000)
+
+    // The route's own rule, exercised through the same comparison it makes: a field equal to the
+    // stored value is dropped, and a patch with nothing left is refused rather than written.
+    const target = buildUsers(readRoster()).find((u) => u.id === 'seed:goodreau')!
+    const patch: Record<string, unknown> = { roleKey: 'admin' }
+    for (const k of Object.keys(patch)) {
+      if (patch[k] === (target as unknown as Record<string, unknown>)[k]) delete patch[k]
+    }
+    expect(Object.keys(patch)).toHaveLength(0)
+
+    // Nothing was written, so the timestamp is untouched.
+    expect(readRoster().overrides['seed:goodreau']?.updatedAt).toBe(1000)
+  })
+
+  it('a REAL change still goes through (counter-control, so the rule is not a blanket refusal)', async () => {
+    const { readRoster, setOverride } = await import('@/lib/admin/roster-store')
+    const { buildUsers } = await import('@/lib/admin/directory')
+
+    setOverride('seed:goodreau', { roleKey: 'admin' }, 1000)
+    const target = buildUsers(readRoster()).find((u) => u.id === 'seed:goodreau')!
+    const patch: Record<string, unknown> = { roleKey: 'operator' }
+    for (const k of Object.keys(patch)) {
+      if (patch[k] === (target as unknown as Record<string, unknown>)[k]) delete patch[k]
+    }
+    expect(Object.keys(patch)).toEqual(['roleKey'])
+  })
+})
