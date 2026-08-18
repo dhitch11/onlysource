@@ -235,6 +235,10 @@
   flex-direction: column;
   gap: var(--sp-4);
   min-width: 0;
+  /* Contain the wide table's scroll to its own wrap so the PAGE never scrolls sideways (measured:
+   * document scrollWidth 1097 -> viewport at 320/390/768). The table still scrolls inside .tableWrap;
+   * the ExplainButton popover is top-layer (popover=auto) so clip cannot hide it. */
+  overflow-x: clip;
 }
 
 .boardHead {
@@ -307,6 +311,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  min-block-size: var(--target-min);
   font-size: var(--fs-300);
   color: var(--ink);
   min-block-size: var(--target-min);
@@ -314,8 +319,8 @@
 }
 
 .check {
-  inline-size: 1rem;
-  block-size: 1rem;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
   accent-color: var(--olive);
   flex: none;
   cursor: pointer;
