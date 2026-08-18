@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
 import { loadAmscIndex, resolveBidEligibility } from "@/lib/intelligence/eligibility/bid-eligibility";
+import { groupByOperator, loadCageIndex } from "@/lib/intelligence/manufacturers/cage";
 import { resolveDataRoot } from "@/lib/data-root";
 import { readDeals } from "@/lib/sales/deals-store";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
@@ -74,10 +75,35 @@ export default async function MonopolyPage() {
    * the entire point of carrying both.
    */
   const amscIndex = loadAmscIndex();
+  /**
+   * COMPANIES, NOT CODES.
+   *
+   * `approvedSourceCount` counts CAGE CODES, and a CAGE code is not a company: one operator can
+   * hold several, in different towns, under names that are not equal. Every row that reads "two
+   * approved sources" while both codes belong to one firm is a corner being reported as a
+   * competitive market, which is the direction of this error that costs an operator money.
+   *
+   * The resolution is SURFACED, never applied: `soleSource` and the disposition are left exactly
+   * as the map computed them. `complex_confirmed` is a government record and could be counted,
+   * but `same_operator_suspected` is our own reading and a false merge INVENTS a corner, so a
+   * person decides. The grid shows the count and the evidence and lets them.
+   */
+  const cageIndex = loadCageIndex();
   const enriched = baseRows.map((r) => {
     const e = resolveBidEligibility(r.nsn, amscIndex);
+    const ops = groupByOperator(r.approvedSources.map(String), cageIndex);
+    const merged = ops.clusters.find((c) => c.cages.length > 1) ?? null;
     return {
       ...r,
+      operators: {
+        cageCount: ops.cageCount,
+        operatorCount: ops.operatorCount,
+        collapsed: ops.collapsed,
+        /** Null unless two or more codes folded together on this row. */
+        evidence: merged?.evidence ?? null,
+        name: merged?.name ?? null,
+        basis: merged?.basis ?? null,
+      },
       eligibility: {
         state: e.state,
         amsc: e.amsc,

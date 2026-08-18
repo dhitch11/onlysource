@@ -31,7 +31,27 @@ export type RowEligibility = {
   reason: string;
 };
 
-export type CornerRowWithAward = EnrichedCornerRow & { eligibility?: RowEligibility };
+/**
+ * How many COMPANIES stand behind this row's CAGE codes.
+ *
+ * `evidence` is null unless two or more codes folded together here. `complex_confirmed` is the
+ * government's own corporate-complex record; `same_operator_suspected` is our reading from a
+ * matching company name plus a shared contract administration office, and it renders weaker
+ * because a false merge invents a corner, which is the expensive direction.
+ */
+export type RowOperators = {
+  cageCount: number;
+  operatorCount: number;
+  collapsed: boolean;
+  evidence: "complex_confirmed" | "same_operator_suspected" | "distinct" | "unresolved" | null;
+  name: string | null;
+  basis: string | null;
+};
+
+export type CornerRowWithAward = EnrichedCornerRow & {
+  eligibility?: RowEligibility;
+  operators?: RowOperators;
+};
 
 // Amber is the award clock's alone. Watchlist is a neutral in-progress state, not an alarm.
 const DISPOSITION_TONE: Record<string, "verified" | "active" | "idle"> = {
@@ -135,6 +155,28 @@ const columns: GridColumn<CornerRowWithAward>[] = [
             <StatusChip tone={silent ? "accent" : "verified"}>
               {silent ? "Sole + silent" : "Sole source"} · {r.approvedSources[0]}
             </StatusChip>
+          ),
+        };
+      }
+      // NOT sole-sourced by CAGE count. But a CAGE code is not a company: if the codes on this
+      // row resolve to ONE operator, the row is describing a corner as a competitive market.
+      // Surfaced, never applied — the disposition above is left exactly as the map computed it,
+      // because a false merge invents a corner and that call belongs to a person.
+      const ops = r.operators;
+      if (ops?.collapsed && ops.operatorCount === 1) {
+        const recorded = ops.evidence === "complex_confirmed";
+        return {
+          state: "known",
+          provenance: recorded ? "measured" : undefined,
+          value: (
+            <span className={styles.itemCell}>
+              <StatusChip tone={recorded ? "verified" : "idle"}>
+                {`${ops.cageCount} codes · 1 firm`}
+              </StatusChip>
+              <span className={styles.faint}>
+                {recorded ? "on the government record" : "same name and office, our reading"}
+              </span>
+            </span>
           ),
         };
       }
