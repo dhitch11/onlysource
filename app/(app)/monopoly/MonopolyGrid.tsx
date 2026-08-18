@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
+import { AiLoader } from "@/components/ui/AiLoader";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { PriceSparkline } from "@/components/ui/PriceSparkline";
 import { PursueButton } from "@/components/sales/PursueButton";
@@ -423,6 +424,12 @@ export function MonopolyGrid({
   pursuedRefs: string[];
 }) {
   const [filter, setFilter] = useState<Filter>("candidate");
+  /**
+   * Widening to the whole map re-scores and re-lays every row and measured ~4.5s. React holds
+   * the previous rows through a transition, which is correct, but a screen that appears to do
+   * nothing for four seconds reads as broken rather than as busy. `pending` explains the wait.
+   */
+  const [pending, startTransition] = useTransition();
   // Secondary filters that AND with the active tab. Each is a real, measured property of the row,
   // so a filtered view is always an honest subset, never a re-scored one.
   const [toggles, setToggles] = useState<Record<ToggleKey, boolean>>({
@@ -503,7 +510,7 @@ export function MonopolyGrid({
             role="tab"
             aria-selected={filter === t.id}
             className={`${styles.filter} ${filter === t.id ? styles.filterOn : ""}`}
-            onClick={() => setFilter(t.id)}
+            onClick={() => startTransition(() => setFilter(t.id))}
           >
             {t.label}
             <span className={styles.filterN}>{t.n.toLocaleString()}</span>
@@ -556,6 +563,19 @@ export function MonopolyGrid({
         </div>
       </div>
 
+      {pending ? (
+        <AiLoader
+          title="Re-scoring the map"
+          stages={[
+            "Reading the corner map for this feed day",
+            "Applying the filter you picked",
+            "Re-ranking by CornerScore",
+            "Laying out the rows",
+          ]}
+          note="Every row is re-scored against the whole map rather than paged, so a filter change is a real recomputation. It settles in a moment, and sorting is instant afterwards."
+        />
+      ) : null}
+      
       <DataGrid
         rows={shown}
         columns={allColumns}

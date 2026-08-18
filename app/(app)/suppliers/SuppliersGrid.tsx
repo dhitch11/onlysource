@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { AiLoader } from "@/components/ui/AiLoader";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
 import type { DistressedSupplier } from "@/lib/intelligence/suppliers/distressed";
@@ -116,6 +117,13 @@ export function SuppliersGrid({
   nsnFacts: Record<string, SupplierNsnFact[]>;
 }) {
   const [filter, setFilter] = useState<Filter>("hot");
+  /**
+   * Switching to "All distressed" re-ranks and re-lays 3,471 rows and measured ~6s on a warm
+   * machine. React keeps the previous rows on screen through a transition, which is right, but
+   * a screen that silently does nothing for six seconds reads as broken. `pending` drives an
+   * explained wait: what is happening, why it takes a moment, and how far along it is.
+   */
+  const [pending, startTransition] = useTransition();
   const [hideContacted, setHideContacted] = useState(false);
   const [contacted, setContacted] = useState<Set<string>>(new Set());
 
@@ -281,7 +289,7 @@ export function SuppliersGrid({
             role="tab"
             aria-selected={filter === t.id}
             className={`${styles.filter} ${filter === t.id ? styles.filterOn : ""}`}
-            onClick={() => setFilter(t.id)}
+            onClick={() => startTransition(() => setFilter(t.id))}
           >
             {t.label}
             <span className={styles.filterN}>{t.n.toLocaleString()}</span>
@@ -294,7 +302,7 @@ export function SuppliersGrid({
           type="button"
           aria-pressed={hideContacted}
           className={`${styles.chip} ${hideContacted ? styles.chipOn : ""}`}
-          onClick={() => setHideContacted((v) => !v)}
+          onClick={() => startTransition(() => setHideContacted((v) => !v))}
         >
           Hide already contacted
           {contacted.size > 0 ? <span className={styles.chipN}>{contacted.size}</span> : null}
@@ -308,6 +316,19 @@ export function SuppliersGrid({
           </button>
         </div>
       </div>
+
+      {pending ? (
+        <AiLoader
+          title={`Re-ranking ${suppliers.length.toLocaleString()} suppliers`}
+          stages={[
+            "Reading the researched supplier book",
+            "Applying the filter you picked",
+            "Ranking by prospect score",
+            "Laying out the rows",
+          ]}
+          note="The whole book is held in memory rather than paged, so a filter change re-ranks every firm at once. It is a moment, and then it is instant to sort and search."
+        />
+      ) : null}
 
       <DataGrid
         rows={shown}
