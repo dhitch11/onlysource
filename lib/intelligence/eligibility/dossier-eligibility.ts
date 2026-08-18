@@ -289,7 +289,9 @@ function pinned(c: Citation): EligibilityCitation {
     identifier: c.identifier,
     quote: c.quote,
     verification: c.verification,
-    pin: c.source,
+    pin: c.source.replace(/:(\d+)(?:-(\d+))?$/, (_all, first: string, last?: string) =>
+      last ? `:L${first}-L${last}` : `:L${first}`,
+    ),
   }
 }
 
