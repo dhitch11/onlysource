@@ -177,6 +177,45 @@ export function guardRoleRemoval(callerHeld: readonly string[], user: GuardedUse
 }
 
 /**
+ * NOBODY REACHES INTO AN ACCOUNT THAT HOLDS MORE THAN THEY DO, WHATEVER THE VERB.
+ *
+ * `guardRoleRemoval` bounded exactly one verb, and the two verbs beside it on the same route do
+ * strictly more damage with no caller check at all. `guardStatusChange` and `guardRemove` take
+ * only (users, id, next): neither has any concept of who is asking. So an admin refused a role
+ * change on an owner row simply DEACTIVATED that owner, and then DELETED the account, through
+ * the same route in the same session. Measured end to end before this rule existed.
+ *
+ * A guard written per verb protects the verb it was written for. The reach is the invariant, so
+ * it belongs on the ACCOUNT, and every verb that touches an account asks the same question:
+ * does this row hold a permission the caller does not?
+ *
+ * Deliberately the same shape and the same sentence structure as `guardSignInChange` and
+ * `guardRoleRemoval`, and it compares PERMISSION SETS rather than role names, so it keeps
+ * working the day somebody authors a fifth role.
+ */
+export function guardAccountReach(
+  callerHeld: readonly string[],
+  user: GuardedUser,
+  verb: string,
+): RosterGuard {
+  const current = role(user.roleKey)
+  // An unrecognised stored role holds nothing, so there is nothing out of reach, and the row
+  // has to stay repairable by anybody who may manage users at all.
+  if (!current) return OK
+
+  const beyond = current.permissions.filter((key) => !can(callerHeld, key))
+  if (beyond.length === 0) return OK
+
+  const first = permission(beyond[0] as string)?.label ?? (beyond[0] as string)
+  return {
+    ok: false,
+    reason:
+      `You cannot ${verb} ${user.name}, because that account holds access your own role does ` +
+      `not, starting with "${first}". Somebody with at least that access has to do it.`,
+  }
+}
+
+/**
  * The single sentence used wherever somebody tries to change their own role. Written once, so
  * the disabled select and the API refusal are word for word identical.
  */

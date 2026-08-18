@@ -173,14 +173,18 @@ export function revokePassword(id: string, nowMs: number): { ok: boolean } {
   const account = findAccountById(id)
   if (!account) return { ok: false }
   try {
-    const roster = readRoster()
-    if (account.seeded) {
-      const existing = roster.overrides[id]
-      if (existing) delete existing.passwordHash
-      setOverride(id, {}, nowMs)
-    } else {
-      updateMember(id, { passwordHash: null }, nowMs)
-    }
+    /*
+     * THE NULL IS THE WHOLE REVOCATION, and its absence made this function a no-op that
+     * reported success. It used to read the roster, `delete` the key off that freshly parsed
+     * object, and call `setOverride(id, {})`. `readRoster()` has no cache: it JSON.parses the
+     * file on every call, so the deletion landed on a throwaway, and `setOverride` then read
+     * the file AGAIN and merged an empty patch over the stored record, carrying the scrypt hash
+     * back onto disk. The account kept signing in, this returned ok, and the route answered 200.
+     * An access control that reports success while changing nothing is worse than one that
+     * fails loudly, because nobody goes back to check.
+     */
+    if (account.seeded) setOverride(id, { passwordHash: null }, nowMs)
+    else updateMember(id, { passwordHash: null }, nowMs)
     return { ok: true }
   } catch {
     return { ok: false }

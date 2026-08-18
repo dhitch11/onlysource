@@ -277,10 +277,21 @@ export function writeRoster(roster: Roster): void {
   writeFileSync(filePath(), JSON.stringify(roster, null, 2), 'utf8')
 }
 
-/** Record a change to a seeded user. Name and email are not accepted, by design. */
+/**
+ * Record a change to a seeded user. Name and email are not accepted, by design.
+ *
+ * `passwordHash: null` is how a sign in is REVOKED, and the null has to be expressible here or
+ * revocation cannot work at all. It could not before: the caller deleted the key off an object
+ * `readRoster()` had just parsed fresh from disk, which is a throwaway nothing writes, and then
+ * called this function with an empty patch. This function reads the file again for itself and
+ * spreads `{...existing, ...patch}`, so the stored hash came straight back and landed on disk
+ * unchanged, while the caller answered ok and the route answered 200. `coerceOverride` already
+ * keeps `passwordHash` only when it is a string beginning with `scrypt$`, so a null in the
+ * merge drops the credential exactly as intended.
+ */
 export function setOverride(
   id: string,
-  patch: { roleKey?: string; title?: string; status?: RosterStatus; passwordHash?: string },
+  patch: { roleKey?: string; title?: string; status?: RosterStatus; passwordHash?: string | null },
   nowMs: number,
 ): Roster {
   const roster = readRoster()

@@ -19,6 +19,7 @@ import {
 import {
   guardRemove,
   guardRoleChange,
+  guardAccountReach,
   guardRoleGrant,
   guardRoleRemoval,
   guardSelfRoleChange,
@@ -280,6 +281,13 @@ export async function POST(req: NextRequest) {
     if (body.status !== 'active' && body.status !== 'deactivated') {
       return refuse('bad_status', 'A user is either active or deactivated.')
     }
+    const target = users.find((u) => u.id === id)
+    // Deactivation is a reach into the account, so it is bounded by the same rule as a role
+    // change. Without this an admin refused the role change simply deactivates the owner.
+    if (target) {
+      const reach = guardAccountReach(callerPermissions(caller), guarded([target])[0]!, 'deactivate or reactivate')
+      if (!reach.ok) return refuse('reach_refused', reach.reason)
+    }
     const g = guardStatusChange(guarded(users), id, body.status)
     if (!g.ok) return refuse('status_refused', g.reason)
     patch.status = body.status
@@ -321,6 +329,14 @@ export async function DELETE(req: NextRequest) {
 
   const roster = readRoster()
   const users = buildUsers(roster)
+  const target = users.find((u) => u.id === id)
+  // Removal is the largest reach of all, so it asks the same question the role and status
+  // verbs now ask: does this row hold access the caller does not?
+  if (target) {
+    const caller = await readCaller()
+    const reach = guardAccountReach(callerPermissions(caller), guarded([target])[0]!, 'remove')
+    if (!reach.ok) return refuse('reach_refused', reach.reason)
+  }
   const g = guardRemove(guarded(users), id)
   if (!g.ok) return refuse('remove_refused', g.reason)
 
