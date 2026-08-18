@@ -1,0 +1,310 @@
+/*
+ * ONLYSOURCE DESIGN TOKENS
+ * Owner: T8 DESIGN. Consumed by every lane. Do not add a raw hex or a raw px to a component.
+ *
+ * -------------------------------------------------------------------------------------
+ * PROVENANCE OF EVERY VALUE IN THIS FILE
+ * -------------------------------------------------------------------------------------
+ * The dark palette is promoted verbatim from design/console-mockup.approved.html, which
+ * David approved on 2026-08-13 ("That's perfect. Run it full, premium, world-class") and
+ * which T8-DESIGN.md names the visual source of truth.
+ *
+ * THREE VALUES DIFFER FROM THAT FILE, every one of them because it was MEASURED against
+ * all four grounds. @T1-FOUNDATION found the first two at .terminal-claims.md:2302 before
+ * this lane existed; this lane re-measured and had to move two of them further:
+ *
+ *   --faint   #636D5D -> #838B7E   was 3.00:1 as text. @T1 proposed #81897C, which reaches
+ *                                  4.51 on three grounds but 4.49 on --raised, 0.01 short
+ *                                  of AA. Lifted one step further. Worst ground now 4.61
+ *   --red     #D16044 -> #D46A4F   4.23:1 on --raised. @T1 logged this as a watch item
+ *                                  "fails only if used for small text on the most raised
+ *                                  surface". It IS exactly that: the .cl2.crit countdown.
+ *                                  Worst ground now 4.62
+ *   --line-2  .17 alpha -> split   .17 kept for decorative dividers (not a control, so
+ *                                  WCAG 1.4.11 does not reach it), and a separate
+ *                                  --line-control at .45 dark / .54 light for the border
+ *                                  of a real control, which was 1.40:1 and is now 3.09:1
+ *
+ * The LIGHT theme is designed, not derived. It is not an inversion of the dark set. Every
+ * pair in both themes is asserted in test/a11y/contrast.test.ts and the build fails if any
+ * regresses. Premium dark palettes fail contrast by default because they get picked at full
+ * brightness on a good display, so nothing here is eyeballed.
+ *
+ * -------------------------------------------------------------------------------------
+ * WHY THE TYPE SCALE IS IN REM AND WHY IT IS BIGGER THAN THE MOCKUP
+ * -------------------------------------------------------------------------------------
+ * The approved console declares 98 font sizes. 79 of them are below 13px and 0 of them are
+ * in rem. Quality Bar R7 binds this lane to: 15px minimum for table body text, 16px for
+ * form input values, a 13px absolute floor including secondary metadata, no weight below
+ * 400, and every type token expressed in rem so the browser root size is honoured.
+ *
+ * That is not pedantry. The principal is in his seventies. This population raises the
+ * browser base font size, and a px token ignores that setting completely: a 9px label stays
+ * 9px at a 24px root. He will not file a complaint, he will just stop opening the product.
+ *
+ * So the scale below starts at the floor and the density is bought back where it is free:
+ * tighter letter-spacing on the uppercase labels, tighter line height, and the same colour
+ * and weight hierarchy the console uses. Structure, palette and rhythm are preserved. Type
+ * is larger. That trade is mandated, not chosen.
+ */
+
+:root {
+  /* ============================================================== TYPE SCALE
+   * Seven steps, no eighth. Every step names its intended use, so nobody invents one.
+   * Stated at the default 16px root. All rem, so a raised browser base scales all of it.
+   */
+  --fs-100: 0.8125rem; /* 13px. THE ABSOLUTE FLOOR. Metadata, uppercase labels, captions */
+  --fs-200: 0.875rem; /*  14px. Secondary text, dense supporting copy                    */
+  --fs-300: 0.9375rem; /* 15px. TABLE BODY MINIMUM. Default body text                     */
+  --fs-400: 1rem; /*       16px. FORM INPUT VALUES (also the iOS no-zoom threshold)       */
+  --fs-500: 1.125rem; /*  18px. Card titles, emphasis                                    */
+  --fs-600: 1.375rem; /*  22px. Section and page headings                                */
+  --fs-700: 1.75rem; /*   28px. Instrument readouts, KPI values                          */
+
+  --lh-100: 1.35;
+  --lh-200: 1.4;
+  --lh-300: 1.5;
+  --lh-400: 1.5;
+  --lh-500: 1.35;
+  --lh-600: 1.25;
+  --lh-700: 1.1;
+
+  /* Weights. Nothing a user must read goes below 400 (R7). */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Tracking. The uppercase label pattern from the console, tightened to buy back the
+   * width that the larger floor size costs. */
+  --track-label: 0.08em;
+  --track-tight: -0.01em;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* ============================================================== SPACE
+   * 4px base. Dense tables need small consistent steps. Continues @T1's scale so the
+   * shell and the design system do not disagree about what "one step" means.
+   */
+  --sp-1: 0.25rem; /*  4px */
+  --sp-2: 0.5rem; /*   8px */
+  --sp-3: 0.75rem; /* 12px */
+  --sp-4: 1rem; /*    16px */
+  --sp-5: 1.5rem; /*  24px */
+  --sp-6: 2rem; /*    32px */
+  --sp-7: 3rem; /*    48px */
+
+  /* ============================================================== ROW HEIGHT
+   * Three density tokens, persisted per user server-side, never per org, never in
+   * localStorage (T8 4.3, war room Product Designer MUST BUILD 10, coverage CL-018).
+   *
+   * These are computed, not fixed, because WCAG 1.4.12 Text Spacing breaks a fixed-height
+   * grid the moment a user applies a 1.5 line-height override: 21px of text sits in a box
+   * built for 17px. Sizing from 1lh means a user stylesheet raises the row with it.
+   *
+   * The floor arithmetic: WCAG 2.5.8 wants 24x24 CSS px for a pointer target, and
+   * 24 + 4 + 4 = 32, which leaves nothing for a border. 42px is the AG Grid Quartz
+   * default and the industry anchor for the middle setting.
+   */
+  --row-lines: 1;
+  --row-pad-y: 0.5rem;
+  --row-h: calc(var(--row-lines) * 1lh + var(--row-pad-y) * 2);
+
+  --row-pad-y-compact: 0.25rem;
+  --row-pad-y-comfortable: 0.875rem;
+
+  /* ============================================================== GEOMETRY
+   * Consistent radii and hairline borders. Sloppy spacing is the fastest way to look
+   * cheap (Vercel steal 3).
+   */
+  --radius-sm: 5px;
+  --radius: 7px;
+  --radius-lg: 11px;
+  --radius-pill: 999px;
+
+  /* Minimum pointer target, WCAG 2.5.8 Level AA. Every icon-only control uses this. */
+  --target-min: 24px;
+
+  /* ============================================================== MOTION
+   * Transform and opacity only. Motion explains causality or it does not ship. Reduced
+   * motion is honoured by REMOVING motion, not by shortening it, at the bottom of this
+   * file.
+   */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0, 0.13, 1);
+
+  /* ============================================================== Z-INDEX
+   * Four named layers for the two-axis sticky problem, and a raw z-index in a table is
+   * forbidden (war room MUST BUILD 10).
+   *
+   * These four names and values are taken verbatim from operator-ux-and-guidance.md
+   * section 4 rather than invented here, because that document is the citation-verified
+   * specification of this lane and other lanes read it directly. A token that disagrees
+   * with the spec everyone is reading is worse than no token.
+   */
+  --z-cell: 0;
+  --z-pinned: 1;
+  --z-header: 2;
+  --z-header-pinned: 3;
+  --z-sticky-chrome: 20;
+  --z-drawer: 40;
+  --z-popover: 60;
+  --z-modal: 80;
+  --z-toast: 100;
+}
+
+/* ==========================================================================
+ * DARK THEME. The default, because dark is the console David approved.
+ *
+ * OPEN ITEM, routed to the conductor, not decided here: Quality Bar R14 names LIGHT the
+ * default for operator roles, while the approved console is dark. Both themes pass the
+ * measured contrast gate, so this is a preference and not a correctness question. Default
+ * stays dark until the owner rules. Flipping it is one line.
+ * ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  --bg: #0a0d0b;
+  --panel: #101410;
+  --panel-2: #161c16;
+  --raised: #1b221b;
+
+  /* Decorative divider. Not a control boundary, so 1.4.11 does not reach it. */
+  --line: rgba(190, 205, 185, 0.09);
+  --line-2: rgba(190, 205, 185, 0.17);
+  /* The boundary of a REAL control. 1.4.11 applies and 3:1 is the floor.
+   * @T1 measured .17 at 1.40:1 here. .45 measures 3.09:1. */
+  --line-control: rgba(190, 205, 185, 0.45);
+
+  --ink: #eaede4;
+  --dim: #98a18f;
+  /* Was #636D5D at 3.00:1. @T1's measured replacement #81897C got to 4.51 on three
+   * grounds but measures 4.49 on --raised, 0.01 short. Lifted to #838B7E, hue and
+   * saturation held, worst ground now 4.61. */
+  --faint: #838b7e;
+
+  /* Brass is the single accent. It carries the logo, the active nav rail, the primary
+   * button, the score rings and the recommended-quote figure. Nothing else competes. */
+  --accent: #cbab6c;
+  --accent-2: #9c844c;
+  --accent-soft: rgba(203, 171, 108, 0.14);
+  --accent-fill: linear-gradient(180deg, #d7b978, #b6924f);
+  --accent-on-fill: #1a1509;
+
+  /* Olive is the MEASURED / VERIFIED role and only that. It never decorates. */
+  --olive: #8fa771;
+  --olive-dim: #5f7350;
+
+  /* Amber and red are reserved for auto-award clock urgency. Nothing else. A red or an
+   * amber anywhere on a surface must mean the clock, or it is a bug. That reservation is
+   * why the palette reads calm until something is genuinely about to close. */
+  --amber: #e4a83e;
+  /* Was #D16044, which measures 4.23:1 on --raised. @T1 logged that as a narrow watch
+   * item on the grounds that it fails only as small text on the most raised surface.
+   * It IS small text on the most raised surface: the .cl2.crit countdown and the
+   * .swp .sc.crit readout, which is the single most consequential number on the board.
+   * Lifted to #D46A4F, hue held at 11.9deg, worst ground now 4.62. */
+  --red: #d46a4f;
+
+  /* Modelled glyph and minor category. */
+  --steel: #74a7a6;
+  --violet: #9d8bc4;
+
+  --focus: #cbab6c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+ * LIGHT THEME. Designed, not inverted.
+ *
+ * The role map is identical so every component reads the same token names. The values are
+ * chosen for a light ground and measured there: brass at #CBAB6C is a 1.8:1 whisper on
+ * white and is unusable as text, so the accent darkens for text and icon use while the
+ * button keeps a brass fill with dark ink on it. That is the difference between a designed
+ * theme and a flipped one.
+ * ========================================================================== */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #fbfbf8;
+  --panel: #ffffff;
+  --panel-2: #f4f5f0;
+  --raised: #eceee6;
+
+  --line: rgba(38, 46, 33, 0.12);
+  --line-2: rgba(38, 46, 33, 0.2);
+  --line-control: rgba(38, 46, 33, 0.54);
+
+  --ink: #161a13;
+  --dim: #4a5243;
+  --faint: #61695a;
+
+  --accent: #6d5312; /* dark brass. Reads as the same family, passes as text.  */
+  --accent-2: #816625;
+  --accent-soft: rgba(109, 83, 18, 0.1);
+  --accent-fill: linear-gradient(180deg, #d7b978, #b6924f);
+  --accent-on-fill: #1a1509;
+
+  --olive: #46603a;
+  --olive-dim: #6b7f5e;
+
+  --amber: #7a5300;
+  --red: #9b2f18;
+
+  --steel: #2f6462;
+  --violet: #5a4a86;
+
+  --focus: #6d5312;
+  --shadow-card: 0 1px 2px rgba(20, 26, 18, 0.08);
+}
+
+/* System preference decides only when the user has made no explicit choice. An explicit
+ * data-theme always wins, in both directions. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: light;
+
+    --bg: #fbfbf8;
+    --panel: #ffffff;
+    --panel-2: #f4f5f0;
+    --raised: #eceee6;
+
+    --line: rgba(38, 46, 33, 0.12);
+    --line-2: rgba(38, 46, 33, 0.2);
+    --line-control: rgba(38, 46, 33, 0.54);
+
+    --ink: #161a13;
+    --dim: #4a5243;
+    --faint: #61695a;
+
+    --accent: #6d5312;
+    --accent-2: #816625;
+    --accent-soft: rgba(109, 83, 18, 0.1);
+    --accent-fill: linear-gradient(180deg, #d7b978, #b6924f);
+    --accent-on-fill: #1a1509;
+
+    --olive: #46603a;
+    --olive-dim: #6b7f5e;
+
+    --amber: #7a5300;
+    --red: #9b2f18;
+
+    --steel: #2f6462;
+    --violet: #5a4a86;
+
+    --focus: #6d5312;
+    --shadow-card: 0 1px 2px rgba(20, 26, 18, 0.08);
+  }
+}
+
+/* Reduced motion is honoured by removing motion, not by shortening it. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}

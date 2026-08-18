@@ -1,0 +1,135 @@
+/*
+ * TruthStrip. Owner: T8 DESIGN.
+ *
+ * A permanent band, not a banner. It does not animate in, it does not dismiss, and it does
+ * not collapse. It sits above the grid on every data screen and it is the first thing an
+ * operator's eye crosses on the way to the numbers.
+ */
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-block-end: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--olive) 6%, transparent);
+  font-size: var(--fs-100);
+  color: var(--dim);
+  /* Above the grid's sticky header, so a scrolled grid never covers its own provenance. */
+  position: relative;
+  z-index: var(--z-sticky-chrome);
+}
+
+/*
+ * The stale treatment. The data stays fully visible and the band changes, rather than the
+ * numbers disappearing into a spinner. Operators would rather see yesterday's number
+ * labelled yesterday than nothing at all.
+ */
+.stale {
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border-block-end-color: var(--amber);
+}
+
+.glyph {
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 2px;
+  background: var(--olive);
+  flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--olive) 15%, transparent);
+}
+
+.stale .glyph {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
+}
+
+/*
+ * The active-scope indicator, permanent per section 4.19. With one org it reads as quiet
+ * confirmation. With two it becomes load-bearing, and an operator who will one day work two
+ * orgs can never act on the wrong one. It is built now, at one org, on purpose.
+ */
+.scope {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+
+.scopeLabel {
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: var(--fw-semibold);
+}
+
+.scope strong {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.divider {
+  inline-size: 1px;
+  block-size: 1rem;
+  background: var(--line-2);
+  flex: none;
+}
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  min-inline-size: 0;
+}
+
+.sources strong {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+.when {
+  color: var(--faint);
+}
+
+/*
+ * An absent source is styled as an ABSENCE, not as a zero and not as an error. It is a
+ * fact about what we hold, and it is a normal one early in a build.
+ */
+.absent {
+  color: var(--faint);
+  font-style: normal;
+  border-block-end: 1px dashed var(--line-control);
+}
+
+.quarantine {
+  color: var(--amber);
+  font-weight: var(--fw-semibold);
+}
+
+/* A quarantine count nobody can open is not accountability, so the link is not optional
+ * styling, it is the point. */
+.view {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.partial {
+  color: var(--dim);
+}
+
+.explain {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* At the 320 floor the band stacks rather than scrolling sideways. It stays legible and it
+ * never forces a horizontal page scroll. */
+@media (max-width: 48rem) {
+  .explain {
+    margin-inline-start: 0;
+  }
+}

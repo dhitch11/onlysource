@@ -1,0 +1,156 @@
+/*
+ * Shared state surfaces. Owner: T8 DESIGN.
+ *
+ * A default browser error page or an unstyled spinner is a defect, not a placeholder. Every
+ * one of these is designed, because premium means these are all designed rather than
+ * defaulted.
+ */
+
+.panel {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  /* Reflows to the 320px floor without a horizontal scrollbar. */
+  max-inline-size: 46rem;
+}
+
+.title {
+  font-size: var(--fs-500);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  line-height: var(--lh-500);
+}
+
+.body {
+  font-size: var(--fs-300);
+  color: var(--dim);
+  line-height: var(--lh-300);
+  max-inline-size: 60ch;
+}
+
+.meta {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.link {
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+}
+
+/* The empty socket for a source we do not have yet. Dashed, because an absence should look
+ * like one, and designed, because an undesigned absence reads as a broken screen. */
+.socket {
+  border-style: dashed;
+  border-color: var(--line-control);
+  background: transparent;
+}
+
+.error {
+  border-inline-start: 3px solid var(--red);
+}
+
+/* ------------------------------------------------------------------ insufficient data */
+
+/*
+ * The chip wraps rather than forcing the page sideways.
+ *
+ * It carried white-space: nowrap, which measured 340px at a 320px viewport and was the
+ * single element making the whole reference page scroll horizontally. The reason it is easy
+ * to get wrong: the chip is short in every mock, and the `missing` string is written by the
+ * lane that owns the number, so its real length is not knowable from here. Assume it is
+ * long.
+ */
+.insufficient {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-100);
+  color: var(--faint);
+  padding: 2px var(--sp-2);
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-lg);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.insufficientGlyph {
+  inline-size: 8px;
+  block-size: 8px;
+  border: 1px dashed var(--faint);
+  border-radius: 2px;
+  flex: none;
+}
+
+.insufficientWhy {
+  color: var(--dim);
+  border-inline-start: 1px solid var(--line-2);
+  padding-inline-start: var(--sp-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------- partial */
+
+.partial {
+  font-size: var(--fs-100);
+  color: var(--dim);
+}
+
+/* ------------------------------------------------------------------------------ stale */
+
+.stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  font-size: var(--fs-200);
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------------------- skeleton */
+
+.skeleton {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+/*
+ * The skeleton row is sized from the SAME row-height token the real grid uses, so the layout
+ * does not shift by a single pixel when data lands. A skeleton that is a different height
+ * from its content is worse than no skeleton: it guarantees the shift it exists to prevent.
+ */
+.skeletonRow {
+  block-size: var(--row-h);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--panel) 0%,
+    var(--panel-2) 50%,
+    var(--panel) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1400ms linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonRow {
+    animation: none;
+    background: var(--panel-2);
+  }
+}

@@ -112,6 +112,18 @@
   overscroll-behavior-x: contain;
   padding-bottom: var(--sp-2);
   scrollbar-gutter: stable;
+  /*
+   * `min-width: 0` is the whole reason this container clips instead of pushing the page wide,
+   * and its absence is invisible to every check except a measured one.
+   *
+   * This element is a flex ITEM of `.page`, and a flex item defaults to `min-width: auto`,
+   * which means "do not shrink below your content". Five 15rem columns are 75rem of content,
+   * so the container refused to shrink, `overflow-x: auto` had nothing to clip against, and
+   * the whole PAGE scrolled sideways instead. Measured at 320px: 44px of horizontal page
+   * overflow, with 0px at both 390 and 1440, which is exactly why a single-width check would
+   * have passed this.
+   */
+  min-width: 0;
 }
 
 .col {
@@ -125,12 +137,30 @@
   background: var(--panel);
 }
 
+/*
+ * The column header stacks the label and the readout ALWAYS, rather than sitting them on one
+ * row and letting the longest name wrap.
+ *
+ * Measured defect this replaces: with a single flex row, "not connected" stayed inline for
+ * LEADS, QUOTING, CUSTOMERS and WON & REVENUE but wrapped to a second line under
+ * OPPORTUNITIES, because that word is longer. Four columns aligned and one did not, which
+ * reads as a rendering fault rather than as a longer word. Every assertion passed; only the
+ * screenshot showed it.
+ */
 .colHead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-height: var(--target-min);
+}
+
+.colTop {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex-wrap: wrap;
-  min-height: var(--target-min);
+  min-width: 0;
+  inline-size: 100%;
 }
 
 .dot {
@@ -154,7 +184,6 @@
   font-family: var(--font-mono);
   font-size: var(--fs-100);
   color: var(--ink);
-  margin-inline-start: auto;
 }
 
 .colValue {
@@ -220,13 +249,6 @@
 }
 
 /* ---------------------------------------------------------------- honest states */
-
-.notice {
-  padding: var(--sp-4);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-lg);
-  background: var(--panel-2);
-}
 
 .columnEmpty {
   font-size: var(--fs-100);

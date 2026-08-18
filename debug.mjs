@@ -1,0 +1,10 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch()
+const p = await b.newPage()
+await p.goto('http://localhost:3313/enter', { waitUntil: 'networkidle' })
+await p.fill('input[name="password"]', 't6localverify')
+await p.click('button[type="submit"]')
+await p.waitForTimeout(2500)
+console.log('URL:', p.url())
+console.log('BODY:\n', (await p.evaluate(() => document.body.innerText)).slice(0, 700))
+await b.close()

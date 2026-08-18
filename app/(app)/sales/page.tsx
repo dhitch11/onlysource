@@ -113,21 +113,26 @@ export default async function SalesHubPage() {
            * and works. What exists today is the logic behind them, fully tested. What does not
            * exist is anything for them to write to.
            */}
-          <StatusChip tone="idle" srLabel="Why the controls are not shown">
-            Controls appear when the deal store is connected
-          </StatusChip>
+          {/*
+           * A sentence, not a chip. The first version put this text inside a StatusChip and it
+           * measured 348px wide at a 320px viewport, because a chip is a pill and does not
+           * wrap: 44px of horizontal page overflow that was invisible at 390 and at 1440.
+           * T8's component was behaving correctly; I was using it for something it is not for.
+           */}
+          <p className={styles.bannerLine}>
+            The Active toggle, Start outreach and Submit quote appear here once the deal store
+            is connected.
+          </p>
         </div>
       </section>
 
       {/* ---------------------------------------------------------------- the pipeline */}
       {!DEAL_STORE_CONNECTED ? (
-        <div className={styles.notice}>
-          <NotConnected
-            source="The deal store"
-            wouldAdd="every opportunity, lead, quote and won award in the pipeline, with its stage, owner and value"
-            whoCanConnect="T1 Foundation, once the deal tables are migrated"
-          />
-        </div>
+        <NotConnected
+          source="The deal store"
+          wouldAdd="every opportunity, lead, quote and won award in the pipeline, with its stage, owner and value"
+          whoCanConnect="T1 Foundation, once the deal tables are migrated"
+        />
       ) : null}
 
       <section aria-label="Pipeline" className={styles.pipe}>
@@ -136,8 +141,10 @@ export default async function SalesHubPage() {
           return (
             <div className={styles.col} key={m.stage}>
               <div className={styles.colHead}>
-                <span className={styles.dot} aria-hidden="true" />
-                <h2 className={styles.colName}>{m.label}</h2>
+                <div className={styles.colTop}>
+                  <span className={styles.dot} aria-hidden="true" />
+                  <h2 className={styles.colName}>{m.label}</h2>
+                </div>
                 <span className={styles.colCount}>
                   {/*
                    * Not "0". An em-less placeholder that says plainly the number is unknown,

@@ -59,7 +59,7 @@ export const OWNER_LABEL: Record<DealOwner, string> = {
 }
 
 /** How a value came to be known. Rendered as a provenance glyph, never as a bare number. */
-export type ValueBasis = 'measured' | 'modeled' | 'insufficient'
+export type ValueBasis = 'measured' | 'modelled' | 'insufficient'
 
 export type Deal = {
   id: string
