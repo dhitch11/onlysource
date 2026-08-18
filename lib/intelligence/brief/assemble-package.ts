@@ -5,6 +5,7 @@ import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { readPackets } from '@/lib/compliance/packets-store'
+import { resolveDossierEligibility } from '@/lib/intelligence/eligibility/dossier-eligibility'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
 import { buildCornerDossier } from './dossier'
 import { buildPursuitPackage, type PursuitPackage } from './package'
@@ -69,8 +70,24 @@ export function assemblePursuitPackage(nsnRaw: string): AssembledPackage {
     ? readPackets().filter((p) => normalizeDealRef(p.nsn) === wanted).length
     : 0
 
+  /*
+   * MAY THE OPERATOR BID. Resolved HERE because this is the server side that can read the
+   * acquisition-code index, and carried on the package because the memo may quote nothing the
+   * package does not hold. Resolving it anywhere else would leave the deal memo able to
+   * recommend an item whose codes say a new manufacturing source cannot be approved.
+   *
+   * It abstains rather than defaults: a stock number the extract does not carry, or one managed
+   * by an activity that publishes no acquisition codes, comes back undetermined with the reason
+   * in words. The solicitation number goes in too, because the ninth position of it decides
+   * whether a surplus quote is welcome on this lane or falls out of automated award.
+   */
+  const eligibility = resolveDossierEligibility({
+    stockNumber: row.nsn,
+    solicitationNumber: row.solicitation,
+  })
+
   return {
     ok: true,
-    pkg: buildPursuitPackage({ row, dossier, award, byCage, savedPacketCount }),
+    pkg: buildPursuitPackage({ row, dossier, award, byCage, savedPacketCount, eligibility }),
   }
 }

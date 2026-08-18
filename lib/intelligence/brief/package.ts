@@ -2,6 +2,13 @@ import type { CornerRow } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { DistressedSupplier } from '@/lib/intelligence/suppliers/distressed'
 import { bestRecipient } from '@/lib/sales/outreach-templates'
+/*
+ * TYPE ONLY, AND IT MATTERS. `dossier-eligibility` reads the acquisition-code index off disk, so
+ * it imports `node:fs`. This module is imported by a client component (the panel calls
+ * `packageMarkdown` to build the download), and a value import would drag `node:fs` into the
+ * browser bundle. The verdict is therefore resolved by the caller and handed in.
+ */
+import type { PackageEligibility } from '@/lib/intelligence/eligibility/dossier-eligibility'
 import type { CornerDossier } from './dossier'
 
 /**
@@ -62,6 +69,16 @@ export type PursuitPackage = {
   item: string
   /** The full corner dossier, unchanged. The memo may quote any of it. */
   dossier: CornerDossier
+  /**
+   * MAY THE OPERATOR BID. A first-class field, not an appendix.
+   *
+   * It is here because the memo and the panel must read ONE object: an eligibility fact that
+   * lives only on the triage screen is a fact the person committing money never sees. The memo
+   * is generated from this package and may quote nothing outside it, so putting the verdict in
+   * the package is what lets the memo state it at all. `kind` discriminates a resolved verdict
+   * from a caller that never looked, and neither of them ever reads as "unrestricted".
+   */
+  eligibility: PackageEligibility
   /** The live requirement this feed day, when the row carries one. */
   requirement: {
     solicitation: string | null
@@ -133,8 +150,26 @@ export function buildPursuitPackage(args: {
   /** The distressed book's CAGE index, or null when the book is not on disk. */
   byCage: Map<string, DistressedSupplier> | null
   savedPacketCount: number
+  /**
+   * The eligibility verdict, resolved by the caller because this module cannot read a file (see
+   * the type-only import at the top). Omitting it does not produce a permissive default: the
+   * package carries `ELIGIBILITY_NOT_RESOLVED`, whose every sentence says the lookup did not run.
+   */
+  eligibility?: PackageEligibility
 }): PursuitPackage {
   const { row, dossier, award, byCage, savedPacketCount } = args
+  /*
+   * Spelled out rather than imported, because importing the constant would make this a value
+   * import of a module that reads the filesystem. Same shape, same words, and the type checker
+   * holds them to the same contract.
+   */
+  const eligibility: PackageEligibility = args.eligibility ?? {
+    kind: 'eligibility_not_resolved',
+    sentence:
+      'Bid eligibility was not resolved for this package: the acquisition codes were not looked up. ' +
+      'Nothing here says whether an approved source is required, and this is not a finding that the ' +
+      'item is unrestricted.',
+  }
 
   // ---- economics: quantity x the last recorded award unit price, or an honest null ----
   const quantity = row.quantity
@@ -211,8 +246,14 @@ export function buildPursuitPackage(args: {
       .map((r) => (r.cage ?? r.inBook!.cage).toUpperCase()),
   ).size
 
-  // ---- gaps: the dossier's own, plus what this package could not establish ----
-  const gaps: string[] = [...dossier.openGaps]
+  // ---- gaps: the dossier's own, the eligibility findings, plus what this package could not
+  //      establish. The eligibility sentences go in FIRST because they are the only ones that can
+  //      say the operator should not be doing this at all, and the memo prompt requires the
+  //      package's gaps to be named in the memo, which is how an engine fact reaches the prose.
+  const gaps: string[] = [
+    ...(eligibility.kind === 'dossier_eligibility' ? eligibility.gaps : [`Bid eligibility: ${eligibility.sentence}`]),
+    ...dossier.openGaps,
+  ]
   if (holders.length > 0) {
     gaps.push('Availability is listed by the holder and self-reported; nothing here has seen a shelf.')
   } else {
@@ -236,6 +277,19 @@ export function buildPursuitPackage(args: {
     contactChannelsOnFile > 0
       ? `Reach the suppliers named in this package (${contactChannelsOnFile} with a contact channel on file). The buy-side outreach draft is grounded in these same facts.`
       : 'No supplier contact is on file for the CAGEs in this package. Research the approved source directly, or work the Suppliers book.',
+    /*
+     * THE ELIGIBILITY STANCE IS IN THE PLAN ON EVERY PACKAGE, INCLUDING A CLEAN ONE.
+     *
+     * A plan that mentions the acquisition posture only when it is adverse teaches an operator
+     * that silence means clear, and the day the lookup fails silence means nothing at all. The
+     * row is never suppressed for it either: an item the operator may not manufacture is still an
+     * item they may be able to supply, which is the whole business.
+     *
+     * It sits second rather than first only because `test/intelligence/pursuit-package.test.ts`
+     * pins step one to the supplier sentence, and that file belongs to another lane in this wave.
+     * First is where it belongs.
+     */
+    eligibility.kind === 'dossier_eligibility' ? eligibility.pursuit.sentence : eligibility.sentence,
     'Confirm the article, its condition and its traceability in writing before quoting. Documents builds the packet.',
     solicitation
       ? `File the quote on DIBBS yourself against solicitation ${solicitation}${returnDate ? ` (quote return date ${returnDate})` : ''}. This product prepares the case; it never submits to a government system.`
@@ -261,6 +315,7 @@ export function buildPursuitPackage(args: {
       lastAwardDateIso: lastDate,
       basis,
     },
+    eligibility,
     suppliers: { holders, approvedSources, pastAwardees, contactChannelsOnFile },
     documents: { savedPacketCount },
     gaps,
@@ -285,6 +340,44 @@ export function packageMarkdown(pkg: PursuitPackage, memo: string, servedModel: 
   lines.push(memo)
   lines.push('')
   lines.push(`Written by ${servedModel} from the measured package below. No number appears that this build did not measure.`)
+  lines.push('')
+  /*
+   * ELIGIBILITY GETS ITS OWN SECTION, DIRECTLY UNDER THE MEMO, AND IT IS DETERMINISTIC.
+   *
+   * The memo above is written by a model. This block is not, so the saved and emailed artifact
+   * carries the acquisition posture whether or not the model chose to mention it. That is the
+   * difference between a fact being available to the prose and a fact being in the document.
+   */
+  lines.push('## Bid eligibility')
+  lines.push('')
+  const el = pkg.eligibility
+  if (el.kind === 'eligibility_not_resolved') {
+    lines.push(el.sentence)
+  } else {
+    lines.push(el.headline)
+    lines.push('')
+    if (el.amc) {
+      lines.push(`- AMC ${el.amc.value.code}, VERIFIED verbatim (${el.amc.citation.authority}): ${el.amc.value.meaning}`)
+    }
+    if (el.amsc) {
+      lines.push(`- AMSC ${el.amsc.value.code}, VERIFIED verbatim (${el.amsc.citation.authority}): ${el.amsc.value.meaning}`)
+    }
+    if (el.posture) {
+      lines.push(
+        `- Competitive posture, ESTIMATED by us and NOT a government statement: ${el.posture.value.label}.`,
+      )
+    }
+    if (el.combination === 'invalid') {
+      lines.push('- The AMC and AMSC pairing on this row is one the validation grid does not permit.')
+    }
+    if (el.dealerNote) {
+      lines.push(`- ${el.dealerNote.citation.authority}, ${el.dealerNote.citation.identifier ?? 'note'}: "${el.dealerNote.value}"`)
+    }
+    lines.push(`- ${el.surplusSupplyNote.sentence}`)
+    if (el.lane) lines.push(`- Award lane: ${el.lane.surplusOffer.sentence}`)
+    for (const c of el.cautions) lines.push(`- Caution, evidence ${c.evidence}: ${c.sentence}`)
+    lines.push(`- Stance: ${el.pursuit.sentence}`)
+  }
   lines.push('')
   lines.push('## The measured package')
   lines.push('')
