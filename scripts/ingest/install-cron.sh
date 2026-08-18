@@ -18,7 +18,8 @@
 #
 #   install-cron.sh            print the block, change nothing (default, unchanged contract)
 #   install-cron.sh --apply    install or replace the block, then read it back and verify
-#   install-cron.sh --check    exit 0 if installed and identical, 1 if absent, 2 if drifted
+#   install-cron.sh --check    0 installed and identical · 1 no capture scheduled at all
+#                              2 managed block DRIFTED from this file · 3 scheduled but UNMANAGED
 #
 # Timing: DLA posts a feed day's files by early morning Eastern. 06:15 America/New_York, Monday
 # through Saturday (Saturday picks up Friday's files; capture-day walks back over unpublished days
@@ -55,12 +56,43 @@ installed_block() {
   current_crontab | sed -n "\|^${BEGIN}\$|,\|^${END}\$|p"
 }
 
+# Is a capture scheduled AT ALL, by any means, managed or not?
+#
+# THIS EXISTS BECAUSE THE FIRST VERSION OF --check WAS WRONG IN THE DANGEROUS DIRECTION.
+# It only looked for the marker-delimited block, so on the one host where the capture was
+# actually running, installed by hand months before this script could install anything, it
+# printed "the daily government feed capture is NOT scheduled on this host". That sentence was
+# false, and it is false in the direction that costs the most: an operator who believes it
+# installs a second copy and the box captures twice a day, or worse, concludes the schedule is
+# broken and starts debugging a system that was working.
+#
+# A CHECK THAT ONLY RECOGNISES ITS OWN HANDIWORK IS NOT A CHECK, IT IS A SIGNATURE. Ask the
+# question an operator actually has, which is "will the capture run tomorrow", not "did I write
+# the line that makes it run".
+capture_scheduled_unmanaged() {
+  current_crontab | sed "\|^${BEGIN}\$|,\|^${END}\$|d" | command grep -c 'capture-day\.mts' 2>/dev/null || true
+}
+
 case "${1:-}" in
   --check)
     have="$(installed_block)"
+    unmanaged="$(capture_scheduled_unmanaged)"
+    if [ -z "$have" ] && [ "${unmanaged:-0}" -gt 0 ]; then
+      # The state this script was blind to: it IS running, and this file did not put it there.
+      echo "UNMANAGED: the capture IS scheduled on this host, and NOT by this script."
+      echo "Lines outside the managed block that run capture-day.mts: ${unmanaged}"
+      current_crontab | sed "\|^${BEGIN}\$|,\|^${END}\$|d" | command grep -n 'capture-day\.mts\|CRON_TZ' | sed 's/^/  /'
+      echo
+      echo "The feed WILL be captured. What is missing is reproducibility: nothing in the repo"
+      echo "recreates this line, so a rebuilt host loses the capture silently and every day"
+      echo "missed is a government file destroyed on its rolling window and unbuyable afterwards."
+      echo "Run --apply to adopt it under the managed markers. That replaces the hand-written"
+      echo "line rather than adding a second one, so the capture never runs twice."
+      exit 3
+    fi
     if [ -z "$have" ]; then
-      echo "ABSENT: no managed capture block in this user's crontab."
-      echo "The daily government feed capture is NOT scheduled on this host."
+      echo "ABSENT: no capture is scheduled on this host by any means."
+      echo "The daily government feed capture will NOT run. Every day missed is permanent."
       exit 1
     fi
     if [ "$have" = "$(block)" ]; then
