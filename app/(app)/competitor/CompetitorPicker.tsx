@@ -8,7 +8,7 @@ export function CompetitorPicker({
   options,
   current,
 }: {
-  options: Array<{ cage: string; label: string; parts: number }>
+  options: Array<{ cage: string; label: string; parts: number; deep: boolean }>
   current: string
 }) {
   const router = useRouter()
@@ -22,7 +22,8 @@ export function CompetitorPicker({
       >
         {options.map((o) => (
           <option key={o.cage} value={o.cage}>
-            {o.label} · {o.parts} {o.parts === 1 ? 'part' : 'parts'}
+            {o.label} · {o.parts} reference {o.parts === 1 ? 'row' : 'rows'}
+            {o.deep ? ' · dedicated pull' : ''}
           </option>
         ))}
       </select>

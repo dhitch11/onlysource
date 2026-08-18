@@ -262,6 +262,212 @@
     max-width: none;
   }
 }
+/* ==================================================================================== */
+/* THE DEDICATED PULL LAYER.                                                            */
+/*                                                                                      */
+/* Deliberately NOT the same chrome as the generic teardown below it. The band, the      */
+/* accent rule down its edge and the fact list exist so an operator can never confuse a  */
+/* company we hold a full export for with one we do not. Same page, two depths, and the  */
+/* difference has to be visible without reading a word.                                  */
+/* ==================================================================================== */
+
+.pullBand,
+.shallowBand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 0;
+}
+.pullBand {
+  border-inline-start: 3px solid var(--accent);
+  background: linear-gradient(180deg, var(--accent-soft), transparent 62%), var(--panel);
+}
+.shallowBand {
+  border-inline-start: 3px solid var(--line-control);
+  border-style: dashed;
+}
+.pullBandHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.pullFile {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  word-break: break-all;
+}
+.pullBandBody,
+.pullBandFoot {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.6;
+  max-width: 84ch;
+}
+.pullBandFoot {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+.pullFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.factLabel {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+.factValue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--fs-200);
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.factNote {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-300);
+  color: var(--ink);
+  line-height: 1.55;
+}
+.correction {
+  font-size: var(--fs-200);
+  color: var(--ink);
+  line-height: 1.6;
+  max-width: 84ch;
+  border-inline-start: 2px solid var(--accent-2);
+  padding-inline-start: var(--sp-3);
+}
+.factList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding-inline-start: var(--sp-4);
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.6;
+  max-width: 90ch;
+}
+.factList b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.caveat {
+  font-size: var(--fs-200);
+  color: var(--faint);
+  line-height: 1.6;
+  max-width: 90ch;
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+
+.metricMoney {
+  display: block;
+  font-size: var(--fs-400);
+  line-height: 1.2;
+}
+
+.makerName {
+  display: block;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.makerCage {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+.sameName {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.45;
+  max-width: 34ch;
+}
+.makerCell {
+  max-width: 34ch;
+  color: var(--dim);
+}
+.cellNote {
+  display: block;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: 1.45;
+  max-width: 34ch;
+}
+.cellAbsent {
+  font-size: var(--fs-200);
+  color: var(--faint);
+  font-style: italic;
+}
+.ceilingPrefix {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+}
+.prior {
+  color: var(--dim);
+}
+
+.layerBreak {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  border-top: 1px solid var(--line-2);
+  padding-top: var(--sp-5);
+  margin-top: var(--sp-3);
+}
+.layerTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--dim);
+}
+.layerBody {
+  font-size: var(--fs-200);
+  color: var(--faint);
+  line-height: 1.6;
+  max-width: 88ch;
+}
+
+@media (max-width: 480px) {
+  .pullBand,
+  .shallowBand {
+    padding: var(--sp-4);
+  }
+  .metricMoney {
+    font-size: var(--fs-300);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   @keyframes comp-fade-up {
     from { opacity: 0; transform: translate3d(0, 12px, 0); }
