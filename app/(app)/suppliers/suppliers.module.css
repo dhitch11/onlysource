@@ -253,13 +253,19 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-3);
+  /* Measured at 320: this group was 325px of unbreakable content on a 320px viewport, which
+     is what made the whole document scroll sideways by 17px. It wraps rather than pushing. */
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .resultCount {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-100);
   color: var(--faint);
-  white-space: nowrap;
+  /* No `nowrap` here. It was holding "543 shown of 3,471 in the book" on one line, and a
+     sentence is not a number: the figures carry no spaces and cannot break across lines
+     whatever this says, so the only thing nowrap bought was the horizontal scroll. */
 }
 
 /* The state of a contact fetch, said in the cell rather than left as a blank. Four different
