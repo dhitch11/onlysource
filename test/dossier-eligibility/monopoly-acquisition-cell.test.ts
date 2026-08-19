@@ -27,9 +27,7 @@ import { describe, expect, it } from 'vitest'
 import { acquisitionCodeCell, type CornerRowWithAward } from '@/app/(app)/monopoly/MonopolyGrid'
 import { resolveBidEligibility, type AmscIndex } from '@/lib/intelligence/eligibility/bid-eligibility'
 
-const IDX: AmscIndex = {
-  ok: true,
-  rows: new Map([
+const FIXTURE_ROWS = new Map([
     // The reviewer's own failing input, unchanged.
     ['000000001', { niin: '000000001', amc: '3', amsc: 'E', aac: '', pica: 'GX' }],
     // Two characters, which is not a code at all, and the same shape.
@@ -38,7 +36,14 @@ const IDX: AmscIndex = {
     ['000000003', { niin: '000000003', amc: '3', amsc: 'P', aac: '', pica: 'GX' }],
     // A publisher that publishes nothing, which was already abstaining and must keep abstaining.
     ['000000004', { niin: '000000004', amc: '', amsc: '', aac: '', pica: 'ZW' }],
-  ]),
+  ])
+
+const IDX: AmscIndex = {
+  ok: true,
+  lookup: (n: string) => FIXTURE_ROWS.get(n),
+  size: FIXTURE_ROWS.size,
+  backing: 'binary' as const,
+  niins: () => [...FIXTURE_ROWS.keys()],
   publishers: new Map([['GX', { rows: 10000, withAmsc: 10000, rate: 1 }]]),
   provenance: {},
 }

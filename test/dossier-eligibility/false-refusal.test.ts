@@ -151,7 +151,10 @@ const rowSeed = {
 
 const index = (amc: string, amsc: string, pica: string): AmscIndex => ({
   ok: true,
-  rows: new Map([['017053574', { niin: '017053574', amc, amsc, aac: '', pica }]]),
+  lookup: (n: string) => new Map([['017053574', { niin: '017053574', amc, amsc, aac: '', pica }]]).get(n),
+  size: new Map([['017053574', { niin: '017053574', amc, amsc, aac: '', pica }]]).size,
+  backing: 'binary' as const,
+  niins: () => [...new Map([['017053574', { niin: '017053574', amc, amsc, aac: '', pica }]]).keys()],
   publishers: new Map([[pica, { rows: 10000, withAmsc: 10000, rate: 1 }]]),
   provenance: {},
 })

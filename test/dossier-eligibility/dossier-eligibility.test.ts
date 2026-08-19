@@ -30,7 +30,10 @@ function index(
 ): AmscIndex {
   return {
     ok: true,
-    rows: new Map(rows.map((r) => [r.niin, { aac: '', ...r }])),
+    lookup: (n: string) => new Map(rows.map((r) => [r.niin, { aac: '', ...r }])).get(n),
+    size: rows.length,
+    backing: 'binary' as const,
+    niins: () => rows.map((r) => r.niin),
     publishers: new Map(publishers.map((p) => [p, { rows: 10000, withAmsc: 10000, rate: 1 }])),
     provenance: {},
   }

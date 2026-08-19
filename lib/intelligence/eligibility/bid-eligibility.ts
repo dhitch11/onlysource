@@ -30,7 +30,7 @@
  * The publisher list is READ FROM THE DERIVED INDEX, never hardcoded here. A hardcoded list of
  * publishers is a defect with a delay on it, wrong the first month DLA changes who publishes.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 
 import { dataPath } from '../../data-root'
 import {
@@ -54,7 +54,25 @@ export type AmscIndexRow = {
 
 export type AmscIndex = {
   ok: true
-  rows: Map<string, AmscIndexRow>
+  /**
+   * Resolve one NIIN. A FUNCTION rather than a Map, and that is the whole point of the
+   * 2026-08-19 change: the catalogue-wide index holds 7,060,851 NIINs and a Map of that many
+   * string keys and row objects is on the order of 1.5 GB on a 2 GB production box.
+   */
+  lookup: (niin: string) => AmscIndexRow | undefined
+  /** How many NIINs the index holds, for provenance strips. */
+  size: number
+  /**
+   * A sample of NIINs spread EVENLY across the whole index, for sweeps and summaries.
+   *
+   * Strided, never the first N. The index is sorted by NIIN and a NIIN's leading digits track
+   * the supply class, so the first N records are all from the same few classes. Taking a head
+   * and reporting a rate over it is the convenience-sample error this estate has already paid
+   * for once, where an unordered `limit` turned a true 11.0% into a reported 27.8%.
+   */
+  niins: (limit?: number) => string[]
+  /** Which backing file served, so a surface can say so rather than imply currency. */
+  backing: 'binary' | 'legacy-json'
   /** PICA -> measured publish rate. Presence in this map IS the publisher test. */
   publishers: Map<string, { rows: number; withAmsc: number; rate: number }>
   provenance: Record<string, unknown>
@@ -65,11 +83,129 @@ export type AmscIndexUnavailable = { ok: false; reason: string }
 let cache: { key: string; value: AmscIndex | AmscIndexUnavailable } | null = null
 
 export function loadAmscIndex(): AmscIndex | AmscIndexUnavailable {
-  const file = dataPath('flis', 'amsc-index.json')
-  if (cache && cache.key === file) return cache.value
-  const value = read(file)
-  cache = { key: file, value }
+  const bin = dataPath('flis', 'amsc-index.bin')
+  const legacy = dataPath('flis', 'amsc-index.json')
+  const key = existsSync(bin) ? bin : legacy
+  if (cache && cache.key === key) return cache.value
+  const value = key === bin ? readBinary(bin, dataPath('flis', 'amsc-index.meta.json')) : read(legacy)
+  cache = { key, value }
   return value
+}
+
+/**
+ * THE BINARY INDEX: a sorted array of fixed-width records, binary-searched on a file
+ * descriptor. Nothing is held resident but the sidecar's publisher map and PICA dictionary.
+ *
+ * Resolving one NIIN costs about log2(7,060,851) = 23 reads of ten bytes. That is chosen over
+ * loading the 70 MB buffer because production is a 2 GB box also serving Next.js, and over a
+ * datastore because this is a read-only catalogue republished monthly and a database is the
+ * heavier answer to "binary-search a sorted array".
+ *
+ * The descriptor is opened once and kept, because reopening per lookup would turn 371 corner
+ * rows into 371 opens. It is never closed on the happy path: the process outlives the index.
+ */
+function readBinary(binFile: string, metaFile: string): AmscIndex | AmscIndexUnavailable {
+  if (!existsSync(metaFile)) {
+    return {
+      ok: false,
+      reason:
+        'the acquisition-code index binary is present but its sidecar is not, so the PICA dictionary and the measured publisher list cannot be read and eligibility is not determined',
+    }
+  }
+  let meta: {
+    recordBytes?: number
+    records?: number
+    picaDictionary?: string[]
+    publishers?: Record<string, { rows: number; withAmsc: number; rate: number }>
+    provenance?: Record<string, unknown>
+  }
+  try {
+    meta = JSON.parse(readFileSync(metaFile, 'utf8')) as typeof meta
+  } catch {
+    return { ok: false, reason: 'the acquisition-code index sidecar is present but could not be read' }
+  }
+  const stride = meta.recordBytes ?? 0
+  const dict = meta.picaDictionary ?? []
+  if (stride <= 0) {
+    return { ok: false, reason: 'the acquisition-code index sidecar does not state its record width' }
+  }
+  const bytes = statSync(binFile).size
+  if (bytes === 0 || bytes % stride !== 0) {
+    // A truncated copy is the failure this catches. It is exactly the shape of the 1.47 GB
+    // manifest hole: a file that is present, readable, and not what it claims to be.
+    return {
+      ok: false,
+      reason: `the acquisition-code index is ${bytes} bytes, which is not a whole number of ${stride}-byte records, so it is truncated or of another format`,
+    }
+  }
+  const count = bytes / stride
+  if (meta.records !== undefined && meta.records !== count) {
+    return {
+      ok: false,
+      reason: `the acquisition-code index holds ${count} records and its sidecar claims ${meta.records}, so the two were not written together`,
+    }
+  }
+
+  const fd = openSync(binFile, 'r')
+  const rec = Buffer.allocUnsafe(stride)
+  const readAt = (i: number): Buffer => {
+    readSync(fd, rec, 0, stride, i * stride)
+    return rec
+  }
+  const chr = (b: number): string => (b === 0 ? '' : String.fromCharCode(b))
+
+  const lookup = (niinText: string): AmscIndexRow | undefined => {
+    if (niinText.length !== 9) return undefined
+    const target = Number(niinText)
+    if (!Number.isInteger(target)) return undefined
+    let lo = 0
+    let hi = count - 1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      const b = readAt(mid)
+      const key = b.readUInt32BE(0)
+      if (key === target) {
+        const picaIdx = b.readUInt16BE(8)
+        return {
+          niin: niinText,
+          amc: chr(b.readUInt8(4)),
+          amsc: chr(b.readUInt8(5)),
+          aac: chr(b.readUInt8(6)),
+          pica: picaIdx > 0 ? (dict[picaIdx - 1] ?? '') : '',
+        }
+      }
+      if (key < target) lo = mid + 1
+      else hi = mid - 1
+    }
+    return undefined
+  }
+
+  if (count === 0) {
+    closeSync(fd)
+    return { ok: false, reason: 'the acquisition-code index is present but carries no records' }
+  }
+  const niins = (limit?: number): string[] => {
+    const want = limit === undefined ? count : Math.min(limit, count)
+    if (want <= 0) return []
+    const out: string[] = []
+    // Spans the FULL range including both ends: k * (count-1) / (want-1). A `count / want`
+    // stride never reaches the last record, which biases a sample toward the low NIINs the
+    // very same way a head does, only less obviously.
+    for (let k = 0; k < want; k += 1) {
+      const i = want === 1 ? 0 : Math.round((k * (count - 1)) / (want - 1))
+      out.push(String(readAt(i).readUInt32BE(0)).padStart(9, '0'))
+    }
+    return out
+  }
+  return {
+    ok: true,
+    lookup,
+    size: count,
+    backing: 'binary',
+    niins,
+    publishers: new Map(Object.entries(meta.publishers ?? {})),
+    provenance: meta.provenance ?? {},
+  }
 }
 
 export function resetAmscIndexCache(): void {
@@ -101,7 +237,18 @@ function read(file: string): AmscIndex | AmscIndexUnavailable {
   }
   return {
     ok: true,
-    rows,
+    lookup: (niin: string) => rows.get(niin),
+    size: rows.size,
+    backing: 'legacy-json',
+    niins: (limit?: number) => {
+      const all = [...rows.keys()]
+      if (limit === undefined || limit >= all.length) return all
+      if (limit <= 0) return []
+      if (limit === 1) return [all[0]!]
+      // Same full-range stride as the binary backing, so a sample means the same thing
+      // whichever file happens to be serving.
+      return Array.from({ length: limit }, (_, k) => all[Math.round((k * (all.length - 1)) / (limit - 1))]!)
+    },
     publishers: new Map(Object.entries(parsed.publishers ?? {})),
     provenance: parsed.provenance ?? {},
   }
@@ -216,7 +363,7 @@ export function resolveBidEligibility(
     }
   }
 
-  const row = index.rows.get(niin)
+  const row = index.lookup(niin)
   if (!row) {
     return {
       niin,
