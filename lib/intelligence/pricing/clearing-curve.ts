@@ -97,7 +97,7 @@ export type ClearingCurve =
       readonly note: string
     }
 
-type PerNsn = { fsc: string | null; shares: number[] }
+export type PerNsn = { fsc: string | null; shares: number[] }
 
 const median = (xs: readonly number[]): number => {
   const a = [...xs].sort((x, y) => x - y)
@@ -108,7 +108,21 @@ const median = (xs: readonly number[]): number => {
  * Reduce the award index to one curve per stock number. Built once and reused; the shape is a
  * pure function of the index, so callers cache it on the index itself.
  */
+const clearingCache = new WeakMap<ReadonlyMap<string, NsnAwardSummary>, PerNsn[]>()
+
 export function buildPerNsnClearing(byNsn: ReadonlyMap<string, NsnAwardSummary>): PerNsn[] {
+  /*
+   * CACHED ON THE INDEX MAP ITSELF, for the same measured reason the peer pool is: this walks
+   * every priced award pair on every stock number, and the corner page renders one row while the
+   * desk renders hundreds. A WeakMap keyed on the index is the correct key rather than a feed day
+   * string, because the curve is a pure function of that map: a rebuilt index is a different
+   * object and misses the cache automatically, and nothing is held alive after the index is
+   * released. A day-keyed cache would keep serving a curve derived from an index that has since
+   * been reloaded.
+   */
+  const hit = clearingCache.get(byNsn)
+  if (hit) return hit
+
   const out: PerNsn[] = []
   for (const [, s] of byNsn) {
     const priced = s.awards
@@ -136,6 +150,7 @@ export function buildPerNsnClearing(byNsn: ReadonlyMap<string, NsnAwardSummary>)
     }
     out.push({ fsc: fscOf(s.nsn), shares: clears.map((c) => c / pairs) })
   }
+  clearingCache.set(byNsn, out)
   return out
 }
 

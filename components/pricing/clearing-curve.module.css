@@ -1,0 +1,118 @@
+/*
+ * THE CLEARING CURVE. Quiet by design: it is the working an operator reasons against, and it
+ * must not compete with the recommendation above it. House tokens only.
+ */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-500);
+  font-weight: 650;
+}
+.intro,
+.note,
+.limit,
+.abstain,
+.abstainWhat {
+  margin: 0;
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.5;
+}
+.limit {
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+  color: var(--ink);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) 1fr minmax(52px, auto);
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.mult {
+  font-size: var(--fs-200);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The operator's own figure is the one accented row. A second accent would flatten the emphasis. */
+.row[data-recommended='true'] .mult,
+.row[data-recommended='true'] .share {
+  font-weight: 700;
+  color: var(--accent);
+}
+.here {
+  font-size: var(--fs-100, 0.72rem);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.track {
+  height: 8px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--panel-2);
+  overflow: hidden;
+  min-width: 0;
+}
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+.row[data-recommended='false'] .fill {
+  opacity: 0.5;
+}
+/*
+ * A multiple nothing ever cleared at gets NO BAR AT ALL and the word "never". A one-pixel sliver
+ * would read as "very rarely", and the measurement says something stronger than that.
+ */
+.row[data-dead='true'] .fill {
+  display: none;
+}
+.share {
+  font-size: var(--fs-200);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.row[data-dead='true'] .share {
+  color: var(--dim);
+  font-style: italic;
+}
+.ceiling {
+  margin: 0;
+  font-size: var(--fs-300);
+  line-height: 1.5;
+}
+
+@media (max-width: 420px) {
+  .row {
+    grid-template-columns: minmax(72px, auto) 1fr minmax(44px, auto);
+    gap: var(--sp-2);
+  }
+}

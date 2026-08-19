@@ -22,6 +22,9 @@ import { readSettings } from '@/lib/notify/settings'
 import { Scrollable } from '@/components/ui/Scrollable'
 import { RecommendationPanel } from '@/components/pricing/RecommendationPanel'
 import { QuoteAuditTrail } from '@/components/pricing/QuoteAuditTrail'
+import { ClearingCurve } from '@/components/pricing/ClearingCurve'
+import { buildPerNsnClearing, clearingCurve } from '@/lib/intelligence/pricing/clearing-curve'
+import { fscOf } from '@/lib/intelligence/pricing/recommend'
 import { buildQuoteView, toDossierAward } from '@/lib/intelligence/pricing'
 import { readSeriesLedger } from '@/lib/ingest/series/store'
 import { resolveLiveIndexConfig, seriesVintageAsOf } from '@/lib/engine/pricing/live-indices'
@@ -173,6 +176,17 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
    */
   const seriesLedger = await readSeriesLedger()
   const liveIndices = resolveLiveIndexConfig(seriesLedger, seriesVintageAsOf(nowMs))
+
+  /*
+   * THE DECISION SURFACE. The recommendation answers "what is this worth"; this answers "what
+   * does asking for more cost me", which is the question the product cannot answer FOR the
+   * operator because it does not hold their cost. Built only when the award index loaded: an
+   * empty curve off a failed index would read as "nothing ever cleared" when the truth is that
+   * nothing was read, and those are different sentences.
+   */
+  const clearing = awardIx.ok
+    ? clearingCurve(buildPerNsnClearing(awardIx.byNsn), fscOf(row.nsn))
+    : null
 
   const recommendation = recommendForCorner({
     nsn: row.nsn,
@@ -361,6 +375,16 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
         Shown on an abstention too. When no rung reached, the four figures underneath are the only
         arithmetic on the page, which is exactly when an operator needs them.
       */}
+      {/*
+        THE DECISION SURFACE, BETWEEN THE ANSWER AND THE WORKING. The recommendation above says
+        what the item is worth; this says what asking for more costs in the chance of clearing.
+        The product deliberately stops short of naming the best bid, because that depends on the
+        operator's cost and nothing here holds one.
+      */}
+      {clearing !== null && recommendation.resolved ? (
+        <ClearingCurve curve={clearing} recommendedMultiple={recommendation.awardMultiple} />
+      ) : null}
+
       <QuoteAuditTrail
         view={quoteView}
         inputs={recommendation.resolved ? recommendation.inputs : []}
