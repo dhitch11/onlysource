@@ -511,11 +511,15 @@ export function reconcileCarried(
  * pre-flight, and the pre-flight raises its own findings in its own words.
  */
 export const FIELD_USED_BY: Readonly<Record<PrefillableField, readonly DeliverableKind[]>> = {
-  nsn: ['quote_packet', 'purchase_order', 'traceability_packet', 'counter_offer_memo'],
+  nsn: ['quote_packet', 'purchase_order', 'traceability_packet', 'counter_offer_memo', 'invoice'],
   cage: ['traceability_packet'],
   part_number: ['traceability_packet'],
-  qty: ['quote_packet', 'purchase_order', 'traceability_packet'],
-  unit_price: ['quote_packet', 'purchase_order'],
+  qty: ['quote_packet', 'purchase_order', 'traceability_packet', 'invoice'],
+  // The invoice is here for the same reason the quote packet is: it cites a price we send, so
+  // an unconfirmed carried figure must hold it at draft. It is the LAST document in the chain
+  // and the only one that asks to be paid, so it is the worst place for the government's price
+  // to arrive unchallenged.
+  unit_price: ['quote_packet', 'purchase_order', 'invoice'],
   solicitation_number: ['quote_packet'],
   type_character: [],
   is_automated: [],
@@ -544,6 +548,7 @@ export function unconfirmedCarryBlockers(
     purchase_order: [],
     traceability_packet: [],
     counter_offer_memo: [],
+    invoice: [],
   }
   if (confirmed) return out
   for (const r of reconciled) {

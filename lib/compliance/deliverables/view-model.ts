@@ -72,6 +72,12 @@ export type CapturedFacts = {
   readonly quoted_manufacturer_listed: boolean
   readonly quote_carries_remark: boolean
   readonly higher_level_quality_answered_none: boolean
+  /* The three facts an invoice needs that exist nowhere else in this product. */
+  readonly invoice_number: string
+  /** The contract or delivery order the material shipped against. An invoice that cannot be
+   *  matched to one does not get paid; it is the field a real invoice is rejected for. */
+  readonly award_number: string
+  readonly payment_terms: string
 }
 
 export const EMPTY_FACTS: CapturedFacts = {
@@ -79,6 +85,7 @@ export const EMPTY_FACTS: CapturedFacts = {
   solicitation_number: '', countered_price: '', counter_price: '', original_contract_number: '',
   form_1427_document_id: '', sale_solicitation_document_id: '', material_condition: '',
   acquisition_channel: '', type_character: '',
+  invoice_number: '', award_number: '', payment_terms: '',
   package_markings_captured: false, is_automated: false, offering_alternate_product: false,
   item_cites_qpl_or_qml: false, quoted_manufacturer_listed: false, quote_carries_remark: false,
   higher_level_quality_answered_none: false,
@@ -114,6 +121,9 @@ export function normaliseFacts(f: CapturedFacts): CapturedFacts {
     unit_price: f.unit_price.trim(),
     validity_days: f.validity_days.trim(),
     supplier: f.supplier.trim(),
+    invoice_number: f.invoice_number.trim(),
+    award_number: f.award_number.trim(),
+    payment_terms: f.payment_terms.trim(),
     solicitation_number: f.solicitation_number.trim(),
     countered_price: f.countered_price.trim(),
     counter_price: f.counter_price.trim(),
@@ -290,6 +300,22 @@ function payloadsFor(kind: DeliverableKind, f: CapturedFacts, asOf: string): Pay
       put('f1', 'nsn', f.nsn)
       put('f2', 'countered_price', f.countered_price)
       put('f3', 'counter_price', f.counter_price)
+      return out
+    /*
+     * The invoice reuses `unit_price` and `qty` ON PURPOSE rather than taking its own copies.
+     * They are the same agreed facts, and sharing them means the carried-price confirmation
+     * gate in prefill.ts protects this artifact too: an unconfirmed anchor holds the invoice at
+     * draft exactly as it holds the quote packet. A private copy would have quietly escaped the
+     * one control standing between a government award price and a document we send.
+     */
+    case 'invoice':
+      put('f1', 'invoice_number', f.invoice_number)
+      put('f2', 'award_number', f.award_number)
+      put('f3', 'nsn', f.nsn)
+      put('f4', 'qty', f.qty)
+      put('f5', 'unit_price', f.unit_price)
+      put('f6', 'extended_total', extendedTotal(f.qty, f.unit_price))
+      put('f7', 'payment_terms', f.payment_terms)
       return out
   }
 }

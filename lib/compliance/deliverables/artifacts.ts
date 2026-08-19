@@ -38,6 +38,7 @@ export type DeliverableKind =
   | 'purchase_order'
   | 'traceability_packet'
   | 'counter_offer_memo'
+  | 'invoice'
 
 /** The mockup's three tags, spelled once. */
 export type DeliverableState = 'ready_to_submit' | 'draft_awaiting_approval' | 'generate_from_blueprint'
@@ -47,6 +48,7 @@ export const DELIVERABLE_LABEL: Readonly<Record<DeliverableKind, string>> = {
   purchase_order: 'Purchase order',
   traceability_packet: 'Traceability packet',
   counter_offer_memo: 'Counter-offer memo',
+  invoice: 'Invoice',
 }
 
 export const STATE_LABEL: Readonly<Record<DeliverableState, string>> = {
@@ -85,6 +87,28 @@ export const REQUIRED_REFS: Readonly<Record<DeliverableKind, readonly { ref: str
     { ref: 'f2', label: 'the price being countered' },
     { ref: 'f3', label: 'our counter figure' },
   ],
+  /*
+   * ★ EVERY ONE OF THESE IS A FACT ABOUT AN AGREEMENT THAT ALREADY HAPPENED, AND THE PRODUCT
+   * HOLDS NONE OF THEM. That is the whole design of this artifact.
+   *
+   * An invoice is not a proposal. It states what was agreed, to whom, against which order, and
+   * it is the document a payment is made from. The feed knows what the government solicited and
+   * the award export knows what it paid someone else; neither knows what OUR award was, what our
+   * invoice number is, or what our terms are. So every field here is carried by the operator and
+   * none is prefilled from intelligence, deliberately.
+   *
+   * The award number is required and separate from the stock number, because an invoice that
+   * cannot be matched to a contract does not get paid. It is the field a real one is rejected for.
+   */
+  invoice: [
+    { ref: 'f1', label: 'our invoice number' },
+    { ref: 'f2', label: 'the contract or delivery order number the material shipped against' },
+    { ref: 'f3', label: 'the national stock number' },
+    { ref: 'f4', label: 'the quantity delivered' },
+    { ref: 'f5', label: 'the agreed unit price' },
+    { ref: 'f6', label: 'the extended total' },
+    { ref: 'f7', label: 'the payment terms' },
+  ],
 }
 
 /** Deliverables that cannot be submitted until a person approves them, regardless of completeness. */
@@ -95,6 +119,9 @@ export const REQUIRES_HUMAN_APPROVAL: Readonly<Record<DeliverableKind, boolean>>
   traceability_packet: false,
   // A counter-offer memo carries a signed narrative, so a person is already in the loop by construction.
   counter_offer_memo: true,
+  // An invoice DEMANDS money on the strength of a delivery. Nothing in this product observed that
+  // delivery, so it can never be anything but a draft a person signs off.
+  invoice: true,
 }
 
 /**
@@ -387,6 +414,49 @@ export function purchaseOrderTemplate(): Template {
 }
 
 /**
+ * The invoice. The end of the close chain, and the only artifact here that asks to be PAID.
+ *
+ * ★ IT CARRIES THE AGREED FIGURE AND THIS PRODUCT DOES NOT KNOW IT. Nothing is prefilled and
+ * nothing is derived. The daily feed knows what the government solicited; the award export knows
+ * what it paid the previous incumbent. Neither is what we agreed, and rendering either into an
+ * invoice would be inventing the central fact of a payment demand. Every payload below waits for
+ * a person, and an unfilled one leaves this artifact unready rather than filled with an estimate.
+ *
+ * The extended total is a payload computed by deterministic code before it reaches the template,
+ * never multiplied inside the document, exactly as on the purchase order.
+ */
+export function invoiceTemplate(): Template {
+  return {
+    id: 'invoice',
+    title: 'Invoice',
+    segments: [
+      { kind: 'fixed', text: 'INVOICE\n\nInvoice number: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f1', label: 'our invoice number' },
+      { kind: 'fixed', text: '\nAgainst contract or delivery order: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f2', label: 'the contract or delivery order number the material shipped against' },
+      { kind: 'fixed', text: '\nNational stock number: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f3', label: 'the national stock number' },
+      { kind: 'fixed', text: '\nQuantity delivered: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f4', label: 'the quantity delivered' },
+      { kind: 'fixed', text: '\nAgreed unit price: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f5', label: 'the agreed unit price' },
+      { kind: 'fixed', text: '\nExtended total: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f6', label: 'the extended total' },
+      { kind: 'fixed', text: '\nPayment terms: ', numerals_declared: [] },
+      { kind: 'payload', ref: 'f7', label: 'the payment terms' },
+      {
+        kind: 'fixed',
+        text:
+          '\n\nEvery figure above is the one that was agreed, entered by the person who agreed it. ' +
+          'Nothing on this document was carried from the solicitation feed or from a previous ' +
+          "award: what the government paid someone else is not what you are owed.\n",
+        numerals_declared: [],
+      },
+    ],
+  }
+}
+
+/**
  * The template for a kind, or null when this build has none.
  *
  * Null is a real and honest answer, and the caller must treat it as one: a deliverable with no template
@@ -406,5 +476,7 @@ export function templateFor(
       return path === 'unknown' ? null : traceabilityPacketTemplate(path)
     case 'counter_offer_memo':
       return counterOfferMemoTemplate()
+    case 'invoice':
+      return invoiceTemplate()
   }
 }
