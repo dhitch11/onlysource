@@ -25,6 +25,12 @@ import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { readWorkbookSheets, usDateToIso, distinctWorkbookPaths, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
+import {
+  rollUpSurplus,
+  summariseSurplusCensus,
+  type SurplusCensus,
+  type SurplusRollup,
+} from '@/lib/intelligence/awards/surplus'
 
 /** Where the batch exports land. Gitignored; shipped out of band. */
 const NSN_NOW_DIR = 'nsn-now'
@@ -159,6 +165,20 @@ export type NsnAwardSummary = {
   approvedSources: McrlRecord[]
   /** A long-term contract expiry recorded against this NSN, latest first. */
   ltcExpirationIso: string | null
+  /**
+   * THE SURPLUS HISTORY OF THIS STOCK NUMBER, rolled up from `awards[]`.
+   *
+   * The per-award `Surplus` flag has been parsed into `AwardRecord.surplus` since 2026-08-16 and
+   * has been reachable only by a consumer willing to walk `awards[]` itself and interpret the
+   * free text — which is how three different interpretations of the same cell came to exist in
+   * this repo. The rollup is computed once, here, by the one shared reader
+   * (`lib/intelligence/awards/surplus.ts`), so no surface can invent a fourth.
+   *
+   * It is POSITIVE-ONLY and it is per DELIVERY. `flaggedAwards: 0` never means "this item is not
+   * bought as surplus"; 158 of the 186 flagged stock numbers are mixed, and the column is 0.73%
+   * populated overall. Read `readFraction` before rendering anything from this object.
+   */
+  surplus: SurplusRollup
 }
 
 /**
@@ -185,6 +205,12 @@ export type NsnAwardIndex = {
     nsnsWithAwards: number
     nsnsWithApprovedSources: number
   }
+  /**
+   * The population-level Surplus reading, so any surface rendering a surplus mark can publish
+   * the sample size beside it without recomputing. Derived from the per-NSN rollups, so the
+   * headline and the rows cannot disagree.
+   */
+  surplusCensus: SurplusCensus
 }
 
 export type NsnAwardUnavailable = {
@@ -322,6 +348,14 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
   let availabilityRows = 0
   let mcrlRows = 0
 
+  // Two observations the per-NSN rollups cannot supply, collected while the rows go past.
+  // `surplusValuesSeen` is what makes "the column only ever says Yes" a measurement a reader can
+  // check rather than a claim this file makes; `awardeeCages` is the denominator for "73 of
+  // 1,680 companies", which is a population figure and not the sum of any per-NSN part (a
+  // company that won on eleven stock numbers is one company, not eleven).
+  const surplusValuesSeen = new Set<string>()
+  const awardeeCages = new Set<string>()
+
   // Dedup keys, because chunked reports can overlap and a duplicated award would double a count.
   const seenAward = new Set<string>()
   const seenHolder = new Set<string>()
@@ -379,6 +413,11 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       const key = `${nsn}|${rec.contractNo}|${rec.awardDateIso}|${rec.unitPrice}|${rec.cage}`
       if (seenAward.has(key)) continue
       seenAward.add(key)
+      // AFTER the dedup, deliberately: a value counted from a duplicated chunk would inflate the
+      // census against a row count that excludes it.
+      if (rec.surplus !== null) surplusValuesSeen.add(rec.surplus)
+      const awardeeCage = (rec.cage ?? '').trim().toUpperCase()
+      if (awardeeCage !== '') awardeeCages.add(awardeeCage)
       const list = awardsByNsn.get(nsn) ?? []
       list.push(rec)
       awardsByNsn.set(nsn, list)
@@ -513,6 +552,7 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
         latest?.awardDateIso && feedNewestIso ? yearsBetween(latest.awardDateIso, feedNewestIso) : null,
       approvedSources: sources,
       ltcExpirationIso: ltc.length ? (ltc[ltc.length - 1] as string) : null,
+      surplus: rollUpSurplus(sorted),
     })
   }
   // NSNs that have availability or an approved-source record but no award rows still deserve a
@@ -537,6 +577,9 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       yearsSinceLastAward: null,
       approvedSources: sources,
       ltcExpirationIso: null,
+      // Built by the same function as every other summary rather than a hand-written zero, so a
+      // no-award stock number reports `readFraction: null` (unknown) and not a fabricated 0.
+      surplus: rollUpSurplus([]),
     }
   }
   for (const nsn of holdersByNsn.keys()) if (!byNsn.has(nsn)) byNsn.set(nsn, emptySummary(nsn))
@@ -560,6 +603,10 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       nsnsWithAwards: [...awardsByNsn.keys()].length,
       nsnsWithApprovedSources: [...mcrlByNsn.keys()].length,
     },
+    surplusCensus: summariseSurplusCensus(
+      [...byNsn.values()].map((s) => s.surplus),
+      { distinctAwardeeCages: awardeeCages.size, observedValues: [...surplusValuesSeen] },
+    ),
   }
   return cache
 }

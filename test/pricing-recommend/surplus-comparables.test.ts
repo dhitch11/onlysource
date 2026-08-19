@@ -23,7 +23,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { AwardeeVerdict } from '@/lib/intelligence/suppliers/classify'
+import { bandSurplus, type AwardeeVerdict } from '@/lib/intelligence/suppliers/classify'
 import { recommendPrice } from '@/lib/intelligence/pricing/recommend'
 import { PRICING_INSTANT_MS, cleanAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
@@ -107,6 +107,7 @@ describe('surplus comparables are excluded or labelled, never silently averaged 
       companyName: 'DLR01 (FIXTURE)',
       class: 'surplus_dealer',
       evidenceState: 'measured',
+      band: bandSurplus(3, 9),
       basis: 'won 3 of 9 recorded awards on surplus material',
       measured: {
         surplusYes: 3,
@@ -115,6 +116,7 @@ describe('surplus comparables are excluded or labelled, never silently averaged 
         totalAwards: 9,
         distinctNsns: 4,
         readFraction: 4 / 9,
+        surplusRatio: 3 / 9,
       },
       prior: null,
     }
@@ -151,6 +153,7 @@ describe('surplus comparables are excluded or labelled, never silently averaged 
       companyName: 'DLR01 (FIXTURE)',
       class: 'distributor',
       evidenceState: 'prior',
+      band: 'no_flagged_award',
       basis: 'distressed-book classification (a prior, not a government record)',
       measured: null,
       prior: { bookClass: 'distributor', holdsInventory: 'distributor' },

@@ -39,14 +39,33 @@
  *   the correct product is a ranked WATCHLIST with a published effective sample size, not a
  *   confident classification — and this module reports the numbers to say so out loud.
  *
+ * ==========================================================================================
+ * 4. PRESENCE AND STRENGTH ARE TWO DIFFERENT QUESTIONS. Added 2026-08-18.
+ * ==========================================================================================
+ * `class: 'surplus_dealer'` means "has delivered surplus at least once", and on the deployed
+ * export that is 73 companies spanning P & R TRADING at 6 of 6 and ATLANTIC DIVING SUPPLY at 1
+ * of 4,126 — with 33 of the 73 resting on a single award. One mark on all of them is not a
+ * signal. So the verdict now carries `measured.surplusRatio` and a `band`, the counts stay
+ * exposed so a caller can compute its own, and the cut points are declared a PRODUCT CHOICE in
+ * `bandSurplus` rather than dressed up as a measurement. `class` is unchanged on purpose:
+ * moving a company out of `surplus_dealer` on a chosen threshold would encode that choice as a
+ * finding, in the one field every existing consumer already reads.
+ *
  * Pure: no I/O, no clock, no network. Inputs injected (see ./live for the real-data assembler).
  */
 
 import type { Cage } from '../../niin'
 import type { EntityClassification, EntityClass } from '../../distressed'
+import { readSurplus, bandSurplus, type SurplusState, type SurplusBand } from '../../awards/surplus'
 
-/** The three states of the free-text Surplus cell. `unread` is a first-class value, not a gap. */
-export type SurplusState = 'surplus_yes' | 'surplus_no' | 'surplus_unread'
+/**
+ * The reader and the bands now live in `lib/intelligence/awards/surplus.ts`, beside the award
+ * index that produces the cell, and are re-exported here so every existing import keeps working.
+ * One implementation, two entry points — the alternative was two implementations drifting apart,
+ * which this repo has already paid for once with `competitor/rural-route.ts` holding a third.
+ */
+export { readSurplus, bandSurplus, SURPLUS_BAND_CUTS } from '../../awards/surplus'
+export type { SurplusState, SurplusBand } from '../../awards/surplus'
 
 export type AwardeeClass = 'surplus_dealer' | 'manufacturer' | 'distributor' | 'unknown'
 export type EvidenceState = 'measured' | 'prior' | 'unknown'
@@ -61,6 +80,19 @@ export type MeasuredSurplus = {
   distinctNsns: number
   /** (yes + no) / total — the fraction of this CAGE's awards whose Surplus cell was actually read. */
   readFraction: number
+  /**
+   * surplusYes / totalAwards. THE FIGURE THAT SEPARATES A SURPLUS HOUSE FROM AN ACCIDENT.
+   *
+   * `class: 'surplus_dealer'` answers "has this company ever delivered surplus", and measured
+   * over the deployed export that question puts P & R TRADING (6 of 6) and ATLANTIC DIVING
+   * SUPPLY (1 of 4,126) in the same bucket. 33 of the 73 companies in that bucket rest on a
+   * single award. So the count and the ratio travel on the verdict and a caller bands them.
+   *
+   * IT IS A FLOOR, NOT A SHARE OF BUSINESS. The denominator includes every award whose Surplus
+   * cell was never filled in, which is 99.27% of the feed, so the true surplus share of a
+   * company's deliveries is at least this and may be far more. It is never less.
+   */
+  surplusRatio: number
 }
 
 /** The PRIOR half — the distressed book's label. A separate type so it cannot pose as measured. */
@@ -74,6 +106,20 @@ export type AwardeeVerdict = {
   companyName: string | null
   class: AwardeeClass
   evidenceState: EvidenceState
+  /**
+   * HOW MUCH of the company's record the surplus flag covers. Cut points are a product choice,
+   * stated as such in `bandSurplus`, and are NOT derived from the data.
+   *
+   * `class` is deliberately unchanged and still means presence — "at least one flagged award,
+   * ever". Reclassifying a thin company out of `surplus_dealer` would be hard-coding a chosen
+   * threshold as if it were a finding, and would silently change what every existing consumer
+   * of `class` receives. The band sits beside it so a caller can render a strong mark for
+   * `predominant`, a hedged one for `single_award`, and abstain wherever it chooses to.
+   *
+   * `no_flagged_award` is not evidence of anything: with the column 0.73% populated, it is
+   * almost always silence. Unread, not no.
+   */
+  band: SurplusBand
   basis: string
   /** Present only when there is award history for this CAGE. The government record. */
   measured: MeasuredSurplus | null
@@ -95,26 +141,18 @@ export type Coverage = {
   surplusFillRate: number
   awardRowsSeen: number
   awardRowsSurplusRead: number
+  /**
+   * How the awardees distribute across the bands. Publishable beside a badge so the operator can
+   * see that `surplusDealers` is not one population: measured over the deployed export it is
+   * 33 companies resting on a single award, 1 occasional, 11 frequent and 28 predominant.
+   */
+  bands: Record<SurplusBand, number>
 }
 
 export type AwardeeClassifier = {
   classify(cage: string | null | undefined): AwardeeVerdict | null
   coverage: Coverage
   asClassificationPort(): { classify(cage: Cage): EntityClassification | null }
-}
-
-/**
- * THE ONE PLACE the free-text Surplus cell is interpreted. Three-state, conservative.
- * A yes-shaped token is surplus; an explicit no is not; everything else (blank, unrecognised)
- * is UNREAD, never silently a no.
- */
-export function readSurplus(surplus: string | null | undefined): SurplusState {
-  if (surplus == null) return 'surplus_unread'
-  const v = surplus.trim().toLowerCase()
-  if (v === '') return 'surplus_unread'
-  if (/^(no|n|false|0|none|n\/a|na)$/.test(v)) return 'surplus_no'
-  if (/\b(y|yes|surplus|x)\b/.test(v) || v.includes('surplus')) return 'surplus_yes'
-  return 'surplus_unread'
 }
 
 /** Population Surplus fill rate over a set of award rows. Report it before drawing conclusions. */
@@ -174,7 +212,12 @@ export function buildAwardeeClassifier(
   const measuredOf = (e: Agg): MeasuredSurplus => ({
     surplusYes: e.yes, surplusNo: e.no, surplusUnread: e.unread, totalAwards: e.total,
     distinctNsns: e.nsns.size, readFraction: e.total ? (e.yes + e.no) / e.total : 0,
+    // An Agg is only created when a row for that CAGE was seen, so `total` is at least 1 here
+    // and the guard is structural belt-and-braces, never a fallback that could ship a 0.
+    surplusRatio: e.total > 0 ? e.yes / e.total : 0,
   })
+
+  const pct = (ratio: number): string => `${(ratio * 100).toFixed(ratio < 0.01 ? 2 : 1)}%`
 
   const verdict = (cage: Cage): AwardeeVerdict => {
     const e = agg.get(cage)
@@ -183,29 +226,41 @@ export function buildAwardeeClassifier(
     const measured = e ? measuredOf(e) : null
     const prior: PriorLabel | null = bc && b ? { bookClass: bc, holdsInventory: b.holdsInventory as string } : null
     const name = e?.name ?? b?.companyName ?? null
+    // Banded from the measured counts, or `no_flagged_award` when there are no counts to band.
+    // Note what that band does NOT say: not "this firm does not deal surplus", only "no award of
+    // theirs in this export carries the flag", which for 1,607 of 1,680 companies is silence.
+    const band = bandSurplus(measured?.surplusYes ?? 0, measured?.totalAwards ?? 0)
 
     // MEASURED surplus dealer requires an actual yes, never the absence of a no.
     if (measured && measured.surplusYes > 0) {
-      return { cage, companyName: name, class: 'surplus_dealer', evidenceState: 'measured',
-        basis: `won ${measured.surplusYes} of ${measured.totalAwards} recorded award${measured.totalAwards === 1 ? '' : 's'} on surplus material`,
+      // The ratio is IN the basis string, not only in the object, because the basis is what gets
+      // rendered. "won 1 of 4,126" reads very differently from "won 1", and the difference is the
+      // whole point of this change.
+      return { cage, companyName: name, class: 'surplus_dealer', evidenceState: 'measured', band,
+        basis: `won ${measured.surplusYes} of ${measured.totalAwards} recorded award${measured.totalAwards === 1 ? '' : 's'} on surplus material (${pct(measured.surplusRatio)})`,
         measured, prior }
     }
     if (prior) {
-      return { cage, companyName: name, class: prior.bookClass, evidenceState: 'prior',
+      return { cage, companyName: name, class: prior.bookClass, evidenceState: 'prior', band,
         basis: `distressed-book classification (a prior, not a government record): ${prior.holdsInventory}`,
         measured, prior }
     }
-    return { cage, companyName: name, class: 'unknown', evidenceState: 'unknown',
+    return { cage, companyName: name, class: 'unknown', evidenceState: 'unknown', band,
       basis: measured
-        ? `${measured.totalAwards} award${measured.totalAwards === 1 ? '' : 's'} on record, ${measured.surplusUnread} with an unread Surplus cell and none flagged surplus; no distressed-book label`
+        ? `${measured.totalAwards} award${measured.totalAwards === 1 ? '' : 's'} on record, ${measured.surplusUnread} with an unread Surplus cell and none flagged surplus; no distressed-book label. Unread, not no.`
         : 'no award history and no distressed-book classification for this CAGE',
       measured, prior }
   }
 
   const cages = new Set<Cage>([...agg.keys(), ...bookByCage.keys()])
   let sd = 0, mf = 0, di = 0, uk = 0
+  const bands: Record<SurplusBand, number> = {
+    no_flagged_award: 0, single_award: 0, occasional: 0, frequent: 0, predominant: 0,
+  }
   for (const c of cages) {
-    switch (verdict(c).class) {
+    const v = verdict(c)
+    bands[v.band] += 1
+    switch (v.class) {
       case 'surplus_dealer': sd++; break
       case 'manufacturer': mf++; break
       case 'distributor': di++; break
@@ -216,6 +271,7 @@ export function buildAwardeeClassifier(
     distinctAwardees: agg.size, surplusDealers: sd, manufacturers: mf, distributors: di, unknown: uk,
     classifiedFraction: cages.size ? (sd + mf + di) / cages.size : 0,
     surplusFillRate: rowsSeen ? rowsRead / rowsSeen : 0, awardRowsSeen: rowsSeen, awardRowsSurplusRead: rowsRead,
+    bands,
   }
 
   return {

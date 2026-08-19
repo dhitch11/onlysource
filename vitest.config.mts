@@ -49,6 +49,12 @@ const HEAVY_INTELLIGENCE_TESTS = [
   // line and sends the next reader to the wrong file.
   'test/t2-ingest/false-absence.test.ts',
   'test/t2-ingest/data-health-route.test.ts',
+  // THE SAME SCARCE RESOURCE AS THE FIRST FOUR, added 2026-08-18 with the surplus rollup. This
+  // file calls buildNsnAwardIndex() AND buildAwardeeClassifierFromLive(), which is the same
+  // ~15MB xlsx parse the four above share. Left in the default project it would fork its own
+  // worker and pay that parse a fifth time, concurrently with them; here it shares their
+  // module registry and the parse is already done by the time it runs.
+  'test/intelligence/surplus-rollup.test.ts',
 ]
 
 // The known-bad lint fixtures are deliberately broken source. They are input to the

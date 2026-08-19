@@ -3,6 +3,7 @@ import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
+import { rollUpSurplus } from "@/lib/intelligence/awards/surplus";
 
 /**
  * These tests exist to lock the ONE property the whole methodology rests on: a missing leg
@@ -63,7 +64,8 @@ const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord
   ...over,
 });
 
-const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
+const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
+  const base: NsnAwardSummary = {
   nsn: "5325015619853",
   awards: [
     award({ contractNo: "C1", awardDateIso: "2016-01-01", quantity: 300, unitPrice: 1.48, finalPrice: 444, effectiveUnitPrice: 1.48 }),
@@ -84,8 +86,13 @@ const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
   yearsSinceLastAward: null,
   approvedSources: [],
   ltcExpirationIso: null,
+  surplus: rollUpSurplus([]),
   ...over,
-});
+  };
+  // Derived from whatever awards the fixture ended up with, so a caller that overrides `awards`
+  // cannot leave a surplus rollup describing a different set of rows behind.
+  return { ...base, surplus: over.surplus ?? rollUpSurplus(base.awards) };
+};
 
 describe("evidence-state grade", () => {
   it("caps at D when any load-bearing leg is UNAVAILABLE", () => {

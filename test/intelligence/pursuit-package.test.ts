@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CornerRow } from '@/lib/intelligence/corner'
 import type { AwardRecord, NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
+import { rollUpSurplus } from '@/lib/intelligence/awards/surplus'
 import type { DistressedSupplier } from '@/lib/intelligence/suppliers/distressed'
 import { buildCornerDossier } from '@/lib/intelligence/brief/dossier'
 import { buildPursuitPackage, packageMarkdown } from '@/lib/intelligence/brief/package'
@@ -75,12 +76,13 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
     finalPrice: 6555,
     effectiveUnitPrice: 65.55,
   })
+  const awards = [
+    award({ contractNo: 'C1', awardDateIso: '2016-02-01', quantity: 50, unitPrice: 41.1, finalPrice: 2055, effectiveUnitPrice: 41.1 }),
+    latest,
+  ]
   return {
     nsn: '5325017053574',
-    awards: [
-      award({ contractNo: 'C1', awardDateIso: '2016-02-01', quantity: 50, unitPrice: 41.1, finalPrice: 2055, effectiveUnitPrice: 41.1 }),
-      latest,
-    ],
+    awards,
     latest,
     distinctAwardees: 1,
     firstUnitPrice: 41.1,
@@ -109,6 +111,9 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
       },
     ],
     ltcExpirationIso: null,
+    // Derived from this fixture's own awards, never hand-written, so the rollup and the rows it
+    // claims to summarise cannot disagree.
+    surplus: rollUpSurplus(awards),
     ...over,
   }
 }

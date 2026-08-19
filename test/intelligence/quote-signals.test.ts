@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readQuoteSignals, tallyQuoteSignals } from '@/lib/intelligence/scoring/quote-signals'
 import type { AwardRecord, FeedWindow, NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
+import { rollUpSurplus } from '@/lib/intelligence/awards/surplus'
 
 /**
  * THE QUOTE CHECKLIST, COMPUTED, AND THE ONE SENTINEL THAT MUST STAY DISCARDED.
@@ -45,25 +46,31 @@ const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord
   ...over,
 })
 
-const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => ({
-  nsn: '5325015619853',
-  awards: [award({ contractNo: 'C1', awardDateIso: '2018-01-01' })],
-  latest: award({ contractNo: 'C1', awardDateIso: '2018-01-01' }),
-  distinctAwardees: 1,
-  firstUnitPrice: 10,
-  lastUnitPrice: 20,
-  holders: [],
-  amc: null,
-  amsc: null,
-  latestOffers: null,
-  minOffers: null,
-  latestDeliveryDays: null,
-  longestDemandGapYears: null,
-  yearsSinceLastAward: null,
-  approvedSources: [],
-  ltcExpirationIso: null,
-  ...over,
-})
+const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
+  const base: NsnAwardSummary = {
+    nsn: '5325015619853',
+    awards: [award({ contractNo: 'C1', awardDateIso: '2018-01-01' })],
+    latest: award({ contractNo: 'C1', awardDateIso: '2018-01-01' }),
+    distinctAwardees: 1,
+    firstUnitPrice: 10,
+    lastUnitPrice: 20,
+    holders: [],
+    amc: null,
+    amsc: null,
+    latestOffers: null,
+    minOffers: null,
+    latestDeliveryDays: null,
+    longestDemandGapYears: null,
+    yearsSinceLastAward: null,
+    approvedSources: [],
+    ltcExpirationIso: null,
+    surplus: rollUpSurplus([]),
+    ...over,
+  }
+  // Derived from whatever awards the fixture ended up with, so a caller that overrides `awards`
+  // cannot leave a surplus rollup describing a different set of rows behind.
+  return { ...base, surplus: over.surplus ?? rollUpSurplus(base.awards) }
+}
 
 const find = (s: NsnAwardSummary, id: string) => readQuoteSignals(s, WINDOW).find((x) => x.id === id)!
 

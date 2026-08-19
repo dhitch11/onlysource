@@ -20,19 +20,21 @@
  */
 import { describe, expect, it } from 'vitest'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
-import type { AwardeeVerdict } from '@/lib/intelligence/suppliers/classify'
+import { bandSurplus, type AwardeeVerdict } from '@/lib/intelligence/suppliers/classify'
 import type { CornerRow } from '@/lib/intelligence/corner'
 
 const row = { nsn: '5340015541274', soleSource: true, approvedSourceCount: 1, quantity: 10 } as unknown as CornerRow
 
 const measuredDealer: AwardeeVerdict = {
   cage: '89YT2', companyName: 'A SURPLUS SELLER', class: 'surplus_dealer', evidenceState: 'measured',
+  band: bandSurplus(2, 10),
   basis: 'two awards on file read as surplus material',
-  measured: { surplusYes: 2, surplusNo: 1, surplusUnread: 7, totalAwards: 10, distinctNsns: 4, readFraction: 0.3 },
+  measured: { surplusYes: 2, surplusNo: 1, surplusUnread: 7, totalAwards: 10, distinctNsns: 4, readFraction: 0.3, surplusRatio: 0.2 },
   prior: null,
 }
 const bookOnly: AwardeeVerdict = {
   cage: '3BQS1', companyName: 'A MANUFACTURER', class: 'manufacturer', evidenceState: 'prior',
+  band: 'no_flagged_award',
   basis: 'the distressed supplier book calls them a manufacturer',
   measured: null, prior: { bookClass: 'manufacturer', holdsInventory: 'yes' },
 }
@@ -78,7 +80,7 @@ describe("the operator's lead signal reaches the served score", () => {
   it('a verdict claiming measured with ZERO read surplus awards does NOT score (fails toward abstention)', () => {
     const hollow: AwardeeVerdict = {
       ...measuredDealer,
-      measured: { surplusYes: 0, surplusNo: 3, surplusUnread: 7, totalAwards: 10, distinctNsns: 4, readFraction: 0.3 },
+      measured: { surplusYes: 0, surplusNo: 3, surplusUnread: 7, totalAwards: 10, distinctNsns: 4, readFraction: 0.3, surplusRatio: 0 },
     }
     const r = scoreCorner(row, null, null, { awardIndexLoaded: true }, hollow)
     const bare = scoreCorner(row, null, null, { awardIndexLoaded: true }, null)
