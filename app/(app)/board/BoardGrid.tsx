@@ -173,6 +173,17 @@ export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: numb
         rows={shown}
         columns={columns}
         rowKey={(r) => `${r.solicitation}:${r.nsn}:${r.purchaseRequest}`}
+        /*
+         * The four identifiers a person arrives holding: the stock number off a drawing, the
+         * solicitation off an email, the PR off a buyer's note, and the item's own name. Not the
+         * standing, lifecycle or automated flags — those are the tabs above, and folding them in
+         * would make "open" return most of the board.
+         */
+        search={{
+          fields: (r) => [r.nsn, r.niin, r.nomenclature, r.solicitation, r.purchaseRequest],
+          placeholder: "Search NSN, item, solicitation or PR",
+          label: "Search the board by stock number, item name, solicitation or purchase request",
+        }}
         label="DLA requirements from the served feed day, ranked by measured sourcing signal, each judged open or closed against today"
         density="compact"
         empty={{

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { haystack, matches, termsOf } from '@/app/(app)/suppliers/SuppliersGrid'
+import { haystackOf, matchesTerms, termsOf } from '@/components/ui/row-search'
+import { SEARCH_FIELDS } from '@/app/(app)/suppliers/SuppliersGrid'
 import type { LeanSupplier } from '@/app/(app)/suppliers/wire-lean'
+
+/** The page's own field choice, run through the shared matcher, exactly as the grid does it. */
+const haystack = (r: LeanSupplier) => haystackOf(SEARCH_FIELDS(r))
+const matches = (r: LeanSupplier, terms: readonly string[]) => matchesTerms(haystack(r), terms)
 
 /*
  * SEARCH ON THE SUPPLIER BOOK.

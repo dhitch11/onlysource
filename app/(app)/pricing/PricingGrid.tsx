@@ -309,6 +309,16 @@ export function PricingGrid({ rows }: { rows: PricingWireRow[] }) {
       columns={columns}
       rowKey={(r) => `${r.digits}|${r.solicitation}`}
       label="Recommended quotes, strongest basis first"
+      /*
+       * Identifiers only. NOT the basis rung or the confidence label: an operator searching
+       * "peer" wants the row for a part, not every row resting on the peer band, and the two
+       * readings of that word cannot both be served by one box.
+       */
+      search={{
+        fields: (r) => [r.digits, r.nomenclature, r.solicitation],
+        placeholder: 'Search stock number, item or solicitation',
+        label: 'Search the pricing desk by stock number, item name or solicitation',
+      }}
       density="comfortable"
       empty={{
         cause: 'computing',

@@ -744,6 +744,17 @@ export function MonopolyGrid({
         columns={allColumns}
         rowKey={(r) => `${r.niin}:${r.solicitation}`}
         label="Sole-source positions under open DLA demand, ranked by measured corner strength"
+        /*
+         * The approved-source CAGEs are in here on purpose, and they are the exception that
+         * proves the identifier rule: on this page the holder IS an identifier. "who else is
+         * cornered by this vendor" is the question the map exists to answer, and it is asked by
+         * typing a CAGE.
+         */
+        search={{
+          fields: (r) => [r.nsn, r.niin, r.nomenclature, r.solicitation, ...r.approvedSources],
+          placeholder: "Search NSN, item, solicitation or approved-source CAGE",
+          label: "Search the monopoly map by stock number, item name, solicitation or approved-source CAGE",
+        }}
         density="compact"
         empty={{
           cause: "filtered",

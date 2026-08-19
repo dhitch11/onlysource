@@ -42,7 +42,7 @@
  * It is the next commit, not a claim in this one.
  */
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -55,6 +55,7 @@ import { Provenance, type ProvenanceKind } from "./Provenance";
 import { ExplainButton } from "./ExplainButton";
 import { InsufficientData } from "./States";
 import { Scrollable } from "./Scrollable";
+import { haystackOf, matchesTerms, termsOf } from "./row-search";
 import styles from "./DataGrid.module.css";
 
 /* ------------------------------------------------------------------- the cell contract */
@@ -125,6 +126,35 @@ export interface DataGridProps<T> {
    * fired from inside `expansion()`, which runs during render.
    */
   onExpand?: (row: T | null) => void;
+  /**
+   * OPT IN TO A SEARCH BOX OVER THESE ROWS.
+   *
+   * Absent means no box, so a grid of six rows does not grow a control it does not need.
+   *
+   * ★ IT LIVES HERE, ONCE, RATHER THAN IN EACH PAGE. Four surfaces render this grid over lists
+   * nobody can scan: /suppliers 3,471 rows, /board 1,363, /pricing 1,201, /monopoly 344. None of
+   * them had any way to find a known row, and /suppliers even PROMISED one in its loader copy
+   * ("instant to sort and search") while no control existed. Four separate repairs would have
+   * been four slightly different definitions of what a second search word means.
+   */
+  search?: {
+    /**
+     * The fields this row can be found by. Return the raw values; joining, lower-casing and
+     * separating them is `haystackOf`'s job.
+     *
+     * PUT IDENTIFIERS HERE, NOT FILTERS. Name, code, place. Not tier, score or status: see the
+     * note in `row-search.ts` for why folding an enumeration in ruins the box.
+     */
+    readonly fields: (row: T) => ReadonlyArray<string | null | undefined>;
+    /** Says what can be typed. Required, because a box that does not say what it searches gets
+     *  read as "search everything" and its first miss reads as missing data. */
+    readonly placeholder: string;
+    /** Accessible name for the box. */
+    readonly label: string;
+    /** Told the trimmed query and how many rows matched, AFTER render. Lets a page add context
+     *  the grid cannot know — /suppliers uses it to say a firm exists on a different tab. */
+    readonly onQueryChange?: (query: string, matched: number) => void;
+  };
   density?: "compact" | "default" | "comfortable";
   /** Reports the real row count and the measured render time, so the virtualisation
    *  threshold is chosen from measurement rather than from a guess. */
@@ -175,11 +205,59 @@ export function DataGrid<T>({
   empty,
   expansion,
   onExpand,
+  search,
   density = "default",
   onMeasure,
 }: DataGridProps<T>) {
   const gridId = useId();
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  /* ------------------------------------------------------------------------------- search */
+  /*
+   * `useDeferredValue`, not a debounce timer. The input keeps the exact character the operator
+   * typed and stays instant, while the list re-filters against a lagging copy. A timer would make
+   * the field's own value wrong for its duration, which shows up the moment somebody types fast
+   * and hits Enter.
+   */
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const terms = useMemo(() => termsOf(deferredQuery.trim()), [deferredQuery]);
+
+  const visibleRows = useMemo(() => {
+    if (!search || terms.length === 0) return rows;
+    return rows.filter((r) => matchesTerms(haystackOf(search.fields(r)), terms));
+    // `search` is recreated by most callers each render; `search.fields` is what matters and is
+    // stable in practice. Depending on the object identity would refilter every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, terms]);
+
+  /*
+   * Reported in an EFFECT, never during render. A parent that calls setState from this callback
+   * would otherwise update a component while this one is rendering, which React either warns
+   * about or loops on depending on the path.
+   */
+  const notify = search?.onQueryChange;
+  useEffect(() => {
+    notify?.(deferredQuery.trim(), visibleRows.length);
+  }, [notify, deferredQuery, visibleRows.length]);
+
+  /* "/" focuses the box: the convention every operator already has in their fingers. Guarded on
+     the target so it never steals the key from somebody typing a slash into a field. */
+  useEffect(() => {
+    if (!search) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [search]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const started = useRef<number>(0);
@@ -197,7 +275,7 @@ export function DataGrid<T>({
   );
 
   const table = useReactTable({
-    data: rows,
+    data: visibleRows,
     columns: tanstackColumns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -261,30 +339,111 @@ export function DataGrid<T>({
     [focusCell, modelRows, columns.length, expansion, rowKey],
   );
 
+  /*
+   * The box is built here and rendered in BOTH branches below.
+   *
+   * ★ IT MUST SURVIVE ITS OWN EMPTY RESULT. An early return that drops the input the moment the
+   * query matches nothing takes away the only control that can undo the situation: the operator
+   * is left looking at "nothing matches" with no box to correct the typo in. The same trap as a
+   * filter bar that unmounts when it filters everything out.
+   */
+  const searchBox = search ? (
+    <div className={styles.searchWrap}>
+      <label className={styles.srOnly} htmlFor={`${gridId}-search`}>
+        {search.label}
+      </label>
+      <span className={styles.searchIcon} aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5 14 14" strokeLinecap="round" />
+        </svg>
+      </span>
+      <input
+        id={`${gridId}-search`}
+        ref={searchRef}
+        type="search"
+        className={styles.search}
+        placeholder={search.placeholder}
+        value={query}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && query !== "") {
+            e.preventDefault();
+            setQuery("");
+          }
+        }}
+      />
+      {query !== "" ? (
+        <button
+          type="button"
+          className={styles.searchClear}
+          onClick={() => {
+            setQuery("");
+            searchRef.current?.focus();
+          }}
+          aria-label="Clear the search"
+        >
+          &times;
+        </button>
+      ) : (
+        /* Occupies the same slot as the clear button so nothing shifts when they swap. */
+        <kbd className={styles.searchKbd} aria-hidden="true">/</kbd>
+      )}
+    </div>
+  ) : null;
+
   /* ------------------------------------------------------------------- the empty states */
 
-  if (rows.length === 0) {
+  if (visibleRows.length === 0) {
+    /*
+     * ★ WHICH EMPTINESS IS THIS? A grid can be empty because the page's own filters exclude
+     * everything, or because the SEARCH does, and those need different words and different
+     * buttons. Telling somebody who just typed a company name that "nothing matches this view"
+     * points at the tab bar; they clear the tabs, stay empty, and conclude the record is missing.
+     *
+     * `rows.length > 0` is the discriminator and it is exact: rows are what the page handed us
+     * after its own filtering, visibleRows are what survived the query.
+     */
+    const emptiedByTheQuery = terms.length > 0 && rows.length > 0;
     return (
-      <div className={styles.empty} role="status">
-        <p className={styles.emptyTitle}>
-          {empty.cause === "computing"
-            ? "Still computing"
-            : empty.cause === "filtered"
-              ? "Nothing matches this view"
-              : "Nothing meets this profile"}
-        </p>
-        <p className={styles.emptyBody}>{empty.message}</p>
-        {empty.cause === "filtered" && empty.onClearFilters ? (
-          <button type="button" className={styles.emptyAction} onClick={empty.onClearFilters}>
-            Clear the filters
-          </button>
-        ) : null}
-      </div>
+      <>
+        {searchBox}
+        <div className={styles.empty} role="status">
+          <p className={styles.emptyTitle}>
+            {emptiedByTheQuery
+              ? "Nothing matches that search"
+              : empty.cause === "computing"
+                ? "Still computing"
+                : empty.cause === "filtered"
+                  ? "Nothing matches this view"
+                  : "Nothing meets this profile"}
+          </p>
+          <p className={styles.emptyBody}>
+            {emptiedByTheQuery
+              ? `No row here matches "${deferredQuery.trim()}". ${rows.length.toLocaleString()} ${
+                  rows.length === 1 ? "row is" : "rows are"
+                } in this view.`
+              : empty.message}
+          </p>
+          {emptiedByTheQuery ? (
+            <button type="button" className={styles.emptyAction} onClick={() => setQuery("")}>
+              Clear the search
+            </button>
+          ) : empty.cause === "filtered" && empty.onClearFilters ? (
+            <button type="button" className={styles.emptyAction} onClick={empty.onClearFilters}>
+              Clear the filters
+            </button>
+          ) : null}
+        </div>
+      </>
     );
   }
 
   return (
     <div className={styles.wrap} style={{ ["--row-pad-y" as string]: DENSITY_PAD[density] }}>
+      {searchBox}
       {/*
        * The grid scrolls INSIDE this container. The page never scrolls sideways. A data grid
        * is two-dimensional content and is explicitly exempt from the 320px reflow floor
@@ -300,7 +459,9 @@ export function DataGrid<T>({
           aria-label={label}
           /* The FILTERED TOTAL, not the rendered window. When virtualisation lands this must
            * keep reporting the true total or screen reader row counting silently lies. */
-          aria-rowcount={rows.length}
+          /* visibleRows, not rows: with a query active the two differ, and a screen reader
+             announcing 3,471 over a four-row result is worse than announcing nothing. */
+          aria-rowcount={visibleRows.length}
           onKeyDown={onKeyDown}
         >
           <thead>
@@ -438,8 +599,20 @@ export function DataGrid<T>({
         </table>
       </Scrollable>
 
-      <p className={styles.footNote}>
-        <span className="mono">{rows.length.toLocaleString()}</span> rows.
+      <p className={styles.footNote} aria-live="polite">
+        {/* Naming BOTH numbers under a query. "4 rows" alone, on a page whose tab says 3,471,
+            reads as data having gone missing rather than as a search having been typed. */}
+        {terms.length > 0 ? (
+          <>
+            <span className="mono">{visibleRows.length.toLocaleString()}</span> of{" "}
+            <span className="mono">{rows.length.toLocaleString()}</span> rows match{" "}
+            <span className="mono">&ldquo;{deferredQuery.trim()}&rdquo;</span>.
+          </>
+        ) : (
+          <>
+            <span className="mono">{rows.length.toLocaleString()}</span> rows.
+          </>
+        )}
         {expansion ? " Click any row (or press Enter) to see its exact source records." : ""}
       </p>
       {/*
@@ -455,11 +628,11 @@ export function DataGrid<T>({
         and returns in full on a wider screen with no second request. And the count is stated,
         because a cap the reader has to notice is the silent version of a cap.
       */}
-      {rows.length > NARROW_ROW_CAP ? (
+      {visibleRows.length > NARROW_ROW_CAP ? (
         <p className={styles.narrowCapNote}>
           Showing the first <span className="mono">{NARROW_ROW_CAP}</span> of{" "}
-          <span className="mono">{rows.length.toLocaleString()}</span> on this screen size, ordered
-          strongest first. The rest are on this page and appear on a wider screen.
+          <span className="mono">{visibleRows.length.toLocaleString()}</span> on this screen size,
+          ordered strongest first. The rest are on this page and appear on a wider screen.
         </p>
       ) : null}
     </div>

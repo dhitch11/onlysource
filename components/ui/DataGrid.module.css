@@ -530,3 +530,125 @@
     display: none;
   }
 }
+
+/* ---------- search over the rows ---------------------------------------------------
+   BASE RULES FIRST, THEN THE MEDIA QUERY, appended together at the end of this file.
+   Three `@media` blocks already sit above (lines ~312, ~380, ~516). A base rule written
+   after them still wins for its own selectors, but a mobile override written ABOVE its
+   base rule loses on source order and ships doing nothing — which happened twice on this
+   estate in one night. The pair is kept adjacent and in order. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 30rem;
+  /* A flex item will not shrink below its content without this, and the grid's own wrapper
+     is a flex context on some of these pages. That is how a control pushes a page sideways. */
+  min-width: 0;
+  margin-bottom: var(--sp-3);
+}
+.searchIcon {
+  position: absolute;
+  left: var(--sp-3);
+  display: flex;
+  color: var(--faint);
+  pointer-events: none;
+}
+.search {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 2.25rem 0 2.4rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+}
+.search::placeholder {
+  color: var(--faint);
+}
+.search:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+  border-color: var(--accent-2);
+}
+/* Safari draws its own clear affordance inside type=search. Ours is keyboard reachable and
+   labelled; two side by side is a defect. */
+.search::-webkit-search-decoration,
+.search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchClear,
+.searchKbd {
+  position: absolute;
+  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: var(--fs-100);
+  line-height: 1;
+}
+.searchClear {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+/* Grows the HIT AREA to 32px square without drawing a larger control. The glyph reads at 22px
+   and the WCAG target floor is 24, and those two facts do not have to be the same rectangle. */
+.searchClear::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+.searchClear:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.searchClear:focus-visible {
+  outline: var(--focus);
+  outline-offset: 1px;
+}
+.searchKbd {
+  border: 1px solid var(--line-control);
+  color: var(--faint);
+  font-family: var(--font-mono);
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .searchWrap {
+    max-width: none;
+  }
+  .search {
+    /* 16px exactly. Below it, iOS Safari zooms the viewport on focus and leaves the operator
+       scrolled sideways on a page that has no horizontal scroll of its own. */
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .searchClear,
+  .searchKbd {
+    min-width: 28px;
+    height: 28px;
+  }
+}
