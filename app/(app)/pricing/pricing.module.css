@@ -251,10 +251,19 @@
 .nsnLink {
   color: var(--ink);
   text-decoration: none;
-  border-block-end: 1px solid var(--line-2);
+  /*
+   * --line-control, not --line-2. MEASURED against /monopoly, which renders the same kind of link
+   * with the same component: this page drew it at 0.17 alpha and that one at 0.45. Over the cell
+   * ground the fainter one is not an affordance, it is a rumour of one, and two pages gave
+   * opposite answers to "can I click this stock number".
+   */
+  border-block-end: 1px solid var(--line-control);
+  transition: color 140ms ease, border-color 140ms ease;
 }
 .nsnLink:hover {
   color: var(--accent);
+  /* the underline follows the text, so hover is not carried by colour alone */
+  border-block-end-color: var(--accent);
 }
 .nsnLink:focus-visible {
   outline: var(--focus, 2px solid var(--accent));

@@ -86,42 +86,27 @@ a {
 }
 
 /*
- * ==========================================================================================
- * A LINK INSIDE A GRID CELL HAS TO LOOK LIKE A LINK.
- * ==========================================================================================
- * MEASURED on live /pricing and /monopoly: the stock-number link computed to
- * rgb(234,237,228) — byte-identical to the body text beside it — with `text-decoration: none`
- * and `font-weight: 400`. The ONLY signal that it opened anything was the mouse cursor, and a
- * phone does not have one. On touch there was no affordance at all.
+ * A LINK INSIDE A GRID CELL — AND A CORRECTION OF MY OWN FIRST FIX.
  *
- * The cause is a deliberate override: `.nsnLink { color: var(--ink) }` beating the rule above.
- * That instinct was RIGHT and is kept. Twelve hundred gold links is not a premium data grid, it
- * is a christmas tree, and the accent stops meaning anything when everything wears it.
+ * I measured `textDecorationLine`, found "none", and concluded these links had no resting
+ * affordance. WRONG: the underline is drawn as a `border-block-end`, which that property cannot
+ * see. My first repair was a global `td a { text-decoration: underline }`, which would have put
+ * a SECOND line under /monopoly's already-underlined links — and it never applied, because
+ * `.nsnLink` is a class and `td a` is two elements. Losing the cascade is the only reason it did
+ * no harm.
  *
- * So the affordance is carried by an underline instead of by colour: quiet enough at rest that a
- * column of stock numbers still reads as a column, unmistakable as a link on inspection, and it
- * resolves to the accent on hover and on keyboard focus. Colour is never the only channel.
+ * What was really wrong, measured as composited colour over the cell:
+ *     /monopoly  1px rgba(190,205,185,0.45)  --line-control   visible
+ *     /pricing   1px rgba(190,205,185,0.17)  --line-2         effectively invisible
+ * One component, two pages, two different answers to "can I click this". Fixed in pricing's own
+ * module, beside the rule it belongs with.
  *
- * Scoped to `td` deliberately. Links in prose already take the accent from the rule above and do
- * not need a second treatment.
+ * What stays here is only the half that helped and cannot double up: colour on hover and on
+ * KEYBOARD FOCUS, for any cell link whose module forgot to style one.
  */
-td a {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-decoration-color: var(--line-control);
-  text-underline-offset: 3px;
-  transition: color 120ms ease, text-decoration-color 120ms ease;
-}
 td a:hover,
 td a:focus-visible {
   color: var(--accent);
-  text-decoration-color: currentColor;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  td a {
-    transition: none;
-  }
 }
 
 /*
