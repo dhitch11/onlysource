@@ -136,6 +136,11 @@ export type CornerRecommendationArgs = {
    * the engine's own pinned default, which is a dated reading and not a current one.
    */
   readonly indices?: AnchorIndexConfig
+  /**
+   * Whether this caller holds `margin.view`. ABSENT MEANS NO, deliberately: a call site that
+   * forgets to resolve the permission must not be the one that leaks.
+   */
+  readonly mayReadMargin?: boolean
 }
 
 /**
@@ -163,6 +168,7 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
      */
     peerLookup: args.peerLookup ? excludeSubject(args.peerLookup, args.nsn) : null,
     indices: args.indices,
+    mayReadMargin: args.mayReadMargin ?? false,
     declarations: args.declarations,
   })
 }

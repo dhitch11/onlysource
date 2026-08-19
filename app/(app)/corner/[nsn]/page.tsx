@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { requireGateSession } from '@/lib/session/require-gate'
+import { callerCan, readCaller } from '@/lib/session/authz'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
@@ -174,6 +175,21 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
    * was published tomorrow, so every reading was correctly refused and the anchor fell back to
    * the pinned figure silently. See `seriesVintageAsOf`.
    */
+  /*
+   * ★ `margin.view` RESOLVED ON A READ PATH, WHICH IS WHERE THIS PRODUCT HAD NO CHECKS AT ALL.
+   *
+   * Four of the fourteen permissions govern SEEING a fact rather than doing one, and permissions
+   * here are enforced at the point of ACTION, so a server-rendered page enforced none of them.
+   * The pricing engine can emit exactly one margin-shaped figure and it travels as a SENTENCE,
+   * through the recommendation's inputs and caveats, where no component names the field and a
+   * reachability census calls it unreached.
+   *
+   * It does not render today only because the two multiples the product has words for, 1 and the
+   * operator's 3x, use hand-written sentences. The control that lets an operator pick any other
+   * multiple is the next thing being built, so the check goes on now, while the room is empty.
+   */
+  const mayReadMargin = callerCan(await readCaller(), 'margin.view')
+
   const seriesLedger = await readSeriesLedger()
   const liveIndices = resolveLiveIndexConfig(seriesLedger, seriesVintageAsOf(nowMs))
 
@@ -198,6 +214,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
     peerLookup: peers,
     classifier: liveClassifierOrNull(),
     indices: liveIndices.config,
+    mayReadMargin,
   })
 
   /*

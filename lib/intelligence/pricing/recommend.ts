@@ -486,7 +486,7 @@ function multipleText(multiple: number): string {
  * their own values. That is not an interpolation: those are two measurements, printed as
  * measurements, with nothing computed between them.
  */
-export function measuredRecordSentence(multiple: number): string {
+export function measuredRecordSentence(multiple: number, mayReadMargin = false): string {
   const at = measuredClearanceAt(multiple)
   const sample =
     `${MEASURED_CLEARANCE_SAMPLE.eventPairs.toLocaleString('en-US')} ${MEASURED_CLEARANCE_SAMPLE.population}` +
@@ -503,12 +503,39 @@ export function measuredRecordSentence(multiple: number): string {
       'them is interpolated, so this multiple has no measured record of its own.'
     )
   }
+  /*
+   * ★★★ THE MARGIN CLAUSE IS NOT BUILT AT ALL WHEN THE CALLER MAY NOT SEE MARGIN. IT IS NEVER
+   * BUILT AND THEN STRIPPED, AND THAT DISTINCTION IS THE WHOLE CONTROL.
+   *
+   * `margin.view` is one of four permissions that govern SEEING a fact rather than doing one, and
+   * this product enforces permissions at the point of ACTION, so a read path had none. This
+   * figure is the only margin-shaped content the pricing engine can emit, and it travels as a
+   * SENTENCE: it reaches the page through `rec.inputs[].source` and `rec.caveats[].sentence`,
+   * where no component ever references the field and a reachability census calls it unreached.
+   * A grep for "margin" on the rendered page returns only generic explanation.
+   *
+   * That is the third instance of one law on this estate: A PROTECTED FACT THAT TRAVELS AS PROSE
+   * IS INVISIBLE TO EVERY FIELD-LEVEL CHECK. The other two were Thomas, where citation prose
+   * carried 71 figures past a firewall that guarded numerals, and the suppliers CSV, assembled in
+   * the browser from data the page already held, because a client-side Blob is not a route.
+   *
+   * Removal-after-assembly is how the numeral firewall was defeated the FIRST time: if the prose
+   * layer still holds the figure, it gets spoken anyway. So the permission changes what is
+   * COMPUTED. And the withholding is stated rather than silent, because a reader who cannot see
+   * a number should know one exists and was withheld, not be taught that the product had nothing
+   * to say.
+   *
+   * DEFAULTS CLOSED. `mayReadMargin` absent means NO, because a failure in the permissive
+   * direction on a money field is the one this product must never make.
+   */
   const margin =
     at.shareOfPeakMarginEvAtAssumedCost080 === null
       ? ''
-      : ` It returns about ${Math.round(at.shareOfPeakMarginEvAtAssumedCost080 * 100)}% of the ` +
-        `expected margin available at ${multipleText(MEASURED_AWARD_MULTIPLE)}x, under an ASSUMED ` +
-        'cost of 0.80 x the previous award price.'
+      : mayReadMargin
+        ? ` It returns about ${Math.round(at.shareOfPeakMarginEvAtAssumedCost080 * 100)}% of the ` +
+          `expected margin available at ${multipleText(MEASURED_AWARD_MULTIPLE)}x, under an ASSUMED ` +
+          'cost of 0.80 x the previous award price.'
+        : ' A margin comparison for this multiple is held and is not shown to you.'
   return (
     `Measured over ${sample}: a quote at ${multipleText(multiple)}x the last award unit price ` +
     `came in at or below the price the item actually cleared at ${pct(at.clearedAtOrBelowShare)} ` +
@@ -780,6 +807,13 @@ export type RecommendationInput = {
   readonly declarations?: OperatorDeclarations
   readonly config?: RecommendationConfig
   readonly indices?: AnchorIndexConfig
+  /**
+   * Whether this caller holds `margin.view`.
+   *
+   * ABSENT MEANS NO. The engine builds its sentences WITHOUT the margin clause unless a caller
+   * has affirmatively said the reader may see it, so a call site that forgets to ask cannot leak.
+   */
+  readonly mayReadMargin?: boolean
   readonly pricingConfig?: PricingConfig
 }
 
@@ -1774,7 +1808,7 @@ function buildAnchorRung(
  * An explicit `awardMultipleSource` on the config still wins, because an operator who states why
  * they chose a number has said something this function cannot know.
  */
-export function describeAwardMultiple(config: RecommendationConfig): string {
+export function describeAwardMultiple(config: RecommendationConfig, mayReadMargin = false): string {
   if (config.awardMultipleSource != null && config.awardMultipleSource.trim() !== '') {
     return config.awardMultipleSource
   }
@@ -1796,11 +1830,11 @@ export function describeAwardMultiple(config: RecommendationConfig): string {
   }
   return (
     `Set to ${config.awardMultiple}x here rather than defaulted to. ` +
-    measuredRecordSentence(config.awardMultiple)
+    measuredRecordSentence(config.awardMultiple, mayReadMargin)
   )
 }
 
-function multiplierInput(config: RecommendationConfig): RecommendationInputValue {
+function multiplierInput(config: RecommendationConfig, mayReadMargin: boolean): RecommendationInputValue {
   const stance = classifyAwardMultiple(config.awardMultiple)
   const measuredBasis = stance === 'MEASURED_OPTIMUM' || stance === 'INSIDE_THE_MEASURED_BAND'
   return {
@@ -1808,7 +1842,7 @@ function multiplierInput(config: RecommendationConfig): RecommendationInputValue
     renderedValue: `${multipleText(config.awardMultiple)}x`,
     valueUsd: null,
     dateIso: null,
-    source: describeAwardMultiple(config),
+    source: describeAwardMultiple(config, mayReadMargin),
     /*
      * THE GRADE FOLLOWS THE NUMBER, NOT THE FIELD.
      *
@@ -1851,7 +1885,7 @@ function multiplierInput(config: RecommendationConfig): RecommendationInputValue
  * that WERE measured. "We measured and the answer is no" and "we have nothing here" are different
  * states and this product has shipped the confusion between them nine times.
  */
-function multiplierCaveat(config: RecommendationConfig): RecommendationCaveat {
+function multiplierCaveat(config: RecommendationConfig, mayReadMargin: boolean): RecommendationCaveat {
   const multiple = config.awardMultiple
   const stance = classifyAwardMultiple(multiple)
   const preset = presetForMultiple(multiple)
@@ -1982,10 +2016,10 @@ function buildLastAwardRung(
         evidenceState: 'MEASURED',
         citation: null,
       },
-      multiplierInput(config),
+      multiplierInput(config, input.mayReadMargin ?? false),
     ],
     caveats: [
-      multiplierCaveat(config),
+      multiplierCaveat(config, input.mayReadMargin ?? false),
       ...quantityBreakCaveats([last], input.requirementQuantity, config.quantityBreakRatio),
       ...surplusCaveats([last], pool.excludedForSurplus, input.surplusStance ?? 'UNDECLARED'),
       ...setAsideCaveat(pool.unreadableRows),
@@ -2072,10 +2106,10 @@ function buildRecentBandRung(
         evidenceState: 'PRIOR',
         citation: null,
       },
-      multiplierInput(config),
+      multiplierInput(config, input.mayReadMargin ?? false),
     ],
     caveats: [
-      multiplierCaveat(config),
+      multiplierCaveat(config, input.mayReadMargin ?? false),
       ...quantityBreakCaveats(inWindow, input.requirementQuantity, config.quantityBreakRatio),
       ...surplusCaveats(inWindow, pool.excludedForSurplus, input.surplusStance ?? 'UNDECLARED'),
       ...setAsideCaveat(pool.unreadableRows),
@@ -2200,10 +2234,10 @@ function buildTrendRung(
         evidenceState: 'ESTIMATED',
         citation: null,
       },
-      multiplierInput(config),
+      multiplierInput(config, input.mayReadMargin ?? false),
     ],
     caveats: [
-      multiplierCaveat(config),
+      multiplierCaveat(config, input.mayReadMargin ?? false),
       ...quantityBreakCaveats(pool.kept, input.requirementQuantity, config.quantityBreakRatio),
       ...surplusCaveats(pool.kept, pool.excludedForSurplus, input.surplusStance ?? 'UNDECLARED'),
       ...setAsideCaveat(pool.unreadableRows),
@@ -2357,7 +2391,7 @@ function buildPeerRung(
         evidenceState: 'MEASURED',
         citation: null,
       },
-      multiplierInput(config),
+      multiplierInput(config, input.mayReadMargin ?? false),
     ],
     caveats: [
       {
@@ -2369,7 +2403,7 @@ function buildPeerRung(
           'IS the uncertainty and a caveat is read once while a number is read every time.',
         measured: { label: 'priced peers', value: usable.length, unit: 'COUNT' },
       },
-      multiplierCaveat(config),
+      multiplierCaveat(config, input.mayReadMargin ?? false),
       ...quantityBreakCaveats(usable, input.requirementQuantity, config.quantityBreakRatio),
       ...surplusCaveats(usable, excluded, stance),
     ],
