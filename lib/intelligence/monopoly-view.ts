@@ -5,6 +5,7 @@ import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/
 import type { CornerRow, CornerMap, CornerFunnel } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
+import { buildAwardeeClassifierFromLive } from '@/lib/intelligence/suppliers/classify/live'
 
 /**
  * THE MONOPOLY PAGE'S VIEW MODEL, BUILT ONCE PER FEED DAY, NOT ONCE PER REQUEST.
@@ -198,6 +199,23 @@ export function buildMonopolyView(): MonopolyView {
   let forecastCount = 0
   let availCount = 0
 
+  /*
+   * WAYNE'S LEAD SIGNAL, ACTUALLY FED.
+   *
+   * The `surplusLineage` leg was wired into `scoreCorner` and then passed nothing, so it
+   * abstained on every row in production while the commit that added it said the operator's
+   * number-one signal now reached the board. That is this estate's dominant failure mode
+   * committed by the person who had spent the day naming it: the classifier was built, the leg
+   * was built, the types lined up, and no caller ever handed one to the other.
+   *
+   * Built ONCE per view rather than per row: it aggregates the whole award index, so calling it
+   * inside the map would rebuild a 42,698-row aggregation for each of several thousand rows.
+   * An unavailable classifier is an honest null, never a fabricated verdict, and the leg's own
+   * abstention text already names the coverage.
+   */
+  const live = buildAwardeeClassifierFromLive()
+  const awardee = live.ok ? live.classifier : null
+
   const rows: EnrichedCornerRow[] = cornerMap.rows.map((r) => {
     const digits = r.nsn.replace(/[^0-9]/g, '')
     const award = awardByNsn?.get(digits) ?? null
@@ -210,10 +228,19 @@ export function buildMonopolyView(): MonopolyView {
       if (forecast?.onForecast) forecastCount += 1
       if ((award?.holders.length ?? 0) > 0) availCount += 1
     }
-    const score = scoreCorner(r, award, forecast, {
-      awardIndexLoaded: awardIndex.ok,
-      forecastIndexLoaded: forecastIndex.ok,
-    })
+    /*
+     * The LAST supplier is the one Wayne's rubric asks about, so the verdict is looked up on the
+     * most recent award's CAGE, not on the set of everyone who ever won it. `latest` is already
+     * the newest award on the summary.
+     */
+    const lastAwardee = awardee && award?.latest?.cage ? awardee.classify(award.latest.cage) : null
+    const score = scoreCorner(
+      r,
+      award,
+      forecast,
+      { awardIndexLoaded: awardIndex.ok, forecastIndexLoaded: forecastIndex.ok },
+      lastAwardee,
+    )
     return {
       ...r,
       award: slimAward(award),
