@@ -73,6 +73,27 @@ function resolveRoot() {
   return { root: join(ROOT, 'data'), from: '<repo>/data' }
 }
 
+/**
+ * ★ THE THIRD PATH CONVENTION, WHICH THIS GATE COULD NOT SEE UNTIL IT WAS BITTEN BY IT.
+ *
+ * This repo resolves data from three different roots and the gate knew two:
+ *
+ *   dataPath()      <repo>/data or ONLYSOURCE_DATA_DIR   the app's own root
+ *   DATA_ROOT       hardcoded /Users/user/onlysource-data  a laptop path
+ *   os.homedir()    ~/onlysource-data                    whoever the process runs as
+ *
+ * The second misfiled the BLS ledger for hours. The third is used by the catalogue builders,
+ * and on the droplet the process runs as root, so `~` is /root and the first live derive failed
+ * on a directory nobody had put anything in. It failed WELL, naming exactly where it looked,
+ * which is what let the ingest lane fix it in one move.
+ *
+ * A gate that checks only the roots it happens to know has the same blind spot the module
+ * census had before its seeds were fixed, and by the same author. So home-rooted joins are
+ * discovered too, and reported SEPARATELY, because they answer a different question: not "is
+ * this dataset present" but "present for WHICH USER", and that is the whole defect.
+ */
+const HOME_CALL = /path\.join\(\s*os\.homedir\(\)\s*((?:,\s*(['"])[^'"]+\2\s*)+)\)/g
+
 const CALL = /\b(dataPath|archivePath|seedPath)\(\s*(['"])([^'"]+)\2/g
 const ANY_CALL = /\b(dataPath|archivePath|seedPath)\(/g
 /** `dataPath()` with no argument is the root itself, which is the most checkable path there is. */
@@ -125,6 +146,7 @@ const SELF = 'scripts/data-reachability.mjs'
 
 export function discover(root) {
   const wanted = new Map() // dataset -> Set of "file:line"
+  const homeRooted = new Map() // absolute-ish path -> Set of "file:line"
   let unresolvable = []
   for (const file of walk(join(root, 'lib')).concat(walk(join(root, 'app')), walk(join(root, 'scripts')))) {
     if (relative(root, file) === SELF) continue
@@ -150,11 +172,19 @@ export function discover(root) {
       resolved += 1
       note(m[1], lit, m.index)
     }
+    for (const m of src.matchAll(HOME_CALL)) {
+      const segs = [...m[1].matchAll(/(['"])([^'"]+)\1/g)].map((x) => x[2])
+      if (segs.length === 0) continue
+      const key = segs.join('/')
+      const line = src.slice(0, m.index).split('\n').length
+      if (!homeRooted.has(key)) homeRooted.set(key, new Set())
+      homeRooted.get(key).add(`${rel}:${line}`)
+    }
     const total = [...src.matchAll(ANY_CALL)].length
     // Still unresolvable after one hop: real, and NAMED rather than dropped.
     if (total > resolved) unresolvable.push({ file: rel, count: total - resolved })
   }
-  return { wanted, unresolvable }
+  return { wanted, unresolvable, homeRooted }
 }
 
 /** Is a dataset actually supplied? Present-but-empty is its own answer, not "present". */
@@ -188,15 +218,24 @@ function selftest() {
     w('lib/b.ts', "const q = dataPath('missing')\n")
     w('lib/c.ts', "const r = archivePath('dibbs')\n")
     w('lib/d.ts', "const s = dataPath(SOME_VAR, 'x')\n")
+    w('scripts/e.mts', "const SRC = path.join(os.homedir(), 'onlysource-data', 'flis')\n")
     mkdirSync(join(dir, 'data', 'present'), { recursive: true })
     writeFileSync(join(dir, 'data', 'present', 'f.json'), '{}')
     mkdirSync(join(dir, 'data', 'empty'), { recursive: true })
 
-    const { wanted, unresolvable } = discover(dir)
+    const { wanted, unresolvable, homeRooted } = discover(dir)
     if (!wanted.has('present')) failures.push('did not discover a literal dataPath dataset')
     if (!wanted.has('missing')) failures.push('did not discover a dataset that is absent on disk')
     if (!wanted.has('archive')) failures.push('did not map archivePath() to the archive dataset')
     if (unresolvable.length === 0) failures.push('★ did not REPORT the call built from a variable, so it would report a clean bill over its own blind spot')
+    // ★ The third path convention. A gate that checks only the roots it knows has the blind spot
+    // the module census had, and this arm is the one that would catch it coming back.
+    if (!homeRooted.has('onlysource-data/flis')) {
+      failures.push('★ did not discover a path.join(os.homedir(), ...) source, which resolves against the RUNNING USER rather than the data root')
+    }
+    if (wanted.has('onlysource-data')) {
+      failures.push('a home-rooted source must NOT be reported as a data-root dataset: it answers a different question')
+    }
 
     const dataRoot = join(dir, 'data')
     if (inspect(dataRoot, 'present').state !== 'present') failures.push('a supplied dataset must read as present')
@@ -210,7 +249,7 @@ function selftest() {
     for (const f of failures) console.error(`  ${f}`)
     process.exit(1)
   }
-  console.log('data reachability self-test: PASS. 7 arms, including an absent dataset, an EMPTY one, and a call it cannot resolve being reported rather than dropped.')
+  console.log('data reachability self-test: PASS. 9 arms, including an absent dataset, an EMPTY one, a home-rooted source kept separate from the data root, and a call it cannot resolve being reported rather than dropped.')
   process.exit(0)
 }
 
@@ -219,7 +258,7 @@ if (process.argv.includes('--selftest')) selftest()
 /* ------------------------------------------------------------------ the live run */
 
 const { root: dataRoot, from } = resolveRoot()
-const { wanted, unresolvable } = discover(ROOT)
+const { wanted, unresolvable, homeRooted } = discover(ROOT)
 const rows = [...wanted.keys()].sort().map((d) => ({ ...inspect(dataRoot, d), readers: wanted.get(d) }))
 
 console.log(`data reachability: root ${dataRoot} (${from}) · ${rows.length} dataset(s) read by the code`)
@@ -229,6 +268,28 @@ for (const r of rows) {
     `  ${mark.padEnd(6)} ${r.dataset.padEnd(12)} ${r.entries.toLocaleString().padStart(7)} file(s)  ${(r.bytes / 1e6).toFixed(1).padStart(8)} MB   read from ${[...r.readers][0]}${r.readers.size > 1 ? ` +${r.readers.size - 1}` : ''}`,
   )
 }
+/*
+ * HOME-ROOTED PATHS, REPORTED SEPARATELY AND WITH THE USER NAMED.
+ *
+ * These do not resolve against the data root at all, so listing them beside it would be a
+ * category error. What matters is that the answer depends on WHO the process runs as: the same
+ * line reads ~/onlysource-data on a laptop and /root/onlysource-data on the droplet, and that
+ * difference is the defect rather than a detail of it.
+ */
+if (homeRooted.size) {
+  const home = process.env.HOME ?? '~'
+  console.log(`\n  home-rooted source(s), which resolve against the RUNNING USER (${home}) and not the data root:`)
+  for (const [rel, readers] of [...homeRooted.entries()].sort()) {
+    const p = join(home, rel)
+    const st = inspect(home, rel)
+    const mark = st.state === 'present' ? 'ok  ' : st.state === 'EMPTY' ? 'EMPTY' : 'ABSENT'
+    console.log(
+      `    ${mark.padEnd(6)} ${p}  ${st.entries.toLocaleString()} file(s)  ${(st.bytes / 1e6).toFixed(1)} MB   read from ${[...readers][0]}${readers.size > 1 ? ` +${readers.size - 1}` : ''}`,
+    )
+  }
+  console.log('    Same line, different answer per user: ~ is /root on the droplet and a home directory on a laptop.')
+}
+
 if (unresolvable.length) {
   const n = unresolvable.reduce((t, u) => t + u.count, 0)
   console.log(`\n  ${n} call(s) in ${unresolvable.length} file(s) build their path from a variable and CANNOT be checked here:`)
