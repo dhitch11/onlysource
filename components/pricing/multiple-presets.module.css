@@ -82,3 +82,39 @@
   color: var(--dim);
   line-height: 1.55;
 }
+
+/*
+ * The basis every option shares, stated once above them. Same size as a record, quieter weight:
+ * it is context for the list rather than a sixth item in it.
+ */
+.basis {
+  margin: 0;
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: 1.55;
+  border-left: 2px solid var(--line);
+  padding-left: var(--sp-3);
+}
+
+/*
+ * THE CLEAR RATE, PROMOTED OUT OF THE PARAGRAPH. It is the one fact that separates the options,
+ * and on a phone it was arriving at the end of a twenty-five word sentence on every card.
+ */
+.rate {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  flex-wrap: wrap;
+}
+.rateNum {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.rateLabel {
+  font-size: var(--fs-100, 0.72rem);
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

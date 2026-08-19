@@ -35,7 +35,12 @@
 import Link from 'next/link'
 import type { Route } from 'next'
 import { StatusChip } from '@/components/ui/StatusChip'
-import type { AwardMultiplePreset } from '@/lib/intelligence/pricing/recommend'
+import {
+  MEASURED_CLEARANCE_BASIS,
+  measuredClearanceAt,
+  withoutSharedBasis,
+  type AwardMultiplePreset,
+} from '@/lib/intelligence/pricing/recommend'
 import styles from './multiple-presets.module.css'
 
 export function MultiplePresets({
@@ -56,10 +61,22 @@ export function MultiplePresets({
         Every figure on this page moves with the multiple. Each option says what our own award
         history measured about it, so you are never choosing blind.
       </p>
+      {/*
+        ★ THE SHARED BASIS, STATED ONCE. MEASURED ON A PHONE: every one of the five records opened
+        with the SAME 30-word preamble naming the same sample, and at 390px this section was
+        2,560px tall, three full screens for one control, with the fact that distinguishes each
+        option buried at the end of a ten-line paragraph.
+
+        Nothing is hidden and nothing is shortened: the records keep full size and full contrast,
+        per the ruling. A basis shared by all five options is simply stated where a shared fact
+        belongs, instead of five times where it crowds out the five facts that differ.
+      */}
+      <p className={styles.basis}>{MEASURED_CLEARANCE_BASIS}</p>
 
       <ul className={styles.list}>
         {presets.map((p) => {
           const isActive = Math.abs(p.value - active) < 1e-9
+          const rate = measuredClearanceAt(p.value)?.clearedAtOrBelowShare ?? null
           return (
             <li key={p.id} className={styles.item} data-active={isActive ? 'true' : 'false'}>
               <Link
@@ -77,13 +94,27 @@ export function MultiplePresets({
                   )}
                   {isActive ? <StatusChip tone="accent">in use</StatusChip> : null}
                 </span>
+                {/*
+                  ★ THE CLEAR RATE, AS A NUMBER, BESIDE THE MULTIPLE. Measured by reading the
+                  rendered cards on a phone: this figure is the one fact that separates the five
+                  options, and it was arriving at the END of a twenty-five word sentence on every
+                  one of them. A number an operator is choosing between should not have to be
+                  read out of a paragraph. The paragraph stays underneath, unchanged and at full
+                  contrast; this is the same fact promoted, not a substitute for it.
+                */}
+                {rate === null ? null : (
+                  <span className={styles.rate}>
+                    <span className={styles.rateNum}>{(rate * 100).toFixed(1)}%</span>
+                    <span className={styles.rateLabel}>cleared at or below</span>
+                  </span>
+                )}
               </Link>
               {/*
                 THE RECORD SITS OUTSIDE THE LINK ON PURPOSE. Inside it, a screen reader announces
                 the whole paragraph as the link text on every option, which turns a scannable list
                 into an unusable one. It stays adjacent and always visible.
               */}
-              <p className={styles.record}>{p.record}</p>
+              <p className={styles.record}>{withoutSharedBasis(p.record, p.value)}</p>
             </li>
           )
         })}

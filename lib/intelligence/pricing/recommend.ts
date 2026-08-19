@@ -486,6 +486,72 @@ function multipleText(multiple: number): string {
  * their own values. That is not an interpolation: those are two measurements, printed as
  * measurements, with nothing computed between them.
  */
+/**
+ * THE BASIS EVERY RECORD SHARES, STATED ONCE.
+ *
+ * ★★ WHY THIS EXISTS: MEASURED ON A PHONE, NOT INFERRED. The preset control rendered five records
+ * on `/corner` and every one of them opened with the SAME 30-word preamble naming the same sample.
+ * At 390px that section was 2,560px tall — THREE FULL SCREENS for one control — and roughly 150
+ * words of it were the identical sentence repeated five times, with the fact that actually
+ * distinguishes each option buried at the end of a ten-line paragraph.
+ *
+ * The owner's ruling is that a preset's record stays at FULL SIZE AND FULL CONTRAST, and it does.
+ * Nothing is hidden, shortened or moved behind a control. What changes is that a basis shared by
+ * all five options is stated ONCE, where a shared fact belongs, instead of five times where it
+ * crowds out the five facts that differ.
+ *
+ * "Fewer containers, not more" applied to WORDS.
+ */
+export const MEASURED_CLEARANCE_BASIS: string =
+  `Measured over ${MEASURED_CLEARANCE_SAMPLE.eventPairs.toLocaleString('en-US')} ` +
+  `${MEASURED_CLEARANCE_SAMPLE.population} over ` +
+  `${MEASURED_CLEARANCE_SAMPLE.stockNumbers.toLocaleString('en-US')} stock numbers. ` +
+  'Coming in at or below the price an item actually cleared at is necessary to win and not ' +
+  'sufficient, so every share below is an upper bound on how often that quote would have won.'
+
+/**
+ * One multiple's record with the TWO SHARED SENTENCES REMOVED AND NOTHING ELSE.
+ *
+ * ★★ THE FIRST VERSION OF THIS FUNCTION SLICED AT THE FIRST COLON AND DELETED REAL CONTENT. On
+ * the operator's own 3x preset it removed his own words — `Your own rule, stated once about one
+ * item you won: "I quoted $3,565, three times the unit price of the previous award."` — along with
+ * the sole-source refutation and the reason the preset is still offered. It reported a satisfying
+ * "66% less text" while quietly destroying the distinguishing half of every record, which is the
+ * exact opposite of what it was written to do and a direct violation of the ruling that a preset's
+ * record stays at full size and full contrast.
+ *
+ * So this removes the two shared strings BY EXACT MATCH and keeps everything else BY
+ * CONSTRUCTION. If a preamble ever changes wording, this stops removing it and the reader sees a
+ * repeated sentence, which is a visible cosmetic problem rather than silent data loss. That is the
+ * right way for it to fail.
+ */
+export function withoutSharedBasis(record: string, multiple: number): string {
+  const at = measuredClearanceAt(multiple)
+  const shared = [
+    `Measured over ${MEASURED_CLEARANCE_SAMPLE.eventPairs.toLocaleString('en-US')} ` +
+      `${MEASURED_CLEARANCE_SAMPLE.population} over ` +
+      `${MEASURED_CLEARANCE_SAMPLE.stockNumbers.toLocaleString('en-US')} stock numbers: `,
+    at === null
+      ? ''
+      : ` At or below is necessary to win and not sufficient, so ${pct(at.clearedAtOrBelowShare)} ` +
+        'is an upper bound on how often it would have won.',
+  ].filter((x) => x !== '')
+
+  let out = record
+  for (const chunk of shared) out = out.split(chunk).join(' ')
+  out = out.replace(/\s{2,}/g, ' ').trim()
+  /*
+   * Removing a sentence from the middle can leave a lowercase word opening a sentence, e.g.
+   * `..."three times the unit price of the previous award." a quote at 3x...`. Re-capitalise
+   * after a terminator. Cosmetic, and it is done here rather than in CSS because `::first-letter`
+   * cannot reach the middle of a paragraph.
+   */
+  // The terminator may be followed by a closing quote before the space: `award." a quote at 3x`.
+  out = out.replace(/([.!?]["'\u201d]?\s+)([a-z])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase())
+  // And the very first character, when the removed chunk was the opening sentence.
+  return out.length === 0 ? out : out[0]!.toUpperCase() + out.slice(1)
+}
+
 export function measuredRecordSentence(multiple: number, mayReadMargin = false): string {
   const at = measuredClearanceAt(multiple)
   const sample =
