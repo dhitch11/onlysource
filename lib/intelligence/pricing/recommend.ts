@@ -119,6 +119,7 @@ import {
   usdToCents,
   type AdderCode,
   type AnchorIndexConfig,
+  type InflationIndexSpec,
   type IndexKind,
   type PricingConfig,
   type SourceCitation,
@@ -1060,10 +1061,88 @@ const isBasis = (a: RungAttempt): a is RawBasis => 'rawLowUsd' in a
 /* RUNG 1: THE MANUFACTURER ANCHOR                                                        */
 /* ------------------------------------------------------------------------------------ */
 
+/**
+ * A FACTOR THAT NAMES A PUBLISHED SERIES IS A READING. ONE THAT DOES NOT IS A JUDGEMENT.
+ *
+ * The distinction is the whole evidence contract, and it is read off the configuration rather than
+ * assumed here, because it CHANGES: the CPI factor carried no series id until the data lane
+ * identified BLS CUUR0000SA0 and wrote it on. Grading a reading as PRIOR understates what we hold;
+ * grading a judgement as MEASURED launders it. So the grade follows the field.
+ *
+ * A READING GOES STALE IN A WAY A JUDGEMENT DOES NOT, which is why the vintage note travels on the
+ * input's `source` unedited: it is where the series says when it was read and what a fresher
+ * reading would give.
+ */
+function factorEvidenceState(spec: InflationIndexSpec): QuoteEvidenceState {
+  return spec.vintage.publishedSeriesId === null ? 'PRIOR' : 'MEASURED'
+}
+
+function factorInput(
+  spec: InflationIndexSpec,
+  indexName: (k: IndexKind) => string,
+): RecommendationInputValue {
+  const series = spec.vintage.publishedSeriesId
+  return {
+    label: `${indexName(spec.kind)} factor`,
+    renderedValue: series === null ? String(spec.factor) : `${spec.factor} (series ${series})`,
+    valueUsd: null,
+    dateIso: null,
+    source: spec.vintage.note,
+    evidenceState: factorEvidenceState(spec),
+    citation: spec.citation,
+  }
+}
+
+/** Says what each factor actually is, in the order the band presents them. */
+function describeFactorProvenance(
+  lowLine: InflationIndexSpec,
+  highLine: InflationIndexSpec,
+  indexName: (k: IndexKind) => string,
+): string {
+  const describe = (spec: InflationIndexSpec): string =>
+    spec.vintage.publishedSeriesId === null
+      ? `the ${indexName(spec.kind)} factor names no published series and is the expert's stated ` +
+        'judgement'
+      : `the ${indexName(spec.kind)} factor is a reading of published series ` +
+        `${spec.vintage.publishedSeriesId}, which means it has a date and goes stale`
+  return `${describe(lowLine).replace(/^the/, 'The')}, and ${describe(highLine)}.`
+}
+
+/** What would sharpen THIS anchor, given what each of its two factors already is. */
+function sharpenTheAnchorWith(
+  lowLine: InflationIndexSpec,
+  highLine: InflationIndexSpec,
+  indexName: (k: IndexKind) => string,
+): readonly string[] {
+  const unnamed = [lowLine, highLine].filter((s) => s.vintage.publishedSeriesId === null)
+  const named = [lowLine, highLine].filter((s) => s.vintage.publishedSeriesId !== null)
+  const out: string[] = []
+  if (unnamed.length > 0) {
+    out.push(
+      `identifying a published series behind the ${unnamed
+        .map((s) => indexName(s.kind))
+        .join(' and ')} factor would turn a stated judgement into a dated reading, and would let ` +
+        'it re-base to an award year other than ' +
+        String(lowLine.vintage.baseYear),
+    )
+  }
+  for (const s of named) {
+    out.push(
+      `re-reading series ${s.vintage.publishedSeriesId} at the pricing instant would refresh the ` +
+        `${indexName(s.kind)} factor, which is a reading taken on a date and not a constant`,
+    )
+  }
+  out.push(
+    'an award to an approved source dated in the factors base year, which is what this rung ' +
+      'needs before it can run at all',
+  )
+  return out
+}
+
 const SHARPEN_WITH_A_DATED_SERIES =
-  'a dated inflation series with a published id (a BLS CPI-U reading or a DoD procurement ' +
-  'deflator) would replace the two stated factors, would re-base to any award year instead of ' +
-  'only 2017, and would retire the disagreement this band is made of'
+  'a dated inflation series that can be re-based to any award year, rather than factors stated ' +
+  'for one base year, would let the manufacturer rung run on awards outside that year and would ' +
+  'narrow the disagreement its band is made of'
 
 function buildAnchorRung(
   input: RecommendationInput,
@@ -1143,38 +1222,31 @@ function buildAnchorRung(
         evidenceState: 'MEASURED',
         citation: null,
       },
-      {
-        label: `${indexName(lowLine.kind)} factor`,
-        renderedValue: String(lowLine.factor),
-        valueUsd: null,
-        dateIso: null,
-        source: lowLine.vintage.note,
-        evidenceState: 'PRIOR',
-        citation: lowLine.citation,
-      },
-      {
-        label: `${indexName(highLine.kind)} factor`,
-        renderedValue: String(highLine.factor),
-        valueUsd: null,
-        dateIso: null,
-        source: highLine.vintage.note,
-        evidenceState: 'PRIOR',
-        citation: highLine.citation,
-      },
+      factorInput(lowLine, indexName),
+      factorInput(highLine, indexName),
     ],
     caveats: [
       {
         code: 'INFLATION_FACTORS_ARE_STATED_JUDGEMENTS',
-        sentence:
-          'Neither factor names a published series. They are the expert’s stated judgements ' +
-          `for a ${cpiBase} base year, and they disagree by ` +
-          `${pct(high / low - 1)} about what that dollar is worth now. This band IS that ` +
-          'disagreement, and the expert prefers the DoD procurement end because it reflects ' +
-          'industrial, metals and logistics cost growth that outpaced consumer inflation.',
+        /*
+         * THE SENTENCE IS BUILT FROM THE CONFIGURATION, NOT ASSERTED ABOUT IT.
+         *
+         * This read "Neither factor names a published series" as a flat statement, and it was true
+         * for exactly one day. On 2026-08-19 the data lane identified the CPI factor as BLS series
+         * CUUR0000SA0 and wrote the id onto the config, at which point a hardcoded sentence in this
+         * file would have been telling an operator the opposite of what the config said, in the
+         * confident register of a caveat. A string that describes the data has to be COMPUTED from
+         * the data, every time.
+         */
+        sentence: describeFactorProvenance(lowLine, highLine, indexName) +
+          ` The two disagree by ${pct(high / low - 1)} about what a ${cpiBase} dollar is worth ` +
+          'now. This band IS that disagreement, and the expert prefers the DoD procurement end ' +
+          'because it reflects industrial, metals and logistics cost growth that outpaced ' +
+          'consumer inflation.',
         measured: { label: 'index disagreement', value: high / low - 1, unit: 'RATIO' },
       },
     ],
-    wouldSharpenWith: [SHARPEN_WITH_A_DATED_SERIES],
+    wouldSharpenWith: sharpenTheAnchorWith(lowLine, highLine, indexName),
     observationCount: 1,
     oldestObservationIso: oem.awardDateIso,
     newestObservationIso: oem.awardDateIso,

@@ -1,0 +1,233 @@
+/*
+ * <RecommendationPanel /> Owner: @BUILD-THE-WIRES.
+ *
+ * THE ANSWER TO "WHAT DO I BID", AND THE EVIDENCE UNDER IT, ON ONE SURFACE.
+ *
+ * -------------------------------------------------------------------------------------
+ * WHY THIS PANEL LOOKS THE WAY IT DOES
+ * -------------------------------------------------------------------------------------
+ * The owner lifted the rule that forbade a single recommended number, because a product that
+ * refuses to answer the only question the operator has is not being careful, it is being
+ * useless. What the lift did NOT do is make a weak basis strong. So the number is large and the
+ * rung that produced it is printed immediately under it, in the same visual breath: the operator
+ * should never be able to read the figure without reading what it stands on.
+ *
+ * FOUR THINGS ARE STRUCTURAL, NOT STYLING:
+ *
+ * 1. A BAND AND A POINT ARE RENDERED DIFFERENTLY AND SHARE NO NUMERIC SLOT. The engine's own
+ *    types share no field name across the two arms, so a render that reads a band as a point
+ *    fails to compile. This component keeps that property rather than flattening both into a
+ *    string upstream, which would throw the distinction away at the last moment.
+ *
+ * 2. WHAT WE SEND AND WHAT DLA COMPARES ARE NEVER ADJACENT AND NEVER SUMMED. The evaluated
+ *    figure sits in its own block, under its own heading, saying in words that it is not our
+ *    quote. An operator who folds the evaluation factors into the bid quotes high and loses an
+ *    award they had won.
+ *
+ * 3. THE ABSTENTION IS A FIRST-CLASS RENDER, NOT AN EMPTY DIV. When no rung reaches, the panel
+ *    says which input was missing and what would resolve it. A blank here would read as "no
+ *    opportunity", which is the permissive direction on a page whose whole job is to say
+ *    whether there is one.
+ *
+ * 4. THE LADDER IS ALWAYS SHOWN, INCLUDING THE RUNGS THAT DID NOT RESOLVE. A rung that could
+ *    not fire is the roadmap: it names the one fact that would move this row up a tier.
+ */
+import { StatusChip } from '@/components/ui/StatusChip'
+import type { PriceRecommendation, RecommendationRung } from '@/lib/intelligence/pricing/recommend'
+import styles from './recommendation.module.css'
+
+const usd = (n: number): string =>
+  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const usdWhole = (n: number): string =>
+  `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+/**
+ * Confidence IS the rung. There is no separate score, because a second number invented to
+ * summarise the first is exactly the kind of figure this product refuses to print.
+ */
+const RUNG_TONE: Record<RecommendationRung, 'verified' | 'active' | 'idle'> = {
+  R1_MANUFACTURER_ANCHOR: 'verified',
+  R2_LAST_AWARD_MULTIPLE: 'verified',
+  R3_RECENT_AWARD_BAND: 'active',
+  R4_AWARD_TREND: 'active',
+  R5_FSC_PEER_BAND: 'idle',
+}
+
+const RUNG_CONFIDENCE: Record<RecommendationRung, string> = {
+  R1_MANUFACTURER_ANCHOR: 'Highest confidence',
+  R2_LAST_AWARD_MULTIPLE: 'High confidence',
+  R3_RECENT_AWARD_BAND: 'Moderate confidence',
+  R4_AWARD_TREND: 'Moderate confidence',
+  R5_FSC_PEER_BAND: 'Lowest confidence',
+}
+
+export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
+  if (!rec.resolved) {
+    return (
+      <section className={styles.panel} data-resolved="false" aria-labelledby="rec-title">
+        <div className={styles.head}>
+          <h2 className={styles.title} id="rec-title">
+            Recommended quote
+          </h2>
+          <StatusChip tone="idle">not enough evidence</StatusChip>
+        </div>
+        <p className={styles.abstain}>{rec.sentence}</p>
+        <p className={styles.abstainWhat}>
+          Missing input: <span className="mono">{rec.missingInput}</span>
+        </p>
+        {rec.ladder.length > 0 ? <Ladder rec={rec} /> : null}
+      </section>
+    )
+  }
+
+  const fig = rec.recommended
+
+  return (
+    <section className={styles.panel} data-resolved="true" data-rung={rec.rung} aria-labelledby="rec-title">
+      <div className={styles.head}>
+        <h2 className={styles.title} id="rec-title">
+          Recommended quote
+        </h2>
+        <StatusChip tone={RUNG_TONE[rec.rung]}>{RUNG_CONFIDENCE[rec.rung]}</StatusChip>
+      </div>
+
+      {/* ---------------------------------------------------------------- the figure */}
+      {fig.kind === 'POINT' ? (
+        <p className={styles.figure}>
+          <span className={styles.figureNum}>{usd(fig.unitPriceUsd)}</span>
+          <span className={styles.figureUnit}>per unit</span>
+        </p>
+      ) : (
+        <p className={styles.figure}>
+          <span className={styles.figureNum}>
+            {usd(fig.lowUnitPriceUsd)} to {usd(fig.highUnitPriceUsd)}
+          </span>
+          <span className={styles.figureUnit}>per unit</span>
+        </p>
+      )}
+
+      <p className={styles.basis}>
+        <span className={styles.basisLabel}>{rec.rungLabel}</span>
+        <span className={styles.basisSep} aria-hidden="true">
+          ·
+        </span>
+        <span className={styles.basisState}>{rec.evidenceState}</span>
+      </p>
+
+      <p className={styles.sentence}>{rec.sentence}</p>
+
+      {/* ------------------------------------------------------- the arithmetic shown */}
+      <p className={styles.arith}>
+        <span className={styles.arithLabel}>How this was computed</span>
+        <span className="mono">{rec.arithmetic}</span>
+      </p>
+
+      {/* -------------------------------------------------------------- what we send */}
+      {rec.quotedTotal ? (
+        <div className={styles.totals}>
+          <div className={styles.totalBlock} data-role="send">
+            <span className={styles.totalLabel}>What we send</span>
+            <span className={styles.totalValue}>
+              {rec.quotedTotal.kind === 'QUOTED_TOTAL_RANGE_WHAT_WE_SEND'
+                ? `${usdWhole(rec.quotedTotal.lowUsd)} to ${usdWhole(rec.quotedTotal.highUsd)}`
+                : usdWhole(rec.quotedTotal.usd)}
+            </span>
+            <span className={styles.totalNote}>
+              {rec.requirementQuantity != null
+                ? `${rec.requirementQuantity.toLocaleString()} units on this requirement`
+                : 'Requirement quantity not read on this row'}
+            </span>
+          </div>
+
+          {/*
+            THE SEPARATION IS THE POINT. This is DLA's arithmetic on our number, not a line we
+            add to our own quote. It is in a different block, under a different heading, and the
+            note says so in a sentence rather than relying on the heading being read.
+          */}
+          {rec.evaluatedPriceContext.available ? (
+            <div className={styles.totalBlock} data-role="evaluated">
+              <span className={styles.totalLabel}>What DLA compares</span>
+              <span className={styles.totalValue}>
+                {rec.evaluatedPriceContext.evaluatedAtRecommendation.kind ===
+                'EVALUATED_TOTAL_RANGE_WHAT_DLA_COMPARES_NEVER_WHAT_WE_SEND'
+                  ? `${usdWhole(rec.evaluatedPriceContext.evaluatedAtRecommendation.lowUsd)} to ${usdWhole(
+                      rec.evaluatedPriceContext.evaluatedAtRecommendation.highUsd,
+                    )}`
+                  : usdWhole(rec.evaluatedPriceContext.evaluatedAtRecommendation.usd)}
+              </span>
+              <span className={styles.totalNote}>
+                {rec.evaluatedPriceContext.isFloor
+                  ? 'A floor. A factor applies that the solicitation states no amount for. The buyer adds this when ranking offers, and you do not add it to what you send.'
+                  : 'The buyer adds this when ranking offers. Do not add it to what you send.'}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------------------------------ caveats */}
+      {rec.caveats.length > 0 ? (
+        <ul className={styles.caveats}>
+          {rec.caveats.map((c) => (
+            <li key={c.code} className={styles.caveat}>
+              {c.sentence}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* ------------------------------------------------- what would sharpen the read */}
+      {rec.wouldSharpenWith.length > 0 ? (
+        <div className={styles.sharpen}>
+          <span className={styles.sharpenLabel}>What would sharpen this</span>
+          <ul className={styles.sharpenList}>
+            {rec.wouldSharpenWith.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <Ladder rec={rec} />
+    </section>
+  )
+}
+
+/**
+ * EVERY RUNG, RESOLVED OR NOT.
+ *
+ * The unresolved rungs carry their own reason, and that reason is the most actionable text on
+ * the page: it names the single fact that would move this row to a firmer basis.
+ */
+function Ladder({ rec }: { rec: PriceRecommendation }) {
+  const chosen = rec.resolved ? rec.rung : null
+  return (
+    <details className={styles.ladder}>
+      <summary className={styles.ladderSummary}>The full ladder, including what did not reach</summary>
+      <ol className={styles.ladderList}>
+        {rec.ladder.map((r) => (
+          <li
+            key={r.rung}
+            className={styles.rung}
+            data-resolved={r.resolved ? 'true' : 'false'}
+            data-chosen={r.rung === chosen ? 'true' : 'false'}
+          >
+            <div className={styles.rungHead}>
+              <span className={styles.rungLabel}>{r.rungLabel}</span>
+              {r.rung === chosen ? <StatusChip tone="accent">used</StatusChip> : null}
+              {!r.resolved ? <StatusChip tone="idle">did not reach</StatusChip> : null}
+            </div>
+            {r.resolved ? (
+              <p className={styles.rungBody}>
+                <span className="mono">{r.arithmetic}</span>
+              </p>
+            ) : (
+              <p className={styles.rungBody}>{r.sentence}</p>
+            )}
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}

@@ -758,8 +758,31 @@ export function MonopolyGrid({
           ...(r.forecast && r.forecast.solicitationCount > 0
             ? [{ field: "Solicitation history", value: `re-solicited ${r.forecast.solicitationCount} times${r.forecast.lastSolicitation ? `, last ${r.forecast.lastSolicitation}` : ""}` }]
             : []),
+          /*
+           * THE TRUNCATION IS DISCLOSED, BECAUSE A CUT LIST READS AS A COMPLETE ONE.
+           *
+           * This showed `endItems.slice(0, 4)` with nothing saying there were more, so a stock
+           * number that goes on thirty end items rendered exactly like one that goes on four.
+           * "Goes on" is a claim about what an item is used for, and an operator sizing demand
+           * off four platforms when there are thirty has been given a wrong answer by a control
+           * that looked complete. Silent truncation on a rendered fact is the same family as a
+           * silent zero: the absence is invisible, so it reads as a measurement.
+           *
+           * The remainder is stated rather than the cap being raised: four is a sensible amount
+           * to show in a cell, and the honest version of a short list is the list plus its
+           * count, not a longer list that truncates one row later.
+           */
           ...(r.forecast && r.forecast.endItems.length
-            ? [{ field: "Goes on", value: r.forecast.endItems.slice(0, 4).join(" · ") }]
+            ? [
+                {
+                  field: "Goes on",
+                  value:
+                    r.forecast.endItems.slice(0, 4).join(" · ") +
+                    (r.forecast.endItems.length > 4
+                      ? ` and ${(r.forecast.endItems.length - 4).toLocaleString()} more`
+                      : ""),
+                },
+              ]
             : []),
           {
             field: "Listed stock",

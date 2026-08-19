@@ -20,6 +20,13 @@ import { aiConfigured } from '@/lib/ai/anthropic'
 import { sendPreflight } from '@/lib/notify/email'
 import { readSettings } from '@/lib/notify/settings'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { RecommendationPanel } from '@/components/pricing/RecommendationPanel'
+import {
+  buildFscPeerPool,
+  liveClassifierOrNull,
+  peerLookupFrom,
+  recommendForCorner,
+} from '@/lib/intelligence/pricing/for-corner'
 import { AiBrief } from './AiBrief'
 import styles from './corner.module.css'
 
@@ -124,6 +131,28 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
   const modeledBuyValue =
     row.quantity != null && latestUnit != null && latestUnit > 0 ? row.quantity * latestUnit : null
   const alreadyPursued = findDealByRef(row.nsn) != null
+
+  /*
+   * THE RECOMMENDATION. The clock is read ONCE here and passed down, because every threshold
+   * and band the engine resolves is dated and a second read further down would let two parts
+   * of one page price the same row against two different days.
+   *
+   * The peer pool is only built when the award index actually loaded. Handing the engine an
+   * empty lookup off a failed index would let the weakest rung report "no priced peers in this
+   * class" when the truth is that the class was never read, and those are different sentences.
+   */
+  const nowMs = Date.now()
+  const peers = awardIx.ok ? peerLookupFrom(buildFscPeerPool(awardIx.byNsn)) : null
+  const recommendation = recommendForCorner({
+    nsn: row.nsn,
+    award,
+    requirementQuantity: row.quantity,
+    approvedSourceCages: row.approvedSources,
+    feedWindow: awardIx.ok ? awardIx.window : undefined,
+    atInstantMs: nowMs,
+    peerLookup: peers,
+    classifier: liveClassifierOrNull(),
+  })
 
   return (
     <main className={styles.page}>
@@ -240,6 +269,13 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
       </header>
 
       {/* ------------------------------------------------------------ money + demand */}
+      {/*
+        THE RECOMMENDATION SITS ABOVE THE EVIDENCE, not below it. The operator's question is
+        "what do I bid"; the award price, the quote signals and the forward demand under it are
+        the working. Putting the working first would bury the answer.
+      */}
+      <RecommendationPanel rec={recommendation} />
+
       <section className={styles.cards}>
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Award price</h2>

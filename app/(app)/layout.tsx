@@ -103,6 +103,12 @@ const NAV_GROUPS: NavGroup[] = [
     blurb: 'Check the evidence before you spend.',
     items: [
       {
+        href: '/pricing',
+        label: 'Pricing desk',
+        icon: 'pricing',
+        description: 'What to quote on every served row, and the evidence each number stands on.',
+      },
+      {
         href: '/intelligence',
         label: 'Intelligence',
         icon: 'intelligence',

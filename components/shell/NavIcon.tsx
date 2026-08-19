@@ -29,6 +29,7 @@ export type NavIconName =
   | "competitor"
   | "hubzone"
   | "settings"
+  | "pricing"
   | "design";
 
 const PATHS: Record<NavIconName, React.ReactNode> = {
@@ -45,6 +46,15 @@ const PATHS: Record<NavIconName, React.ReactNode> = {
     <>
       <path d="M3 3v18h18" />
       <path d="M7 15l4-5 3 3 5-7" />
+    </>
+  ),
+  // A price tag. Distinct from `sales` (a trend line) because the desk answers "what do I
+  // quote", not "how is the pipeline moving", and two nav items sharing a glyph teach the
+  // operator they are the same screen.
+  pricing: (
+    <>
+      <path d="M3 12V4a1 1 0 011-1h8l9 9-9 9z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
     </>
   ),
   // The Hunter Mode star, which the approved console renders in amber.
