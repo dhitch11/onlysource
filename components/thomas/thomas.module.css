@@ -11,6 +11,11 @@
 /* ---------------------------------------------------------------- launcher */
 
 .launcher {
+  /* The lift travels through a custom property so it COMPOSES with the hover nudge below.
+     Setting `transform` directly in a second rule would make the two fight, and whichever won
+     would silently drop the other. */
+  --lift: 0px;
+  transform: translateY(var(--lift));
   position: fixed;
   right: var(--sp-4);
   bottom: var(--sp-4);
@@ -34,7 +39,20 @@
 .launcher:hover {
   border-color: var(--accent);
   background: var(--raised);
-  transform: translateY(-1px);
+  transform: translateY(calc(var(--lift) - 1px));
+}
+
+/* `--lift` is set inline by Thomas.tsx, which measures which slot is actually clear rather than
+   assuming one step is enough. This attribute exists so the state is visible to a stylesheet and
+   to a test, not to supply the distance. */
+.launcher[data-lifted] {
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher {
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
 }
 
 .launcher:focus-visible {

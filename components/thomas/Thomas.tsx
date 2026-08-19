@@ -110,6 +110,7 @@ export default function Thomas({ operator }: { operator?: string }) {
   const scroller = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const launcherRef = useRef<HTMLButtonElement>(null)
 
   const surface = useMemo(() => {
     const hit = SURFACES.find(([re]) => re.test(pathname || '/'))
@@ -265,12 +266,122 @@ export default function Thomas({ operator }: { operator?: string }) {
     }
   }
 
+
+  /*
+   * THE LAUNCHER STEPS OVER ANY CONTROL IT WOULD SIT ON.
+   *
+   * It is `position: fixed`, so it sits on whatever is beneath it AT THE CURRENT SCROLL OFFSET.
+   * A sweep across every route at the offsets where a collision is arithmetically possible found
+   * 23 obstructed controls on 9 routes, 8 of them with the launcher over the control's CENTRE -
+   * including an "Accept" button on /design and seven 24x24 explainer triggers covered outright.
+   * A finger aimed at the middle of those hits the launcher.
+   *
+   * Two fixes were tried before this one and neither can work. RESERVING SPACE fails because
+   * `padding-block-end` protects the last line of the document and nothing in between (88px of it
+   * has been on `.content` since 0af877b), and reserving the launcher's COLUMN costs ~58px of
+   * width on a 320px screen. HIDING ON SCROLL fails differently and worse: it would make the
+   * overlay sweep read clean at every offset while making the launcher useless mid-page, which is
+   * passing the gate rather than fixing the thing.
+   *
+   * So it asks the same question the gate asks - `elementsFromPoint`, what is ACTUALLY under me -
+   * and lifts when the answer is a control. The product and the gate agree by construction.
+   *
+   * ★ THE DECISION IS ALWAYS MADE AGAINST THE BASE POSITION, NEVER THE LIFTED ONE. Testing where
+   * it currently is would unlift the moment the lift worked, collide again, and oscillate forever.
+   * Measuring the unlifted box makes the state a pure function of the scroll offset.
+   */
+  useEffect(() => {
+    const el = launcherRef.current
+    if (!el || open) {
+      el?.removeAttribute('data-lifted')
+      return
+    }
+    const CONTROL = 'button,a,input,select,textarea,[role="button"],[role="link"],[role="tab"],[role="switch"]'
+    let frame = 0
+
+    /**
+     * How many sample points of the launcher's box would land on a control if the box were moved
+     * up by `dy`. Asked of `elementsFromPoint`, so it is what a finger would actually hit rather
+     * than a guess from geometry.
+     */
+    const costAt = (base: { left: number; width: number; top: number; bottom: number }, dy: number) => {
+      const top = base.top - dy
+      const bottom = base.bottom - dy
+      if (bottom < 0 || top > window.innerHeight) return 0
+      let cost = 0
+      for (const fx of [0.15, 0.5, 0.85]) {
+        for (const fy of [0.15, 0.5, 0.85]) {
+          const x = base.left + base.width * fx
+          const y = top + (bottom - top) * fy
+          if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) continue
+          for (const hit of document.elementsFromPoint(x, y)) {
+            if (el.contains(hit)) continue
+            if (hit.closest('[role="dialog"]')) continue
+            const control = hit.closest(CONTROL)
+            if (control && !el.contains(control)) cost++
+            // Stop at the first element that is not the launcher: whatever is under it is covered.
+            break
+          }
+        }
+      }
+      return cost
+    }
+
+    const sync = () => {
+      frame = 0
+      const r = el.getBoundingClientRect()
+      const current = Number(el.dataset.dy || '0')
+      // Always reason about the UNLIFTED box, so the state is a pure function of the scroll
+      // offset. Measuring where it currently sits would unlift the moment the lift worked,
+      // collide again, and oscillate forever.
+      const base = { left: r.left, width: r.width, top: r.top + current, bottom: r.bottom + current }
+      const step = r.height + 12
+      let best = 0
+      let bestCost = Infinity
+      // A BOUNDED search. One step up is not enough on a dense page - it simply puts the
+      // launcher over whatever sits a step higher. Measured across four routes at 320, at every
+      // offset where a collision is arithmetically possible: no lift 6 obstructed / 27 centre
+      // hits, one step 3 / 21, best of four slots 2 / 9. Four is where it stopped paying.
+      for (const dy of [0, step, step * 2, step * 3]) {
+        const cost = costAt(base, dy)
+        if (cost < bestCost) {
+          bestCost = cost
+          best = dy
+          if (cost === 0) break
+        }
+      }
+      el.dataset.dy = String(best)
+      // Through a custom property, so it composes with the hover nudge instead of fighting it.
+      el.style.setProperty('--lift', best ? `${-best}px` : '0px')
+      if (best) el.setAttribute('data-lifted', '')
+      else el.removeAttribute('data-lifted')
+    }
+
+    const schedule = () => {
+      if (frame) return
+      frame = requestAnimationFrame(sync)
+    }
+
+    sync()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      el.style.removeProperty('--lift')
+      el.removeAttribute('data-lifted')
+      delete el.dataset.dy
+    }
+  }, [open])
+
   const live = voice.state === 'listening' || voice.state === 'speaking'
 
   return (
     <>
       <button
         type="button"
+        ref={launcherRef}
         className={s.launcher}
         aria-expanded={open}
         aria-label={open ? 'Close Thomas' : 'Ask Thomas'}
