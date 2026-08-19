@@ -35,7 +35,17 @@
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--accent-on-fill, #1a1509);
-  font: 700 10px/16px var(--font-mono);
+  /*
+   * ★ WAS `font: 700 10px/16px var(--font-mono)`. The SHORTHAND is why this survived a sweep
+   * that read every `font-size:` and `font-weight:` in the product: it sets both and matches
+   * neither. A grep for a property name cannot see a property set by a shorthand.
+   *
+   * Written long-hand now, deliberately, so the next sweep can see it.
+   */
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-bold);
+  line-height: 16px;
   text-align: center;
 }
 

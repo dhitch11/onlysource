@@ -298,6 +298,63 @@ a {
   color: var(--dim);
 }
 
+/*
+ * ★ HEADING ELEMENTS, NOT JUST HEADING CLASSES.
+ *
+ * `.h1` and `.h2` below have existed all along, and a heading that forgets to USE one falls
+ * through to the browser's default stylesheet. Measured live on /documents: `.paperTitle` is an
+ * <h1> whose class sets a size only inside `@media print`, so on screen it rendered at the UA
+ * default of 2em = 30px, and `.paperHeading` at 1.5em = 22.5px. Neither number is on our scale
+ * and neither was chosen by anybody.
+ *
+ * That is the worst version of this defect, because UA heading defaults DIFFER BETWEEN BROWSERS.
+ * The same page was a different size in Safari than in Chrome, which is exactly what "the font
+ * looks random across environments" describes from the outside.
+ *
+ * So the ELEMENTS carry the scale and the classes stay for anything that wants to opt out. A
+ * heading now has a designed size whether or not its author remembered to give it one.
+ */
+h1 {
+  font-size: var(--fs-700);
+  line-height: var(--lh-700);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--track-tight);
+}
+h2 {
+  font-size: var(--fs-500);
+  line-height: var(--lh-500);
+  font-weight: var(--fw-bold);
+}
+h3 {
+  font-size: var(--fs-400);
+  line-height: var(--lh-400);
+  font-weight: var(--fw-semibold);
+}
+h4,
+h5,
+h6 {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  font-weight: var(--fw-semibold);
+}
+
+/*
+ * `<strong>` and `<b>` PINNED, because the UA value is RELATIVE and ours is not 400.
+ *
+ * The default is `bolder`, which the spec resolves against the INHERITED weight: from 400 it
+ * gives 700, but from 600-899 it gives 900. This product uses --fw-heavy (650) widely, so every
+ * <strong> inside heavy text was computing to 900. Measured live: one element on /monopoly,
+ * "T4 INTELLIGENCE", at a weight that appears nowhere in the design.
+ *
+ * One element is not the point. The point is that the value was a FUNCTION of its surroundings,
+ * so it would have changed silently the next time somebody wrapped a paragraph in a heavier
+ * class, and nothing would have flagged it.
+ */
+strong,
+b {
+  font-weight: var(--fw-bold);
+}
+
 .h1 {
   font-size: var(--fs-700);
   line-height: var(--lh-700);

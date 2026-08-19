@@ -54,6 +54,21 @@ const OFF_SCALE_ALLOWED: Record<string, string> = {
   'app/api/outreach-draft/email/route.ts': 'the same, in the outreach email',
 }
 
+/**
+ * Source with comments removed.
+ *
+ * ★ THIS IS NOT TIDINESS, IT IS A CORRECTION. Twice tonight a regex written to find a pattern
+ * matched the explanation of that pattern in a comment written moments earlier — first a CSS
+ * `@media` inside a note about cascade order, then `font: 700 10px/16px` inside the note
+ * explaining why that shorthand was removed. Both times the code was already correct and the
+ * instrument reported it broken.
+ *
+ * A scanner that reads comments is measuring the documentation, not the product.
+ */
+function code(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+}
+
 const cssAndTs = () =>
   execFileSync('git', ['ls-files', 'app', 'components', 'styles'], { encoding: 'utf8' })
     .split('\n')
@@ -80,8 +95,36 @@ describe('the type scale is the only source of type sizes', () => {
       if (file === 'styles/tokens.css') continue // where the scale is DEFINED
       if (file in OFF_SCALE_ALLOWED) continue
       const src = readFileSync(file, 'utf8')
-      for (const m of src.matchAll(/font-size:\s*([0-9.]+)(px|rem|em)/g)) {
+      /*
+       * ★ EVERY LENGTH UNIT, NOT THREE. The first version of this gate read px|rem|em and
+       * reported the product clean while /documents carried ten `pt` declarations. They turned
+       * out to be legitimate print styles, but the gate did not know that — it simply could not
+       * see them, which is the same thing as not checking.
+       */
+      const printOnly = /@media\s+print/.test(src)
+      for (const m of src.matchAll(/font-size:\s*([0-9.]+)(px|rem|em|pt|pc|in|cm|mm|ex|ch|vw|vh|vmin|vmax)/g)) {
+        // `pt` inside a print stylesheet is the correct unit for paper and is not a screen size
+        if (m[2] === 'pt' && printOnly) continue
         offenders.push(`${file}: ${m[1]}${m[2]}`)
+      }
+      /*
+       * ★ AND THE `font:` SHORTHAND, which sets size and weight while matching neither property
+       * name. The notification badge hid `font: 700 10px/16px var(--font-mono)` from a sweep that
+       * read every font-size and font-weight in the product. A grep for a property cannot see a
+       * property set by a shorthand, and the shorthand is where a value goes to be forgotten.
+       */
+      for (const m of src.matchAll(/(?:^|[;{\s])font:\s*([^;}]+)/g)) {
+        const v = (m[1] ?? '').trim()
+        /*
+         * `font: inherit` is not a type decision, it is the idiomatic refusal to make one:
+         * form controls do not inherit the page font without it, and every button and input in
+         * the product uses it correctly. Flagging it would put 20 correct declarations in front
+         * of a reader looking for the one wrong one, and a gate that cries wolf gets muted.
+         *
+         * What IS flagged is a shorthand carrying an actual measurement.
+         */
+        if (!/[0-9]/.test(v)) continue
+        offenders.push(`${file}: font shorthand "${v.slice(0, 40)}"`)
       }
     }
     expect(
@@ -107,7 +150,7 @@ describe('the type scale is the only source of type sizes', () => {
     const offenders: string[] = []
     for (const file of cssAndTs()) {
       if (file in OFF_SCALE_ALLOWED) continue
-      const src = readFileSync(file, 'utf8')
+      const src = code(readFileSync(file, 'utf8'))
       /*
        * The whole declaration value, not `[\w-]+`. The first version of this regex captured
        * only "var" out of `var(--fw-600)` and then tested `v.startsWith('var(')`, which is
@@ -131,7 +174,7 @@ describe('the type scale is the only source of type sizes', () => {
       } catch {
         return true // the file is gone
       }
-      return !/font-size:\s*[0-9.]+(px|rem|em)/.test(src)
+      return !/font-size:\s*[0-9.]+(px|rem|em|pt)/.test(code(src))
     })
     expect(stale, 'a stale exception is a licence nobody is using, and it hides a change').toEqual(
       [],
