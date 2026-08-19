@@ -186,9 +186,28 @@ export type NsnAwardSummary = {
  * The span of award dates the feed actually covers.
  *
  * Load-bearing for honesty, not decoration. A "longest gap in demand" of 9.3 years sounds
- * absolute and is not: the export spans 2016 to 2026, so no gap longer than about ten years
- * COULD be observed, whatever the item's real history. Every surface that renders a dormancy
+ * absolute and is not: this index spans 2016 to 2026, so no gap longer than about ten years
+ * can be observed IN IT, whatever the item's real history. Every surface that renders a dormancy
  * figure has to be able to say what the window was, so the window travels with the index.
+ *
+ * ---------------------------------------------------------------------------------------
+ * ★ AND THE TEN YEARS ARE OURS, NOT THE DATA'S. THIS NOTE USED TO SAY OTHERWISE.
+ * ---------------------------------------------------------------------------------------
+ * It previously read "no gap longer than about ten years COULD be observed", which states a
+ * limit of the world. It is a limit of the DOOR WE USED. The NSN-Now Batch Export caps its
+ * extraction period at ten years; the same site's `/Analysis/` reports accept a range beginning
+ * in **1960** and cost nothing against the Batch Export quota (measured 2026-08-19: a 33,664-row
+ * FSC query left the counter at 7 of 25, unmoved).
+ *
+ * So the window is a property of THIS INDEX and must be read as one. The distinction is the same
+ * one that cost this build 669 stock numbers on the same night: `full_1` and `full_3` stopped at
+ * exactly 20,000 rows, and that ceiling was recorded as "no award history" — a fact about our
+ * acquisition, rendered as a fact about DLA.
+ *
+ *     A ROUND NUMBER IS NEVER DATA. IT IS ALWAYS A CEILING.
+ *
+ * Nothing here may say the history does not exist before `firstAwardIso`. It says only that this
+ * index does not hold it, and where the deeper history can be fetched from.
  */
 export type FeedWindow = { firstAwardIso: string | null; lastAwardIso: string | null; years: number | null }
 

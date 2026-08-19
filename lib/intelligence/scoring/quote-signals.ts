@@ -44,6 +44,12 @@ import type { FeedWindow, NsnAwardSummary } from '../awards/nsn-now'
  * a fact about the item, it is a fact about the item AND the window. No gap longer than the
  * window can be observed however dormant the part really was. Any signal bounded by the window
  * carries a `limitation` sentence saying so, and the interface renders it.
+ *
+ * ★ AND THE ELEVEN YEARS ARE A CHOICE, NOT A CEILING ON THE WORLD. They are the NSN-Now Batch
+ * Export's maximum extraction period. The same site's `/Analysis/` reports accept a range
+ * starting in 1960 at no quota cost. So this censoring is fixable by fetching, not merely
+ * disclosable — do not let the `limitation` sentence harden into a belief that the history
+ * stops. See the FeedWindow note in `lib/intelligence/awards/nsn-now.ts`.
  */
 
 export type QuoteSignalId =
