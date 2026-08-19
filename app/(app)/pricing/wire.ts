@@ -93,9 +93,39 @@ const RUNG_STRENGTH: Readonly<Record<RecommendationRung, number>> = Object.freez
  * hardcoded list is a defect with a delay on it: add a sixth rung and the map silently returns
  * undefined on the newest, weakest basis. Position in the ladder is the only fact this needs.
  */
+/**
+ * ★★ CONFIDENCE IS NOT DERIVABLE FROM LADDER POSITION, AND DERIVING IT THAT WAY SHIPPED A FALSE
+ * CLAIM ON THE MONEY FIELD. Corrected 2026-08-19.
+ *
+ * This function used to read the rung's INDEX and return a tier from it: index 1 became
+ * "strong basis". That is a reasonable-looking abstraction and it is wrong, because **the ladder
+ * is ordered by the PROVENANCE of the evidence, not by the measured OUTCOME of using it.** R2
+ * sits second because it stands on this item's own last award, which is excellent provenance.
+ * Its outcome is not.
+ *
+ * MEASURED over 6,042,114 ordered award pairs, asking whether the recommendation would have come
+ * in at or below the price the item ACTUALLY cleared at next time: the R2 multiple clears 0.5%,
+ * and 0.1% with order quantity held fixed. Repeating the previous price unmultiplied clears
+ * 92.5%. So 35 rows on the live board were labelled "strong basis" while carrying a figure our
+ * own corpus says wins under one time in two hundred.
+ *
+ * The dossier panel was corrected first and this was missed, which is the estate's own law: a
+ * check validated on one implementation lies about the other. Both renderers read THIS function,
+ * so the correction lives here and cannot be half-applied again.
+ *
+ * The position-derived shape was still right for one reason and it is kept for the rungs where
+ * position and outcome agree: a hardcoded list per rung is a defect with a delay on it. What may
+ * not be derived from position is a claim about how well the basis WORKS.
+ */
 export function confidenceTier(rung: RecommendationRung): string {
   const i = RUNG_STRENGTH[rung]
   const last = RECOMMENDATION_RUNGS.length - 1
+  /*
+   * Named explicitly, not by index, because this is an empirical fact about ONE rung rather than
+   * a structural fact about its place. If the ladder is reordered this claim must move with the
+   * rung it describes, and an index would silently reattach it to whatever landed in slot 1.
+   */
+  if (rung === 'R2_LAST_AWARD_MULTIPLE') return 'your stated rule, not a measured basis'
   if (i === 0) return 'strongest basis we hold'
   if (i === last) return 'weakest basis we hold'
   if (i === 1) return 'strong basis'
