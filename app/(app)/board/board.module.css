@@ -15,7 +15,7 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
 }
 .sub {
   font-size: var(--fs-300);
@@ -48,7 +48,7 @@
 .truth p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .truth b {
   color: var(--ink);
@@ -126,7 +126,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .pathList {
   display: flex;

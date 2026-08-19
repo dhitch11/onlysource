@@ -19,13 +19,13 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
 }
 .sub {
   font-size: var(--fs-300);
   color: var(--dim);
   max-width: 70ch;
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 .stats {
@@ -60,8 +60,8 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: var(--lh-000);
+  letter-spacing: var(--track-display);
 }
 .statHot .statN {
   color: var(--accent);
@@ -70,7 +70,7 @@
   font-size: var(--fs-200);
   color: var(--dim);
   margin-top: var(--sp-2);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 .statL b {
   color: var(--ink);
@@ -95,7 +95,7 @@
 .truth p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .truth b {
   color: var(--ink);
@@ -180,7 +180,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -383,7 +383,7 @@
   background: var(--panel);
   color: var(--dim);
   font-size: var(--fs-200);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .elsewhere strong {
   color: var(--ink);

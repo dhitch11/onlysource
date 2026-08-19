@@ -47,9 +47,9 @@
 .nsn {
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  letter-spacing: 0.01em;
+  letter-spacing: var(--track-wide);
   color: var(--ink);
-  line-height: 1.1;
+  line-height: var(--lh-700);
   word-break: break-word;
 }
 .item {
@@ -84,7 +84,7 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-800);
   font-weight: var(--fw-bold);
-  line-height: 1;
+  line-height: var(--lh-000);
   color: var(--accent);
 }
 .scoreCaption {
@@ -124,7 +124,7 @@
 .cardSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 68ch;
 }
 
@@ -175,7 +175,7 @@
   border-left: 2px solid var(--warn, var(--dim));
   border-radius: var(--r-2, 6px);
   font-size: var(--fs-200);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   color: var(--dim);
 }
 .scaleNote strong {
@@ -208,7 +208,7 @@
 .empty {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 .endItems {
@@ -312,7 +312,7 @@
 .legPlain {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 /* ------------------------------------------------------------------- gaps */
@@ -341,7 +341,7 @@
 .gapList li {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 /* ------------------------------------------------------------- AI brief */
@@ -369,7 +369,7 @@
 .briefSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 62ch;
   margin-top: 2px;
 }
@@ -402,7 +402,7 @@
 .briefEmpty {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 .briefLoading {
@@ -469,14 +469,14 @@
 .briefText {
   font-size: var(--fs-300);
   color: var(--ink);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 70ch;
 }
 /* The honesty footer: which model actually wrote it, and whether the guard cut anything. */
 .briefProvenance {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 /* -------------------------------------------------------------- fallback */
@@ -498,7 +498,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 /* ------------------------------------------------------------ responsive */
@@ -550,7 +550,7 @@
 .signalsIntro {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   margin-bottom: 0.9rem;
   max-width: 76ch;
 }
@@ -610,7 +610,7 @@
 
 .signalReading {
   font-size: var(--fs-100);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   color: var(--ink);
 }
 
@@ -618,7 +618,7 @@
    pretending to be a fact. */
 .signalLimit {
   font-size: var(--fs-100);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   color: var(--faint);
   margin-top: 0.4rem;
   padding-top: 0.4rem;
@@ -755,7 +755,7 @@
     margin: var(--sp-3) 0 0;
     font-size: var(--fs-200);
     color: var(--dim);
-    line-height: 1.5;
+    line-height: var(--lh-300);
   }
 
   /*

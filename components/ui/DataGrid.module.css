@@ -172,7 +172,7 @@
    * different kind of value from a type size.
    */
   font-size: 1.15em;
-  line-height: 1;
+  line-height: var(--lh-000);
   transition: transform 160ms ease, color 160ms ease;
 }
 .rowClickable:hover td:first-child::before {
@@ -469,9 +469,9 @@
     content: attr(data-label);
     font-size: var(--fs-100, 0.72rem);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--track-label);
     color: var(--dim);
-    line-height: 1.4;
+    line-height: var(--lh-200);
   }
   /* A cell with no label would silently swallow its value into the first column. */
   .table tbody td:not([data-label])::before {
@@ -525,7 +525,7 @@
     margin: var(--sp-2) 0 0;
     font-size: var(--fs-200);
     color: var(--dim);
-    line-height: 1.5;
+    line-height: var(--lh-300);
   }
   /*
    * Rows are ordered strongest-basis-first, so the FIRST fifteen are the ones worth keeping.
@@ -611,7 +611,7 @@
   height: 22px;
   border-radius: 5px;
   font-size: var(--fs-100);
-  line-height: 1;
+  line-height: var(--lh-000);
 }
 .searchClear {
   border: 0;

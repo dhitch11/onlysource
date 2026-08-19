@@ -41,7 +41,7 @@
   font-size: var(--fs-500);
   font-weight: var(--fw-heavy);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--track-tight);
 }
 
 /* ------------------------------------------------------------------- the figure */
@@ -55,9 +55,9 @@
 .figureNum {
   font-size: var(--fs-700, 2rem);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: var(--lh-700);
   min-width: 0;
   /* A band on a narrow phone wraps rather than forcing the page to scroll sideways. */
   overflow-wrap: anywhere;
@@ -66,7 +66,7 @@
   font-size: var(--fs-200);
   color: var(--dim);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-label);
 }
 
 .basis {
@@ -86,7 +86,7 @@
 }
 .basisState {
   font-size: var(--fs-100, 0.72rem);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-label);
   color: var(--dim);
   font-variant: small-caps;
 }
@@ -95,7 +95,7 @@
   margin: 0;
   font-size: var(--fs-300);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 .arith {
@@ -110,7 +110,7 @@
 .arithLabel {
   color: var(--dim);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-label);
   font-size: var(--fs-100, 0.72rem);
 }
 
@@ -141,7 +141,7 @@
 .totalLabel {
   font-size: var(--fs-100, 0.72rem);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--track-label);
   color: var(--dim);
 }
 .totalValue {
@@ -157,7 +157,7 @@
 .totalNote {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 /* ------------------------------------------------------------------- caveats */
@@ -171,7 +171,7 @@
 .caveat {
   font-size: var(--fs-200);
   color: var(--ink);
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 /* ------------------------------------------------------------------- sharpen */
@@ -183,7 +183,7 @@
 .sharpenLabel {
   font-size: var(--fs-100, 0.72rem);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-label);
   color: var(--dim);
 }
 .sharpenList {
@@ -194,7 +194,7 @@
   gap: var(--sp-1);
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 /* ------------------------------------------------------------------- the ladder */
@@ -252,7 +252,7 @@
   margin: 0;
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   overflow-x: auto;
 }
 
@@ -261,7 +261,7 @@
   margin: 0;
   font-size: var(--fs-300);
   color: var(--ink);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .abstainWhat {
   margin: 0;

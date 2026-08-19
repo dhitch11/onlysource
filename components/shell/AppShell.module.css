@@ -48,9 +48,9 @@
 .wordmark {
   display: block;
   font-weight: var(--fw-bold);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-label);
   font-size: var(--fs-300);
-  line-height: 1;
+  line-height: var(--lh-000);
 }
 
 .wordmark b {
@@ -61,6 +61,12 @@
 .brandSub {
   display: block;
   font-size: var(--fs-100);
+  /*
+   * 0.18em, OFF THE TRACKING SCALE ON PURPOSE. This is the "INTELLIGENCE" line of the wordmark
+   * lockup, and a logo's letterfit is a brand decision rather than a text style. Folding it into
+   * --track-label would quietly redraw the mark; giving it a token would invite it to be reused
+   * on something that is not the mark.
+   */
   letter-spacing: 0.18em;
   color: var(--faint);
   text-transform: uppercase;
@@ -109,7 +115,7 @@
 .groupLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-100); /* 11px */
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   font-weight: var(--fw-semibold);
   color: var(--faint);

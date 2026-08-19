@@ -21,7 +21,7 @@
   margin: 0;
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .list {
   margin: 0;
@@ -80,7 +80,7 @@
   margin: 0;
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 /*
@@ -91,7 +91,7 @@
   margin: 0;
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
   border-left: 2px solid var(--line);
   padding-left: var(--sp-3);
 }
@@ -116,5 +116,5 @@
   font-size: var(--fs-100, 0.72rem);
   color: var(--dim);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--track-label);
 }

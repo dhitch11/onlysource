@@ -134,6 +134,31 @@ export default defineConfig({
           include: ['test/**/*.test.ts'],
           exclude: [...SHARED_EXCLUDE, ...HEAVY_INTELLIGENCE_TESTS],
           sequence: { groupOrder: 0 },
+          /*
+           * ★ 30s HERE TOO, AND FOR A REASON THAT TOOK THREE FAILURES TO SEE.
+           *
+           * Three different files timed out at the inherited 5,000ms in three consecutive full
+           * runs, and each time the reflex was to move that file into the heavy project:
+           *
+           *     test/thomas/engine-authz.test.ts        15 tests in   288ms alone
+           *     test/feed-window/wiring.test.ts         21 tests in 5,550ms alone
+           *     test/data-health/archive-reading.test.ts 5 tests in   338ms alone
+           *
+           * The last one settles it. 338ms is not a heavy test by any reading, and it has no
+           * corpus, no database and no xlsx. It timed out because it was STARVED OF CPU while
+           * the heavy project's parses saturated the machine, and any file can be the one that
+           * loses that race. Moving files one at a time was treating the symptom, and it could
+           * never converge: the population of candidates is every test in the suite.
+           *
+           * So the default project gets the same 30s the heavy one already has, on the same
+           * stated grounds - a guard against a hang, NOT a performance budget. If a unit test
+           * ever genuinely takes 30 seconds, that is a real finding and it should still fail.
+           *
+           * The two files already moved stay moved: `wiring.test.ts` reads the corpus and asked
+           * for the heavy project in its own comment, and that is true on its own merits rather
+           * than because of a timeout.
+           */
+          testTimeout: 30_000,
         },
       },
       {

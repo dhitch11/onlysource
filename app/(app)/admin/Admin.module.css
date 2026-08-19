@@ -131,7 +131,7 @@
 
 .head {
   font-size: var(--fs-100);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--faint);
   font-weight: var(--fw-bold);
@@ -200,7 +200,7 @@
 
 .cardTitle {
   font-size: var(--fs-100);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--dim);
   font-weight: var(--fw-bold);
@@ -274,7 +274,7 @@
 .wouldAdd {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 
 /* ---------------- the roster console ---------------- */
@@ -302,7 +302,7 @@
 .accessNote {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 78ch;
   margin-bottom: 0.9rem;
 }
@@ -318,7 +318,7 @@
   border-radius: 0.5rem;
   padding: 0.6rem 0.8rem;
   margin-bottom: 0.9rem;
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 .addForm {
@@ -423,7 +423,7 @@
 .rowReason {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.4;
+  line-height: var(--lh-200);
   max-width: 68ch;
 }
 
@@ -432,7 +432,7 @@
 .tableNote {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 88ch;
   margin-top: 0.7rem;
 }
@@ -505,7 +505,7 @@
   border-radius: 0.5rem;
   padding: 0.6rem 0.8rem;
   margin-bottom: 0.9rem;
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 /* ---------------------------------------------------------------------------------------

@@ -41,7 +41,7 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
   color: var(--ink);
   min-width: 0;
 }
@@ -77,7 +77,7 @@
   font-size: var(--fs-300);
   color: var(--dim);
   max-width: 74ch;
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .sub b {
   color: var(--ink);
@@ -107,7 +107,7 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  line-height: 1.05;
+  line-height: var(--lh-000);
   color: var(--accent);
 }
 .metricLabel {
@@ -118,7 +118,7 @@
 .metricHint {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 
 .card {
@@ -139,7 +139,7 @@
 .cardSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
   max-width: 80ch;
 }
 .empty {
@@ -238,7 +238,7 @@
 .tableFoot {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -263,7 +263,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .unavailable code {
   font-family: var(--font-mono);
@@ -330,7 +330,7 @@
 .pullBandFoot {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 84ch;
 }
 .pullBandFoot {
@@ -370,7 +370,7 @@
 .factNote {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.45;
+  line-height: var(--lh-200);
 }
 
 .verdict {
@@ -380,12 +380,12 @@
   flex-wrap: wrap;
   font-size: var(--fs-300);
   color: var(--ink);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .correction {
   font-size: var(--fs-200);
   color: var(--ink);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 84ch;
   border-inline-start: 2px solid var(--accent-2);
   padding-inline-start: var(--sp-3);
@@ -398,7 +398,7 @@
   padding-inline-start: var(--sp-4);
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 90ch;
 }
 .factList b {
@@ -408,7 +408,7 @@
 .caveat {
   font-size: var(--fs-200);
   color: var(--faint);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 90ch;
   border-top: 1px solid var(--line);
   padding-top: var(--sp-3);
@@ -417,7 +417,7 @@
 .metricMoney {
   display: block;
   font-size: var(--fs-400);
-  line-height: 1.2;
+  line-height: var(--lh-600);
 }
 
 .makerName {
@@ -434,7 +434,7 @@
   display: block;
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   max-width: 34ch;
 }
 .makerCell {
@@ -445,7 +445,7 @@
   display: block;
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   max-width: 34ch;
 }
 .cellAbsent {
@@ -479,7 +479,7 @@
 .layerBody {
   font-size: var(--fs-200);
   color: var(--faint);
-  line-height: 1.6;
+  line-height: var(--lh-300);
   max-width: 88ch;
 }
 

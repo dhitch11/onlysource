@@ -69,7 +69,7 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
 }
 /* The page title with its explainer beside it, never inside the heading element. */
 .titleRow {
@@ -81,7 +81,7 @@
   font-size: var(--fs-300);
   color: var(--dim);
   max-width: 68ch;
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 /* ---------- the funnel ---------- */
@@ -136,8 +136,8 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: var(--lh-000);
+  letter-spacing: var(--track-display);
   color: var(--ink);
   flex: none;
 }
@@ -181,8 +181,8 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: var(--lh-000);
+  letter-spacing: var(--track-display);
 }
 .statHot .statN {
   color: var(--accent);
@@ -191,7 +191,7 @@
   font-size: var(--fs-200);
   color: var(--dim);
   margin-top: var(--sp-2);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 .statL b {
   color: var(--ink);
@@ -217,7 +217,7 @@
 .truth p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .truth b {
   color: var(--ink);
@@ -467,7 +467,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .pathList code {
   font-family: var(--font-mono);
@@ -500,7 +500,7 @@
 .bound {
   font-size: var(--fs-100);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   margin-top: calc(-1 * var(--sp-2));
 }
 .bound b {

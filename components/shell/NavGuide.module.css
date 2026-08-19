@@ -85,7 +85,7 @@
   font-size: var(--fs-300);
   font-weight: var(--fw-semibold);
   color: var(--accent);
-  letter-spacing: 0.02em;
+  letter-spacing: var(--track-wide);
 }
 
 .lead {

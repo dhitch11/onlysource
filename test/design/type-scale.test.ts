@@ -166,6 +166,62 @@ describe('the type scale is the only source of type sizes', () => {
     expect(offenders, 'font-weight is 400, 500, 600 or 700').toEqual([])
   })
 
+  /*
+   * LINE-HEIGHT AND TRACKING ARE THE SAME DEFECT, TWICE MORE.
+   *
+   * Measured with the sizes: 124 raw line-heights across 11 values, and 32 raw letter-spacings
+   * across 11. Three of the line-heights - 1.55 (x27), 1.45 (x13) and 1.6 (x11) - were not even
+   * tokens, so 51 declarations set a leading the design system had never defined. Six of the
+   * eleven trackings sat between 0.05 and 0.12em and every one was on an uppercase label: the
+   * same job done six slightly different ways.
+   *
+   * Neither is visible one declaration at a time. Both are visible everywhere at once.
+   */
+  const LH_EXEMPT: Record<string, string> = {
+    'components/shell/notification-center.module.css':
+      'a px line-height equal to the badge box, which is what centres a digit in a 16px pill',
+    'app/api/pursuit-package/email/route.ts': 'inline style in an email',
+    'app/api/outreach-draft/email/route.ts': 'inline style in an email',
+  }
+
+  it('has no line-height off the ladder', () => {
+    const offenders: string[] = []
+    for (const file of cssAndTs()) {
+      if (file === 'styles/tokens.css' || file in LH_EXEMPT) continue
+      const src = code(readFileSync(file, 'utf8'))
+      /*
+       * @media print is skipped, for the same reason `pt` is: paper has its own rhythm and its
+       * own unit, and a screen ladder has no authority over it. Skipped EXPLICITLY here rather
+       * than by a regex that cannot see them, which is the distinction that mattered for `pt`.
+       */
+      let depth = 0
+      let printAt: number | null = null
+      for (const line of src.split('\n')) {
+        if (/@media[^{]*print/.test(line)) printAt = depth
+        const m = /line-height:\s*([0-9.]+)\s*;/.exec(line)
+        if (m && printAt === null) offenders.push(`${file}: ${m[1]}`)
+        depth += (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0)
+        if (printAt !== null && depth <= printAt) printAt = null
+      }
+    }
+    expect(offenders, 'use a --lh-* token').toEqual([])
+  })
+
+  it('has no letter-spacing off the four tracking roles', () => {
+    const EXEMPT = 'components/shell/AppShell.module.css' // the wordmark lockup, see its comment
+    const offenders: string[] = []
+    for (const file of cssAndTs()) {
+      if (file === 'styles/tokens.css' || file === EXEMPT) continue
+      const src = code(readFileSync(file, 'utf8'))
+      for (const m of src.matchAll(/letter-spacing:\s*(-?[0-9.]+(?:em|rem|px))/g)) {
+        offenders.push(`${file}: ${m[1]}`)
+      }
+    }
+    expect(offenders, 'use --track-display, --track-tight, --track-wide or --track-label').toEqual(
+      [],
+    )
+  })
+
   it('lists nothing in the exception table that no longer needs it', () => {
     const stale = Object.keys(OFF_SCALE_ALLOWED).filter((f) => {
       let src: string

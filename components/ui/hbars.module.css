@@ -46,7 +46,7 @@
 .empty {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -88,7 +88,7 @@
 .note {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 60ch;
 }
 

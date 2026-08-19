@@ -19,14 +19,14 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
   color: var(--ink);
 }
 .sub {
   font-size: var(--fs-300);
   color: var(--dim);
   max-width: 72ch;
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 /*
  * THE BASIS SENTENCE. Quieter than .sub because it is provenance rather than a subtitle, but
@@ -39,7 +39,7 @@
   font-size: var(--fs-100);
   color: var(--dim);
   max-width: 88ch;
-  line-height: 1.6;
+  line-height: var(--lh-300);
   border-left: 2px solid var(--line);
   padding-left: var(--sp-3);
 }
@@ -65,7 +65,7 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  line-height: 1;
+  line-height: var(--lh-000);
   color: var(--accent);
 }
 .metricLabel {
@@ -76,7 +76,7 @@
 .metricHint {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 
 /* -------------------------------------------------------------------- charts */
@@ -104,7 +104,7 @@
 .chartSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 68ch;
 }
 
@@ -243,7 +243,7 @@
 .briefSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   max-width: 64ch;
   margin-top: 2px;
 }
@@ -276,7 +276,7 @@
 .briefEmpty {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .briefLoading {
   display: flex;
@@ -323,7 +323,7 @@
 .briefText {
   font-size: var(--fs-300);
   color: var(--ink);
-  line-height: 1.6;
+  line-height: var(--lh-300);
 }
 /* A chart title with its eye-in-circle explainer beside it, never inside the heading
  * element (the explainer's popover is a div, invalid inside a heading's phrasing run). */
@@ -338,7 +338,7 @@
   grid-column: 1 / -1;
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 /* -------------------------------------------------------------- fallback */
@@ -360,7 +360,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 /* ------------------------------------------------------------ responsive */

@@ -71,6 +71,18 @@
    * the largest thing on its page, and there is exactly one of them per screen.
    */
 
+  /*
+   * ★ --lh-000 IS THE SINGLE-LINE DISPLAY FIGURE, and it is a role rather than a step.
+   *
+   * Thirteen declarations already used a bare 1 or 1.05 for exactly one thing: the big number
+   * in a stat card - .metricN, .funnelN, .statN, .scoreN. Those never wrap, and any leading
+   * above 1 puts air under the figure that has to be removed again with a negative margin.
+   *
+   * The rest of this ladder pairs with --fs-* BY ROLE, which is why --lh-300 and --lh-400 are
+   * both 1.5 and why it is not monotonic: a 13px uppercase label wants 1.35 and 15px body wants
+   * 1.5. That is deliberate and is not a duplicate to be cleaned up.
+   */
+  --lh-000: 1;
   --lh-100: 1.35;
   --lh-200: 1.4;
   --lh-300: 1.5;
@@ -97,8 +109,17 @@
 
   /* Tracking. The uppercase label pattern from the console, tightened to buy back the
    * width that the larger floor size costs. */
-  --track-label: 0.08em;
-  --track-tight: -0.01em;
+  /*
+   * TRACKING, AS FOUR ROLES. The product was using ELEVEN values across 32 declarations:
+   * -0.02, -0.01, 0.01, 0.02, 0.05, 0.06, 0.07, 0.08, 0.1, 0.12, 0.18em. Six of those sat
+   * between 0.05 and 0.12 and every one of them was on an uppercase label - the same job,
+   * done six slightly different ways, which is what makes a set of screens look assembled.
+   */
+  --track-display: -0.02em; /* big figures and page titles: the only place negative tracking
+                               belongs, because it is optical correction at size, not a style */
+  --track-tight: -0.01em; /*   a shade tight, for long identifiers set in mono            */
+  --track-wide: 0.02em; /*     brand and nav, where a little air reads as deliberate       */
+  --track-label: 0.08em; /*    THE uppercase-label tracking. One value, every label.       */
 
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;

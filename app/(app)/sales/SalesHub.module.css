@@ -347,7 +347,7 @@
   font-size: var(--fs-100, 0.8125rem);
   color: var(--dim);
   margin-top: 4px;
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 .cardControls {
   display: flex;
@@ -431,7 +431,7 @@
  * row so the dismiss control sits beside the text instead of under it. */
 .cardRefusal {
   font-size: var(--fs-100);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   color: var(--ink);
   border: 1px solid var(--line-control);
   border-radius: var(--radius-sm);
@@ -443,7 +443,7 @@
 }
 .cardNote {
   font-size: var(--fs-100);
-  line-height: 1.45;
+  line-height: var(--lh-200);
   color: var(--olive);
   border-inline-start: 2px solid var(--olive-dim);
   padding-inline-start: var(--sp-2);
@@ -506,7 +506,7 @@
 .closeHint {
   font-size: var(--fs-100);
   color: var(--dim);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 .closeActions {
   display: flex;

@@ -19,14 +19,14 @@
 .h1 {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-display);
   color: var(--ink);
 }
 .sub {
   font-size: var(--fs-300);
   color: var(--dim);
   max-width: 74ch;
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 .sub b {
   color: var(--ink);
@@ -66,7 +66,7 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  line-height: 1.05;
+  line-height: var(--lh-000);
   color: var(--accent);
   /* The size-of-buy figure can be eight digits; let it shrink rather than push the tile wider. */
   overflow-wrap: anywhere;
@@ -84,7 +84,7 @@
 .metricHint {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.4;
+  line-height: var(--lh-200);
 }
 
 .card {
@@ -105,7 +105,7 @@
 .cardSub {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
   max-width: 78ch;
 }
 .empty {
@@ -212,7 +212,7 @@
 .tableFoot {
   font-size: var(--fs-100);
   color: var(--faint);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 .unavailable {
@@ -233,7 +233,7 @@
 .unavailable p {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.55;
+  line-height: var(--lh-300);
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -81,12 +81,12 @@
   color: var(--accent-on-fill);
   font-weight: var(--fw-bold);
   font-size: var(--fs-200);
-  line-height: 1;
+  line-height: var(--lh-000);
 }
 
 .launcherLabel {
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.01em;
+  letter-spacing: var(--track-wide);
 }
 
 /* A live voice session is visible from the launcher even when the panel is shut. */
@@ -225,7 +225,7 @@
   display: block;
   font-size: var(--fs-300);
   color: var(--ink);
-  line-height: 1.1;
+  line-height: var(--lh-700);
 }
 
 .role {
@@ -281,7 +281,7 @@
   background: transparent;
   color: var(--dim);
   font-size: var(--fs-400);
-  line-height: 1;
+  line-height: var(--lh-000);
   cursor: pointer;
 }
 
@@ -315,7 +315,7 @@
   border-bottom: 1px solid var(--line);
   background: var(--panel-2);
   font-size: var(--fs-100);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   color: var(--dim);
 }
 
@@ -345,7 +345,7 @@
 .emptyLead {
   margin: 0;
   font-size: var(--fs-200);
-  line-height: 1.55;
+  line-height: var(--lh-300);
   color: var(--dim);
 }
 
@@ -388,7 +388,7 @@
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius-lg);
   font-size: var(--fs-200);
-  line-height: 1.55;
+  line-height: var(--lh-300);
   overflow-wrap: anywhere; /* a long stock number must wrap, never widen the panel */
 }
 
@@ -505,7 +505,7 @@
  */
 .withheld {
   font-size: var(--fs-100);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   color: var(--ink);
   border-left: 3px solid var(--amber);
   background: var(--panel-2);
@@ -562,7 +562,7 @@
   color: var(--ink);
   font: inherit;
   font-size: var(--fs-200);
-  line-height: 1.5;
+  line-height: var(--lh-300);
   resize: none;
 }
 

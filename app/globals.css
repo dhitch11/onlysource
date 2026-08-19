@@ -234,7 +234,7 @@ a {
   align-items: baseline;
   gap: var(--sp-2);
   font-weight: var(--fw-bold);
-  letter-spacing: 0.02em;
+  letter-spacing: var(--track-wide);
 }
 
 .shell__brand span {
@@ -634,8 +634,8 @@ b {
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
   font-weight: var(--fw-bold);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: var(--lh-000);
+  letter-spacing: var(--track-display);
   color: var(--ink);
 }
 .metricCard--hot .metricN {
@@ -677,7 +677,7 @@ b {
 .topCorner__nsn {
   font-size: var(--fs-600);
   font-weight: var(--fw-bold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--track-tight);
   margin-top: var(--sp-0);
 }
 .topCorner__item {
@@ -929,7 +929,7 @@ b {
 .signalCard__sev {
   font-family: var(--font-mono);
   font-size: var(--fs-100);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   color: var(--faint);
   align-self: flex-start;
@@ -954,7 +954,7 @@ b {
 .signalCard__body {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .signalCard__go {
   margin-top: auto;

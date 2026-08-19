@@ -45,6 +45,12 @@
   font-family: var(--font-mono);
   font-size: var(--fs-100);
   font-weight: var(--fw-bold);
+  /*
+   * A PX LINE-HEIGHT, and deliberately not a token. It equals the badge's own `block-size`,
+   * which is what centres a single digit inside a 16px pill. That is a box dimension wearing a
+   * type property's name, and pinning it to a unitless ratio would uncentre the digit the next
+   * time the pill is resized.
+   */
   line-height: 16px;
   text-align: center;
 }
@@ -89,7 +95,7 @@
   padding: var(--sp-5) var(--sp-4);
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .list {
   display: flex;
@@ -119,7 +125,7 @@
 .itemBody {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 
 .sev {
@@ -178,7 +184,7 @@
 .toastBody {
   font-size: var(--fs-200);
   color: var(--dim);
-  line-height: 1.5;
+  line-height: var(--lh-300);
 }
 .toastActions {
   display: flex;
