@@ -4,6 +4,7 @@ import type { Route } from 'next'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
+import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
@@ -134,7 +135,25 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
       <header className={styles.head}>
         <div className={styles.headMain}>
           <p className={styles.eyebrow}>Corner dossier</p>
-          <h1 className={`mono ${styles.nsn}`}>{row.nsn}</h1>
+          {/*
+            * THE HEADING SHOWS THE HUMAN STOCK NUMBER, NOT THE JOIN KEY.
+            *
+            * This rendered `1005017317348` while every other surface in the product shows
+            * `1005-01-731-7348`. It is the page's main heading: the first thing a screen reader
+            * announces and the thing the tab title carries, on the flagship dossier.
+            *
+            * `formatNsn` is the product's one display formatter, reused rather than reimplemented.
+            * If the number cannot be parsed the RAW value is shown rather than nothing, because a
+            * heading that silently empties is worse than an unformatted one.
+            */}
+          <h1 className={`mono ${styles.nsn}`}>
+            {(() => {
+              // `fsc` is nullable by design: a NIIN alone is a complete, valid stock number and
+              // has no class to hyphenate. Format only when the class is actually present.
+              const parsed = parseNsn(row.nsn)
+              return parsed?.fsc ? formatNsn(parsed.fsc, parsed.niin) : row.nsn
+            })()}
+          </h1>
           <p className={styles.item}>{dossier.item}</p>
           <div className={styles.chips}>
             {row.soleSource ? (
