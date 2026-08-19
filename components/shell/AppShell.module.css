@@ -373,9 +373,42 @@
     display: none;
   }
 
+  /*
+   * ONE ROW, NOT THREE.
+   *
+   * `.topMeta` is `flex-wrap: wrap`, which on a desktop puts a handful of status items on one
+   * line and at 320 folded them into THREE stacked rows: the feed-day pill and its eye, then
+   * the environment pill with the build id and the bell, then the Leave button alone on a line
+   * of its own. Together with the brand row and the nav row that is five bands of chrome, and
+   * measured on an 844px phone the page title did not begin until roughly 650px down — about
+   * 77% of the first screen gone before a word of content.
+   *
+   * Wrapping is the wrong behaviour for a status strip. These items are peers of one another
+   * and none of them is worth a row; they are glanceable, not read. So the strip stops
+   * wrapping and scrolls inside itself, the same treatment the nav strip and the data grids
+   * already use, and it costs one band instead of three.
+   *
+   * `min-inline-size: 0` and `contain: layout` are both load-bearing, not decoration:
+   * `overflow-x: auto` clips correctly on its own, but without containment the row's
+   * max-content width still leaks into `documentElement.scrollWidth` and the whole page
+   * reports as horizontally scrollable. That is the same root-overflow quirk the nav carries
+   * its own comment for, and it is the difference between a contained strip and a page that
+   * slides sideways on a phone.
+   */
   .topMeta {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    contain: layout;
+    min-inline-size: 0;
     padding-inline: var(--sp-3);
     gap: var(--sp-2);
+  }
+
+  /* Nothing in the strip may shrink to a smudge or wrap mid-phrase while scrolling is the
+   * mechanism. A pill that has collapsed to two characters is worse than one you scroll to. */
+  .topMeta > * {
+    flex: none;
   }
 
   /*
