@@ -105,6 +105,36 @@ import { dataPath } from '../../lib/data-root'
 
 const SOURCE_DIR = process.env.FLIS_SOURCE_DIR ?? path.join(os.homedir(), 'onlysource-data', 'flis')
 
+
+/**
+ * ★ THE GOVERNMENT PUBLISHES ITS OWN CODE FOR "NOTHING", AND JAVASCRIPT CALLS IT TRUE.
+ *
+ * FLIS writes `"0"` for a code that has NOT BEEN ASSIGNED. `DoD 4100.39-M Volume 10, Chapter 4,
+ * Table 71` states it for AMC as `0 = Not established.` It is a stated absence, not a value.
+ *
+ * `if (amsc)` cannot tell `"G"` from `"0"`, because a non-empty string is truthy. So a stated
+ * absence was being recorded as a determination, and the consequences were measured on the
+ * built artifact rather than argued:
+ *
+ *   AMSC "any non-empty"         5,479,581
+ *   AMSC == "0", not assigned    1,060,757   <- 19.4% of the headline
+ *   AMSC actually determined     4,418,824
+ *
+ * It also contaminated the publisher set, which is this file's whole mechanism: a PICA is
+ * treated as authoritative when it publishes AMSC on most of its rows, and PICAs that publish
+ * nothing but the sentinel were qualifying. And in `rankOf` below, a sentinel row scored as a
+ * publisher-with-AMSC row, tied with a genuine `AMC 5 / AMSC H` determination, and the tie broke
+ * on file position -- silently discarding 175 real AMC-5 NIINs, the highest-margin corner class
+ * in the product, on the 46% of NIINs that appear under more than one MOE rule.
+ *
+ * THE CODE IS STILL STORED. `"0"` is a real thing the government said and the index keeps it, so
+ * a consumer can distinguish three states rather than two: byte 0 = the field was empty, byte
+ * '0' = the government recorded NOT ASSIGNED, a letter = a determination. What changes is that
+ * only the third counts as evidence.
+ */
+const NOT_ASSIGNED = '0'
+const isDetermined = (code: string): boolean => code !== '' && code !== NOT_ASSIGNED
+
 /** A PICA must publish AMSC on at least this share of its rows to be treated as a publisher. */
 const PUBLISHER_THRESHOLD = 0.5
 /** and on at least this many rows, so a PICA with three rows cannot become a "publisher". */
@@ -236,7 +266,8 @@ async function main(): Promise<void> {
     const amsc = (f[iS] ?? '').trim()
     const stat = picaRows.get(pica) ?? { rows: 0, withAmsc: 0 }
     stat.rows += 1
-    if (amsc) stat.withAmsc += 1
+    // A PICA that emits nothing but the not-assigned sentinel publishes NOTHING.
+    if (isDetermined(amsc)) stat.withAmsc += 1
     picaRows.set(pica, stat)
 
     const niinText = (f[iN] ?? '').trim()
@@ -267,7 +298,9 @@ async function main(): Promise<void> {
     const amc = (f[iA] ?? '').trim()
     const aac = (f[iC] ?? '').trim()
     const payload =
-      (((amsc ? 1 : 0) << 31) |
+      // Bit 31 is the EVIDENCE flag used by rankOf, not a presence flag. The sentinel is
+      // stored in the amsc byte below, but it must never rank as a determination.
+      (((isDetermined(amsc) ? 1 : 0) << 31) |
         ((picaIdx & 0x3ff) << 21) |
         ((amc ? amc.charCodeAt(0) & 0x7f : 0) << 14) |
         ((amsc ? amsc.charCodeAt(0) & 0x7f : 0) << 7) |
