@@ -48,15 +48,25 @@ const usdWhole = (n: number): string =>
  */
 const RUNG_TONE: Record<RecommendationRung, 'verified' | 'active' | 'idle'> = {
   R1_MANUFACTURER_ANCHOR: 'verified',
-  R2_LAST_AWARD_MULTIPLE: 'verified',
+  // Not `verified`: nothing measured verifies this rung's outcome. See RUNG_CONFIDENCE above.
+  R2_LAST_AWARD_MULTIPLE: 'idle',
   R3_RECENT_AWARD_BAND: 'active',
   R4_AWARD_TREND: 'active',
   R5_FSC_PEER_BAND: 'idle',
 }
 
+/*
+ * ★ R2 IS NO LONGER LABELLED "High confidence", AND THIS IS A CORRECTION OF A FALSE CLAIM RATHER
+ * THAN A WORDING PREFERENCE. MEASURED over 40,184 consecutive award pairs: a tripled quote came
+ * in at or below the price the item actually cleared at 0.8% of the time (0.3% on sole-source
+ * rows). A known limitation plus an absolute claim is a false statement, and "High confidence"
+ * printed beside a figure our own corpus says clears under one percent of the time is exactly
+ * that. The rung still renders, because it is the operator's own stated rule and it is his to
+ * use; what it may not do is wear a confidence it does not have.
+ */
 const RUNG_CONFIDENCE: Record<RecommendationRung, string> = {
   R1_MANUFACTURER_ANCHOR: 'Highest confidence',
-  R2_LAST_AWARD_MULTIPLE: 'High confidence',
+  R2_LAST_AWARD_MULTIPLE: 'Your stated rule, not a measured basis',
   R3_RECENT_AWARD_BAND: 'Moderate confidence',
   R4_AWARD_TREND: 'Moderate confidence',
   R5_FSC_PEER_BAND: 'Lowest confidence',

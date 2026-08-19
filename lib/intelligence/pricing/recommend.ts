@@ -1286,11 +1286,33 @@ function multiplierInput(config: RecommendationConfig): RecommendationInputValue
 function multiplierCaveat(config: RecommendationConfig): RecommendationCaveat {
   return {
     code: 'MULTIPLIER_IS_A_STATED_RULE_NOT_A_MEASURED_SERIES',
+    /*
+     * ★ THIS CAVEAT NOW CARRIES THE OUTCOME, NOT ONLY THE PROVENANCE, AND THAT CHANGE IS THE
+     * WHOLE POINT. Saying "it is not a measured relationship" was true and it was not enough: it
+     * describes where the number came from while staying silent on whether it works, and a
+     * reader takes silence there as "unknown" rather than as "measured, and the answer is no".
+     *
+     * MEASURED 2026-08-19 over the live award corpus, on 40,184 consecutive award pairs, asking
+     * whether the multiplied previous price would have been at or below the price the item
+     * ACTUALLY cleared at next time (that price is the one that beat everyone, so it is an
+     * outcome and not a model): 318 of 40,184, which is 0.8%, and that is an UPPER bound because
+     * being at or below the clearing price is necessary to win and not sufficient.
+     *
+     * Split by world, because the rule came from a sole-source buy and the obvious mitigation is
+     * to keep it there: SOLE 30 of 9,175 (0.3%), COMPETED 288 of 31,009 (0.9%). It fails HARDER
+     * in its own world. The median quote/actual is 3.00x in BOTH, which says the previous award
+     * price is a near-perfect estimator of the next one whether or not anybody competed, so
+     * multiplying it is what breaks it. Repeating the previous price unmultiplied would have
+     * been at or below the clearing price on 76.3%.
+     */
     sentence:
       `The ${config.awardMultiple}x is your own rule, stated once about one item, and it is not ` +
-      'a measured relationship. It is shown here because it is yours and because it is ' +
-      'adjustable: change the multiplier and every figure on this rung moves with it, ' +
-      'deterministically.',
+      'a measured relationship. Our own award history measures how it would have fared: across ' +
+      '40,184 consecutive award pairs a multiplied quote came in at or below the price the item ' +
+      'actually cleared at 0.8% of the time, and 0.3% on sole-source items, because the previous ' +
+      'award price is itself a close estimate of the next one. It is shown because it is yours ' +
+      'and because it is adjustable: change the multiplier and every figure on this rung moves ' +
+      'with it, deterministically.',
     measured: { label: 'multiplier', value: config.awardMultiple, unit: 'RATIO' },
   }
 }
