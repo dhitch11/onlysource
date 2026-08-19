@@ -71,7 +71,10 @@ const {
   realClientProvider,
   reconcileHeld,
 } = shared
-const { reconciliationReport } = await import('../../lib/ingest/archive-reconcile')
+const { reconciliationReport, provenanceReport, findOrphans, listArchiveFiles } = await import(
+  '../../lib/ingest/archive-reconcile'
+)
+const { readManifestEntries: readEntriesForOrphans } = await import('../../lib/ingest/archive')
 
 type DailyFileKind = (typeof DAILY_FILES)[number]
 
@@ -148,6 +151,15 @@ const candidates = dateArg ? [dateArg] : businessDaysBack(newestPossibleFeedDay(
  */
 const reconciliation = await reconcileHeld()
 for (const line of reconciliationReport(reconciliation)) process.stdout.write(`${line}\n`)
+
+/*
+ * AND THE TWO THINGS THE RE-FETCH LIST CANNOT SAY. A file can be held, at its recorded length,
+ * and be 8% of the real thing (ca260811, 2026-08-19), so the GRADE has to be visible. And the
+ * manifest walk is structurally incapable of seeing bytes with no row, so the DISK gets walked
+ * too. Both are reported here and neither is ever acted on automatically.
+ */
+const orphans = findOrphans(await readEntriesForOrphans(root.root), listArchiveFiles(root.root))
+for (const line of provenanceReport(reconciliation, orphans)) process.stdout.write(`${line}\n`)
 
 const held = await heldFiles()
 const state = { wafStrikes: 0, requestsMade: 0 }

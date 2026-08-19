@@ -23,6 +23,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   DIBBS_SOURCE_KEY,
+  findOrphans,
+  gradeOf,
+  listArchiveFiles,
   reconcileArchive,
   reconciliationKey,
   reconciliationReport,
@@ -329,5 +332,99 @@ describe('the 2026-08-18 production archive', () => {
 
     // POSITIVE CONTROL: the old rule held all fifteen, which is how the hole sealed itself.
     expect(manifestOnlyHeldKeys(entries).size).toBe(15)
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ THE EVIDENCE GRADE: HOW WELL WE KNOW A FILE, NOT WHETHER WE HOLD IT               */
+/* ---------------------------------------------------------------------------------- */
+
+describe('the evidence grade', () => {
+  it('separates a gated fetch from a salvaged file, and defaults to unknown', () => {
+    expect(gradeOf({ retrieval_method: 'pipeline_fetch', retrieved_at_basis: 'http_response' })).toBe('gated')
+    expect(gradeOf({ retrieval_method: 'research_capture', retrieved_at_basis: 'origin_file_mtime' })).toBe('salvaged')
+
+    // FAIL TO THE WORSE GRADE, NEVER THE BETTER ONE. An unrecognised provenance is exactly
+    // where assuming quality is most expensive, and this repo has already shipped a fail-open
+    // default that coerced an unknown role into an eight-permission operator.
+    expect(gradeOf({ retrieval_method: 'pipeline_fetch', retrieved_at_basis: 'origin_file_mtime' })).toBe('unknown')
+    expect(gradeOf({ retrieval_method: 'something_new', retrieved_at_basis: 'http_response' })).toBe('unknown')
+    expect(gradeOf({})).toBe('unknown')
+  })
+
+  it('★ reproduces ca260811: perfectly HELD, and at a grade nobody should bid on', () => {
+    const root = freshRoot()
+    // The real production shape. The manifest recorded 56,826,248 bytes; the file on disk was
+    // exactly that; the origin actually serves 712,059,275. The length check cannot see it,
+    // because the row was written from the same bad observation that produced the file.
+    const salvaged = {
+      ...(acceptedRow('2026-08-11', 'ca260811.zip', 56_826_248) as Record<string, unknown>),
+      retrieval_method: 'research_capture',
+      retrieved_at_basis: 'origin_file_mtime',
+    } as unknown as ManifestEntry
+    const gated = acceptedRow('2026-08-12', 'ca260812.zip', 696_320_291)
+    stage(root, salvaged)
+    stage(root, gated)
+
+    const r = reconcileArchive([salvaged, gated], root)
+
+    // Both are held. The state machine is right and says nothing is wrong.
+    expect(r.counts.held).toBe(2)
+    expect(r.counts.truncated).toBe(0)
+    // The GRADE is the only thing that can tell them apart, and it does.
+    expect(r.grades).toEqual({ gated: 1, salvaged: 1, unknown: 0 })
+    expect(r.heldButUngated.map((f) => f.filename)).toEqual(['ca260811.zip'])
+
+    // POSITIVE CONTROL: nothing about the bytes distinguishes them. A checker that looked
+    // only at state, length or presence would report a clean archive on this exact input.
+    expect(r.lost).toHaveLength(0)
+    expect(reconciliationReport(r)).toEqual([])
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ THE DIRECTION THE RECONCILER WAS BLIND TO                                         */
+/* ---------------------------------------------------------------------------------- */
+
+describe('orphans: bytes on disk that no manifest row claims', () => {
+  it('are found by walking the DISK, which the manifest walk structurally cannot do', () => {
+    const root = freshRoot()
+    const claimed = acceptedRow('2026-08-14', 'in260814.txt', 47_002)
+    stage(root, claimed)
+    // A capture killed after the write and before the row is appended. That gap exists
+    // because the write order is bytes -> verify -> record, which is correct: record-first
+    // would manufacture a row for bytes that were never written.
+    mkdirSync(join(root, 'dibbs-rfq-daily/2026-08-13/20260819T005257Z'), { recursive: true })
+    writeFileSync(join(root, 'dibbs-rfq-daily/2026-08-13/20260819T005257Z/ca260813.zip'), Buffer.alloc(64, 0x42))
+
+    const entries = [claimed]
+    const files = listArchiveFiles(root)
+    const orphans = findOrphans(entries, files)
+
+    expect(orphans.map((o) => o.storageKey)).toEqual([
+      'dibbs-rfq-daily/2026-08-13/20260819T005257Z/ca260813.zip',
+    ])
+    expect(orphans[0]!.bytes).toBe(64)
+
+    // POSITIVE CONTROL: the manifest-first walk reports a perfectly clean archive on the same
+    // input, because it never starts from a file and so can never see one.
+    const r = reconcileArchive(entries, root)
+    expect(r.counts.lost).toBe(0)
+    expect(reconciliationReport(r)).toEqual([])
+  })
+
+  it('reports nothing when every file is claimed, and never counts the manifest itself', () => {
+    const root = freshRoot()
+    const row = acceptedRow('2026-08-14', 'in260814.txt', 47_002)
+    stage(root, row)
+    writeFileSync(join(root, 'MANIFEST.jsonl'), JSON.stringify(row) + '\n')
+
+    const files = listArchiveFiles(root)
+    expect(files.map((f) => f.storageKey)).not.toContain('MANIFEST.jsonl')
+    expect(findOrphans([row], files)).toEqual([])
+  })
+
+  it('returns no files rather than throwing on an unreadable root', () => {
+    expect(listArchiveFiles(join(freshRoot(), 'does-not-exist'))).toEqual([])
   })
 })

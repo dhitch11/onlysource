@@ -35,7 +35,7 @@
  * line that a reader can check by eye.
  */
 
-import { statSync } from 'node:fs'
+import { readdirSync, statSync, type Dirent } from 'node:fs'
 import { join } from 'node:path'
 
 import type { ArchiveRecord, ManifestEntry, RejectionRecord } from './archive'
@@ -53,6 +53,54 @@ export type HoldingState =
 /** States in which we hold usable bytes. The only ones a capture may skip. */
 export const HOLDING_STATES_WITH_BYTES: readonly HoldingState[] = ['held']
 
+/**
+ * HOW WELL WE KNOW A FILE, which is a different question from whether we hold it.
+ *
+ * ★ THE INCIDENT THAT MADE THIS NECESSARY, 2026-08-19. `ca260811.zip` sat on disk at exactly
+ * the 56,826,248 bytes its manifest row recorded, so it reported `held`. Re-fetching it from
+ * the origin returned 712,059,275 bytes. WE WERE HOLDING 8% OF THE FILE AND CALLING IT
+ * COMPLETE. The length check could not see it, because the row was written from the same bad
+ * observation that produced the file, so the file and the record agreed and both were wrong.
+ *
+ *   A LENGTH CHECK VALIDATES INTERNAL CONSISTENCY, NOT COMPLETENESS. AGREEMENT BETWEEN TWO
+ *   ARTIFACTS PRODUCED BY THE SAME FLAWED ACT IS NOT CORROBORATION.
+ *
+ * The tell was already in the data and nothing read it. Every OTHER file re-fetched
+ * byte-identical days later; the single row that differed was the single row whose
+ * `retrieval_method` was `research_capture` with `retrieved_at_basis: origin_file_mtime` -- a
+ * file somebody salvaged off a disk -- rather than `pipeline_fetch` / `http_response`, a gated
+ * fetch with an origin Content-Length behind it. Those are different evidentiary grades.
+ *
+ * THIS IS A TIER, NOT A SEVENTH STATE, and the distinction is load-bearing: STATES describe
+ * what we hold, GRADES describe how well we know it, and a file can be perfectly `held` at a
+ * grade nobody should bid money on. Merging them loses both.
+ */
+export type EvidenceGrade =
+  /** A gated fetch: the origin answered over HTTP and the response described its own length. */
+  | 'gated'
+  /** Salvaged: a file recovered from somewhere, timestamped by something other than a response. */
+  | 'salvaged'
+  /** No row, or a row whose provenance fields we do not recognise. Never assume the better one. */
+  | 'unknown'
+
+/**
+ * Grade a row by HOW it was observed, never by how healthy it looks.
+ *
+ * Defaults to `unknown` rather than `gated`, because an unrecognised provenance is exactly the
+ * case where assuming the better grade is most expensive. This repo has already shipped a
+ * fail-open default that coerced an unknown role to an eight-permission operator.
+ */
+export function gradeOf(record: {
+  retrieval_method?: string | null
+  retrieved_at_basis?: string | null
+}): EvidenceGrade {
+  const method = record.retrieval_method ?? ''
+  const basis = record.retrieved_at_basis ?? ''
+  if (method === 'pipeline_fetch' && basis === 'http_response') return 'gated'
+  if (method === 'research_capture') return 'salvaged'
+  return 'unknown'
+}
+
 export type FileReconciliation = {
   sourceKey: string
   logicalDate: string
@@ -64,6 +112,8 @@ export type FileReconciliation = {
   expectedBytes: number | null
   /** What the disk says it weighs. Null when it is not there. */
   actualBytes: number | null
+  /** How well we know this file. Independent of whether we hold it. */
+  grade: EvidenceGrade
   detail: string
 }
 
@@ -82,6 +132,14 @@ export type ArchiveReconciliation = {
   truncated: FileReconciliation[]
   /** Bytes the manifest claims and the disk does not hold. */
   lostBytes: number
+  /** How many files sit at each evidence grade. */
+  grades: Record<EvidenceGrade, number>
+  /**
+   * Files we HOLD but at a grade below a gated fetch. These are the ones a recommendation an
+   * operator actually bids must be able to refuse, and the ones an operator surface should
+   * name rather than fold into a clean-looking total.
+   */
+  heldButUngated: FileReconciliation[]
 }
 
 /**
@@ -169,6 +227,7 @@ export function reconcileArchive(
         storageKey: null,
         expectedBytes: null,
         actualBytes: null,
+        grade: gradeOf(rejection as { retrieval_method?: string; retrieved_at_basis?: string }),
         detail:
           state === 'not_published'
             ? `the origin answered ${rejection.http_status ?? 'a refusal'}: not published or outside the retention window`
@@ -190,6 +249,7 @@ export function reconcileArchive(
         storageKey: record.storage_key,
         expectedBytes: record.byte_len,
         actualBytes: null,
+        grade: gradeOf(record),
         detail: `the manifest records an accepted capture of ${record.byte_len.toLocaleString('en-US')} bytes and the file is not on disk`,
       })
       continue
@@ -204,6 +264,7 @@ export function reconcileArchive(
         storageKey: record.storage_key,
         expectedBytes: record.byte_len,
         actualBytes: stat.size,
+        grade: gradeOf(record),
         detail: `on disk at ${stat.size.toLocaleString('en-US')} bytes, the manifest recorded ${record.byte_len.toLocaleString('en-US')}`,
       })
       continue
@@ -217,6 +278,7 @@ export function reconcileArchive(
       storageKey: record.storage_key,
       expectedBytes: record.byte_len,
       actualBytes: stat.size,
+      grade: gradeOf(record),
       detail: `present at the recorded length`,
     })
   }
@@ -240,6 +302,8 @@ export function reconcileArchive(
 
   const lost = files.filter((f) => f.state === 'lost')
   const truncated = files.filter((f) => f.state === 'truncated')
+  const grades: Record<EvidenceGrade, number> = { gated: 0, salvaged: 0, unknown: 0 }
+  for (const f of files) grades[f.grade] += 1
 
   return {
     root,
@@ -251,6 +315,8 @@ export function reconcileArchive(
     lost,
     truncated,
     lostBytes: lost.reduce((sum, f) => sum + (f.expectedBytes ?? 0), 0),
+    grades,
+    heldButUngated: files.filter((f) => f.state === 'held' && f.grade !== 'gated'),
   }
 }
 
@@ -300,6 +366,116 @@ export function reconciliationReport(
         `Present is not whole; they will be re-fetched:`,
     )
     for (const f of truncated) lines.push(`  TRUNCATED ${f.logicalDate} ${f.filename} - ${f.detail}`)
+  }
+  return lines
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* THE OTHER DIRECTION. THE MANIFEST CANNOT REPORT A FILE IT NEVER HEARD OF               */
+/* ------------------------------------------------------------------------------------ */
+
+export type OrphanFile = { storageKey: string; bytes: number }
+
+/**
+ * Files on disk that NO manifest row claims.
+ *
+ * ★ WHY THIS EXISTS, AND WHY ITS ABSENCE WAS A REAL GAP. `reconcileArchive` walks manifest
+ * rows and asks the disk about each one. That direction catches a row whose bytes are gone.
+ * It is structurally incapable of catching the opposite: bytes with no row. An orphan is
+ * invisible to it no matter how large, because the walk never starts from a file.
+ *
+ * On 2026-08-19 a memory watchdog killed a capture mid-run, which is precisely how an orphan
+ * gets made: `archiveBytes` writes the file, verifies it, and only THEN appends the row, so a
+ * kill in that gap leaves bytes nothing references. That write ordering is deliberate and
+ * correct -- record-first would have manufactured a row vouching for bytes that were never
+ * written, which is the defect this whole module exists to close -- and the price of the
+ * correct ordering is that orphans are possible. So they must be findable.
+ *
+ * An orphan is not corruption. It is unreferenced disk that no reader will ever open and no
+ * cleanup will ever dare remove without knowing it is unreferenced. Reported, never deleted:
+ * this module does not remove anything, and nothing on this estate deletes archive bytes.
+ */
+export function findOrphans(
+  entries: readonly ManifestEntry[],
+  files: readonly { storageKey: string; bytes: number }[],
+): OrphanFile[] {
+  const claimed = new Set<string>()
+  for (const e of entries) {
+    const key = (e as { storage_key?: string }).storage_key
+    if (typeof key === 'string' && key !== '') claimed.add(key)
+  }
+  return files
+    .filter((f) => !claimed.has(f.storageKey))
+    .map((f) => ({ storageKey: f.storageKey, bytes: f.bytes }))
+    .sort((a, b) => a.storageKey.localeCompare(b.storageKey))
+}
+
+/**
+ * Walk an archive root and list every file, as storage keys relative to that root, so the
+ * result can be handed straight to `findOrphans`. The manifest itself is not a storage key
+ * and is excluded; it is the ledger, not an archived artifact.
+ */
+export function listArchiveFiles(root: string): { storageKey: string; bytes: number }[] {
+  const out: { storageKey: string; bytes: number }[] = []
+  const walk = (dir: string, rel: string): void => {
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true }) as Dirent[]
+    } catch {
+      return // an unreadable directory is reported as no files, never as an exception
+    }
+    for (const e of entries) {
+      const child = join(dir, e.name)
+      const key = rel === '' ? e.name : `${rel}/${e.name}`
+      if (e.isDirectory()) {
+        walk(child, key)
+      } else if (e.isFile() && key !== 'MANIFEST.jsonl') {
+        const stat = realStatFile(child)
+        if (stat) out.push({ storageKey: key, bytes: stat.size })
+      }
+    }
+  }
+  walk(root, '')
+  return out
+}
+
+/**
+ * One line per file we hold at a grade below a gated fetch, plus any orphans.
+ *
+ * SEPARATE FROM `reconciliationReport` ON PURPOSE. That one names files we must re-fetch: it
+ * is a work list. This one names files whose CONTENT we cannot vouch for and bytes nothing
+ * references: it is a confidence statement. Folding them together would make an operator read
+ * "we are missing things" when the truth is "we have something we should not fully trust",
+ * and those need different responses.
+ *
+ * Returns an empty array when everything is gated and nothing is orphaned, so a healthy
+ * archive stays quiet and an unhealthy one cannot be silent.
+ */
+export function provenanceReport(
+  reconciliation: ArchiveReconciliation,
+  orphans: readonly OrphanFile[] = [],
+): string[] {
+  const lines: string[] = []
+  if (reconciliation.heldButUngated.length > 0) {
+    lines.push(
+      `archive provenance: ${reconciliation.heldButUngated.length} file(s) are held at a grade below ` +
+        `a gated fetch. They match their recorded length, which proves the record and the disk ` +
+        `agree, NOT that the capture was complete:`,
+    )
+    for (const f of reconciliation.heldButUngated) {
+      lines.push(
+        `  ${f.grade.toUpperCase()} ${f.logicalDate} ${f.filename} - recorded ` +
+          `${(f.expectedBytes ?? 0).toLocaleString('en-US')} bytes by a ${f.grade} observation`,
+      )
+    }
+  }
+  if (orphans.length > 0) {
+    const bytes = orphans.reduce((s, o) => s + o.bytes, 0)
+    lines.push(
+      `archive orphans: ${orphans.length} file(s) on disk that no manifest row claims ` +
+        `(${bytes.toLocaleString('en-US')} bytes). Reported, never removed:`,
+    )
+    for (const o of orphans) lines.push(`  ORPHAN ${o.storageKey} (${o.bytes.toLocaleString('en-US')} bytes)`)
   }
   return lines
 }
