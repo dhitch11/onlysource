@@ -690,6 +690,18 @@
   }
   .table tbody td::before {
     content: attr(data-label);
+    /*
+     * MEASURED with getComputedStyle on the live build, not inferred: this pseudo-element
+     * inherits `white-space` from the table, and the NUMERIC columns carry `nowrap`. So a
+     * two-word label on a number cell ("Sole source", "Supply group") rendered on ONE line and
+     * ran straight over its own value. The label column is 40-44% wide and the label simply
+     * ignored it.
+     *
+     * Nothing overflows the viewport when this happens. The row is the right width. Two things
+     * occupy the same space, which no geometry check in this product can see.
+     */
+    white-space: normal;
+    overflow-wrap: break-word;
     font-size: var(--fs-100);
     text-transform: uppercase;
     letter-spacing: var(--track-label);
