@@ -36,6 +36,13 @@
     background var(--dur) var(--ease);
 }
 
+/* Until the first collision check has run it has not been placed, only positioned. Painting it
+   before then is what put it on top of an Accept button for the length of a hydration. */
+.launcher:not([data-placed]) {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .launcher:hover {
   border-color: var(--accent);
   background: var(--raised);

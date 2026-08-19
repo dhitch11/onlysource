@@ -47,7 +47,23 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 const BASE = argValue('--base') ?? process.env.SWEEP_BASE ?? 'https://206.189.230.237.nip.io'
-const WIDTHS = [320, 390]
+/*
+ * HEIGHT IS A DIMENSION OF THIS TEST, NOT A DETAIL OF THE HARNESS.
+ *
+ * The launcher is anchored to the BOTTOM of the viewport while content is positioned by scroll, so
+ * which control passes beneath it depends on how tall the viewport is. Two runs at the same width
+ * and different heights produce different collision sets entirely.
+ *
+ * I learned this from a disagreement: @GAP-AUDIT reported the launcher at top 662 on /design where
+ * I measured 786. Neither of us was wrong - 786 is a 844px viewport and 662 is a 720px one, and the
+ * launcher sits 12px off the bottom of whichever it is in. A sweep fixed at one height cannot see
+ * what the other height does.
+ */
+const PROFILES = [
+  { width: 320, height: 667 },
+  { width: 320, height: 844 },
+  { width: 390, height: 844 },
+]
 /** Centre occluded is a failure on its own. Area is a failure only when it is most of the control. */
 const AREA_FAIL_RATIO = 0.25
 /**
@@ -374,15 +390,20 @@ if (!EMAIL || !PASSWORD) {
 const discovered = discoverRoutes()
 const routes = discovered.filter((r) => typeof r === 'string')
 const skipped = discovered.filter((r) => typeof r !== 'string')
-console.log(`overlay sweep: ${routes.length} route(s) discovered from the router, ${WIDTHS.join(' and ')} px.`)
+console.log(`overlay sweep: ${routes.length} route(s) discovered from the router, ${PROFILES.map((p) => `${p.width}x${p.height}`).join(', ')}.`)
+console.log('  NOTE: every route is measured AFTER hydration. The launcher steps aside from a client')
+console.log('        effect, so the window between first paint and hydration is deliberately out of')
+console.log('        this run\'s scope and is covered by the launcher not painting until it has looked.')
 for (const s of skipped) console.log(`  not visited: ${s.skipped} (${s.why})`)
 
 const MINLABEL = WCAG_MIN_TARGET_PX
 const browser = await chromium.launch()
 let failures = 0
 let visited = 0
-for (const width of WIDTHS) {
-  const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height: 844 }, ignoreHTTPSErrors: true })
+for (const profile of PROFILES) {
+  const { width, height } = profile
+  const label = `${width}x${height}`
+  const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width, height }, ignoreHTTPSErrors: true })
   const page = await ctx.newPage()
   await page.goto(BASE + '/enter', { waitUntil: 'domcontentloaded', timeout: 90000 })
   await page.locator('input[type="email"]').first().fill(EMAIL)
@@ -390,13 +411,13 @@ for (const width of WIDTHS) {
   await page.locator('button[type="submit"]').first().click()
   await page.waitForTimeout(3000)
   if (page.url().includes('/enter')) {
-    console.error(`overlay sweep: sign in failed at ${width}px. Refusing to report a clean run.`)
+    console.error(`overlay sweep: sign in failed at ${label}. Refusing to report a clean run.`)
     await browser.close(); process.exit(2)
   }
   for (const route of routes) {
     let res
     try { res = await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 90000 }) }
-    catch { console.log(`  ${width}  ${route}  UNREACHABLE`); continue }
+    catch { console.log(`  ${label}  ${route}  UNREACHABLE`); continue }
     await page.waitForTimeout(1800)
     const maxScroll = await page.evaluate(() => Math.max(0, document.body.scrollHeight - innerHeight))
     const candidates = await page.evaluate(COLLISION_OFFSETS)
@@ -438,7 +459,7 @@ for (const width of WIDTHS) {
     const stickyNote = r.findings.filter((f) => f.kind === 'sticky').length
     if (bad.length) {
       failures += bad.length
-      console.log(`  ${width}  ${route}  ${res?.status()}  *** ${bad.length} control(s) obstructed *** (${sampled} of ${candidates.length} computed collision offsets, over ${maxScroll}px)`)
+      console.log(`  ${label}  ${route}  ${res?.status()}  *** ${bad.length} control(s) obstructed *** (${sampled} of ${candidates.length} computed collision offsets, over ${maxScroll}px)`)
       for (const f of bad.slice(0, 4)) {
         const why = f.centreBlocked ? 'CENTRE BLOCKED'
           : f.atFloor ? `AT THE ${MINLABEL}px TARGET FLOOR, ${f.ratio}% taken`
@@ -448,9 +469,9 @@ for (const width of WIDTHS) {
       }
     } else if (r.overlays.length) {
       const worst = r.findings.length ? Math.max(...r.findings.map((f) => f.ratio)) : 0
-      console.log(`  ${width}  ${route}  ok   ${r.controls} control(s), ${r.fixedCount} fixed + ${r.overlays.length - r.fixedCount} sticky overlay(s), worst coverage ${worst}%, ${sampled}/${candidates.length} collision offsets over ${maxScroll}px${stickyNote ? `, ${stickyNote} sticky-over-control (by design)` : ''}`)
+      console.log(`  ${label}  ${route}  ok   ${r.controls} control(s), ${r.fixedCount} fixed + ${r.overlays.length - r.fixedCount} sticky overlay(s), worst coverage ${worst}%, ${sampled}/${candidates.length} collision offsets over ${maxScroll}px${stickyNote ? `, ${stickyNote} sticky-over-control (by design)` : ''}`)
     } else {
-      console.log(`  ${width}  ${route}  ok   no fixed overlay on this route`)
+      console.log(`  ${label}  ${route}  ok   no fixed overlay on this route`)
     }
     if (cappedOut > 0) {
       console.log(`        ⚠ ${cappedOut} computed collision offset(s) beyond the ${CANDIDATE_CAP} cap were NOT tested on this route.`)

@@ -99,6 +99,19 @@ function listOf(parts: readonly string[]): string {
 
 export default function Thomas({ operator }: { operator?: string }) {
   const [open, setOpen] = useState(false)
+  /*
+   * The launcher does not paint until it has checked what is beneath it once.
+   *
+   * The lift is a client effect, so between first paint and hydration there is a window in which
+   * it CANNOT step aside - and a real phone on a real network takes longer over that window than a
+   * local browser does. Measured on /design at 320x720: scrolling 0ms after load leaves it at
+   * top 662, unlifted, over the "Accept" button; from 200ms on it lifts to 604 and clears.
+   *
+   * A floating affordance arriving one frame late is invisible. A floating affordance sitting on
+   * an Accept button is not. It is useless without JavaScript anyway - it opens a scripted panel -
+   * so there is no working state being withheld here.
+   */
+  const [placed, setPlaced] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -294,6 +307,7 @@ export default function Thomas({ operator }: { operator?: string }) {
     const el = launcherRef.current
     if (!el || open) {
       el?.removeAttribute('data-lifted')
+      setPlaced(true)
       return
     }
     const CONTROL = 'button,a,input,select,textarea,[role="button"],[role="link"],[role="tab"],[role="switch"]'
@@ -363,6 +377,7 @@ export default function Thomas({ operator }: { operator?: string }) {
     }
 
     sync()
+    setPlaced(true)
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', schedule)
     return () => {
@@ -387,6 +402,7 @@ export default function Thomas({ operator }: { operator?: string }) {
         aria-label={open ? 'Close Thomas' : 'Ask Thomas'}
         onClick={() => setOpen((o) => !o)}
         data-open={open || undefined}
+        data-placed={placed || undefined}
         data-live={live || undefined}
       >
         <span className={s.launcherMark} aria-hidden="true">
