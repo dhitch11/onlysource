@@ -156,6 +156,28 @@
     content: "";
   }
 
+  /*
+   * ★ AN EMPTY CELL IS INVISIBLE IN A ROW AND BECOMES A LABELLED BLANK IN A CARD.
+   *
+   * This is a defect the card treatment CREATES rather than one it inherits. In a table an empty
+   * `<td>` is a gap in a column and reads as nothing at all. Turn the row into a card and the same
+   * cell prints its label with nothing after it: a line reading "Action" followed by white space,
+   * which an operator reads as a missing value rather than an absent affordance.
+   *
+   * Measured on /goldmine at 320 before adding this: 183 of 1,376 labelled cells were empty,
+   * 13.3%, and every one of the 183 matched `:empty`, so one selector catches all of them. Most
+   * were the Action column on rows with no corner dossier, where a button correctly does not
+   * render.
+   *
+   * `:empty` is exact here rather than approximate: React renders `null` and `false` as no node at
+   * all, so a conditionally-absent control leaves a genuinely empty element. A cell holding a
+   * space, a dash or an em-dash is NOT empty and still shows, which is right — "—" is a stated
+   * absence and deserves its label.
+   */
+  .cards tbody td:empty {
+    display: none;
+  }
+
   /* Right-alignment is a column affordance. In a card the value is already in its own column and
    * the eye reads it against the label, so end-alignment only pushes numbers away from their
    * names. */
