@@ -380,8 +380,32 @@ export default function Thomas({ operator }: { operator?: string }) {
     setPlaced(true)
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', schedule)
+
+    /*
+     * ★ SCROLL AND RESIZE ARE NOT ENOUGH, AND THIS IS THE BUG THAT SURVIVED THE FIRST FIX.
+     *
+     * The first sync runs the moment the effect mounts, which on a fresh load is BEFORE the layout
+     * has settled - late fonts, images, a hydration reflow. It looks, correctly finds nothing
+     * beneath it, and then nothing ever asks again, because the user has not scrolled and the
+     * window has not resized. The decision is stale for the life of the page.
+     *
+     * Measured on /design at 320x720, scrolling immediately after load: the launcher sat at 662
+     * over the "Accept" button and STAYED there, while the same page scrolled 200ms later lifted
+     * to 604 and cleared. That is not a race in the harness - it is a decision taken once against
+     * a layout that had not finished moving.
+     *
+     * A ResizeObserver on the document element fires whenever the content box changes, which is
+     * exactly the event that invalidates the answer.
+     */
+    const observer = new ResizeObserver(schedule)
+    observer.observe(document.documentElement)
+    window.addEventListener('load', schedule)
+    document.fonts?.ready.then(schedule).catch(() => {})
+
     return () => {
       if (frame) cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener('load', schedule)
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)
       el.style.removeProperty('--lift')
