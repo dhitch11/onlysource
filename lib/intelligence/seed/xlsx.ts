@@ -328,6 +328,44 @@ export function distinctWorkbookPaths(paths: string[]): {
   return { files, droppedDuplicates }
 }
 
+/**
+ * THE ONE DEFINITION OF "WHICH ENTRIES IN A DATA DIRECTORY ARE REAL WORKBOOK EXPORTS".
+ *
+ * ==========================================================================================
+ * WHY THIS EXISTS, MEASURED ON PRODUCTION 2026-08-18.
+ * ==========================================================================================
+ * `/competitor` served an HTTP 200 whose body was the error boundary, for days, because two
+ * separate readers each globbed their directory with an ENDING-ONLY test:
+ *
+ *     readdirSync(dir).filter((f) => /-parts\.xlsx$/i.test(f))
+ *
+ * The suppliers directory had been copied from a Mac, and macOS writes an AppleDouble sidecar
+ * beside every file it copies to a foreign filesystem, named by prefixing `._`:
+ *
+ *     data/suppliers/._rural-route-2-parts.xlsx      1,875 B   AppleDouble, NOT a zip
+ *     data/suppliers/rural-route-2-parts.xlsx      383,909 B   the real workbook, undamaged
+ *
+ * `._rural-route-2-parts.xlsx` ENDS WITH `-parts.xlsx`, so it matched, went to the zip reader,
+ * and threw `no zip end-of-central-directory record found`. The real export was never damaged.
+ *
+ * TWO PROPERTIES THIS FUNCTION EXISTS TO HOLD, BOTH LEARNED THE EXPENSIVE WAY:
+ *
+ *  1. A DOT-PREFIXED ENTRY IS NEVER A DATA FILE. AppleDouble sidecars, `.DS_Store`, editor
+ *     swap files and partial downloads all arrive this way, and none of them are exports. An
+ *     ending-only match cannot see a prefix, which is exactly the blind spot that shipped.
+ *
+ *  2. THE FILTER IS DEFINED ONCE AND SHARED. Two readers scanned the same directory with two
+ *     copies of the same predicate. Fixing one would have left the other live, and the two
+ *     would drift. One definition, two callers, no drift.
+ *
+ * It deliberately does NOT read or validate the files: a caller must still handle an entry
+ * that survives this filter and turns out to be unreadable, because a truncated or corrupt
+ * export is a different failure and only the caller knows whether to skip it or refuse.
+ */
+export function listWorkbookFiles(entries: readonly string[], matches: (file: string) => boolean): string[] {
+  return entries.filter((f) => !f.startsWith('.') && matches(f)).sort()
+}
+
 export function readSeedWorkbook(path: string): SeedTable {
   const buf = readFileSync(path)
   const stat = statSync(path)

@@ -73,7 +73,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { readWorkbookSheets, usDateToIso, type ParsedSheet, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
+import { readWorkbookSheets, usDateToIso, type ParsedSheet, type SeedProvenance, listWorkbookFiles } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
 import { isIdentityGradeReference, readDealerEligibility, type ManufacturingAccess } from '@/lib/intelligence/codebook'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
@@ -901,7 +901,9 @@ export function buildDedicatedPulls(book: BookPort = liveBookPort()): DedicatedP
   const pulls = new Map<string, DedicatedPull>()
   const skipped: Array<{ file: string; reason: string }> = []
 
-  for (const file of readdirSync(dir).filter((f) => /-parts\.xlsx$/i.test(f)).sort()) {
+  // Same shared filter as catalog.ts: a dot-prefixed AppleDouble sidecar ends with
+  // `-parts.xlsx` and is not a workbook. One definition, two callers, no drift.
+  for (const file of listWorkbookFiles(readdirSync(dir), (f) => /-parts\.xlsx$/i.test(f))) {
     let workbook
     try {
       workbook = readWorkbookSheets(path.join(dir, file))

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { readWorkbookSheets } from '@/lib/intelligence/seed/xlsx'
+import { readWorkbookSheets, listWorkbookFiles } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
 
 /**
@@ -60,7 +60,10 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
     cache = { ok: false, reason: 'No suppliers data directory on disk.' }
     return cache
   }
-  const files = readdirSync(dir).filter((f) => /-parts\.xlsx$/i.test(f))
+  // Dot-prefixed entries are never exports. See `listWorkbookFiles`: an ending-only match let a
+  // macOS AppleDouble sidecar (`._<name>-parts.xlsx`) reach the zip reader and took this page
+  // down with an error boundary behind an HTTP 200.
+  const files = listWorkbookFiles(readdirSync(dir), (f) => /-parts\.xlsx$/i.test(f))
   if (files.length === 0) {
     cache = { ok: false, reason: 'No <company>-parts.xlsx export is on disk yet.' }
     return cache
@@ -73,9 +76,29 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
   const cageCompany = new Map<string, string | null>()
   let sawMcrl = false
   const stems: string[] = []
+  /** Candidates that survived the filter and still could not be read. Reported, never swallowed. */
+  const unreadable: Array<{ file: string; reason: string }> = []
 
   for (const file of files) {
-    const wb = readWorkbookSheets(path.join(dir, file))
+    /*
+     * ONE UNREADABLE EXPORT MUST NOT TAKE DOWN THE PAGE.
+     *
+     * This read was unguarded, so a single corrupt, truncated or non-zip candidate threw
+     * straight out of the server render and the operator got the error boundary instead of the
+     * thirty-nine companies we could still have shown. A directory of exports is not an atomic
+     * object: the honest behaviour is to read what is readable, and to SAY what was not.
+     *
+     * The filter above removes the sidecar class specifically. This guard covers everything
+     * else a directory can hand us, including whatever the next transfer between machines
+     * invents, because the filter can only exclude what we already know to name.
+     */
+    let wb
+    try {
+      wb = readWorkbookSheets(path.join(dir, file))
+    } catch (error) {
+      unreadable.push({ file, reason: (error as Error).message })
+      continue
+    }
     const mcrl = wb.sheets.get('MCRL')
     if (!mcrl) continue
     sawMcrl = true
@@ -100,7 +123,20 @@ export function buildCompetitorCatalogs(): CompetitorCatalogs {
   }
 
   if (!sawMcrl) {
-    cache = { ok: false, reason: 'No MCRL sheet found in the parts exports.' }
+    /*
+     * NAME THE REASON THAT ACTUALLY APPLIES. If every candidate failed to READ, saying "no MCRL
+     * sheet" sends the operator to look for a sheet inside files nothing ever opened. An empty
+     * state that misdescribes its own cause is worse than no empty state, because it is acted on.
+     */
+    cache = {
+      ok: false,
+      reason:
+        unreadable.length === files.length
+          ? `None of the ${files.length} parts export${files.length === 1 ? '' : 's'} on disk could be read: ${unreadable
+              .map((u) => `${u.file} (${u.reason})`)
+              .join('; ')}`
+          : 'No MCRL sheet found in the parts exports.',
+    }
     return cache
   }
 
