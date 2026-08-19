@@ -61,6 +61,38 @@ const AREA_FAIL_RATIO = 0.25
  * lend some; a control at the floor cannot lend any.
  */
 const WCAG_MIN_TARGET_PX = 24
+/*
+ * ★ THE SWEEP MUST SCROLL, AND THIS IS THE WHOLE REASON.
+ *
+ * A `position: fixed` overlay sits on whatever is under it AT THE CURRENT SCROLL OFFSET. A run that
+ * only ever samples scroll 0 is not measuring the page, it is measuring the top of the page - and on
+ * a long route the top is exactly where the launcher floats over blank space. @GAP-AUDIT's own
+ * overlap check reported ZERO on every route for precisely that reason.
+ *
+ * It also means a trailing gutter cannot fix this class: `padding-block-end` protects the LAST line
+ * of the document and nothing in between. That was tried (88px on .content below 60rem, `0af877b`)
+ * and measured not to help, because the obstructions are hundreds of pixels from the page end.
+ *
+ * ★★ AND DO NOT SAMPLE BY PIXELS EITHER. SOLVE FOR THE OFFSETS THAT CAN COLLIDE.
+ *
+ * Walking every pixel is unaffordable - /monopoly carries ~93,000px of scroll, over a hundred
+ * viewports, and walking it took @GAP-AUDIT past 121 seconds before the run was killed. But evenly
+ * spaced sampling is not merely cheaper, it is WRONG: it steps over things. My own selftest proved
+ * it. A 3000px fixture whose control is obstructed at scroll ~1416, sampled at eight even offsets
+ * over 2360px, is checked at 1349 and at 1686 and is reported CLEAN at both.
+ *
+ * So the offsets are COMPUTED, not guessed. A fixed overlay occupies a constant viewport box, and
+ * every control has a known document position, so the scroll offsets at which a given control can
+ * possibly sit under that overlay are arithmetic. Only controls whose HORIZONTAL band overlaps the
+ * overlay's can ever collide, which prunes almost everything on a page whose overlay is a corner
+ * launcher. What is left is O(controls that could collide), not O(page height), and it is exact
+ * rather than statistical: nothing is stepped over, and the tallest page costs no more than a
+ * short one with the same controls.
+ */
+const SAMPLES = Number(argValue('--samples') ?? 8)
+const SETTLE_MS = 220
+/** Per route-width. When it runs out the run says how many offsets it skipped; it never truncates quietly. */
+const ROUTE_BUDGET_MS = 20000
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag)
@@ -199,6 +231,52 @@ const PROBE = ([AREA_FAIL_RATIO, MIN_TARGET]) => {
   }
 }
 
+
+/**
+ * The scroll offsets at which any control could sit under any fixed overlay, solved rather than
+ * sampled. Shared by the run and by the selftest ON PURPOSE: a selftest that exercises its own
+ * copy of this arithmetic proves that the copy works.
+ */
+const COLLISION_OFFSETS = () => {
+      const vis = (e) => {
+        const st = getComputedStyle(e)
+        if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) === 0) return false
+        const b = e.getBoundingClientRect()
+        return b.width > 0 && b.height > 0
+      }
+      const fixed = [...document.querySelectorAll('body *')].filter((e) => {
+        if (!vis(e) || getComputedStyle(e).position !== 'fixed') return false
+        const b = e.getBoundingClientRect()
+        return b.width >= 16 && b.height >= 16
+      })
+      if (!fixed.length) return []
+      const CONTROL = 'button,a,input,select,textarea,[role="button"],[role="link"],[role="tab"],[role="switch"]'
+      const maxScroll = Math.max(0, document.body.scrollHeight - innerHeight)
+      const out = new Set([0])
+      for (const o of fixed) {
+        const r = o.getBoundingClientRect()   // fixed: this box does not move as the page scrolls
+        for (const c of document.querySelectorAll(CONTROL)) {
+          if (o === c || o.contains(c)) continue
+          const q = c.getBoundingClientRect()
+          if (q.width === 0 || q.height === 0) continue
+          // A control can only ever collide if their horizontal bands overlap. This is the prune.
+          if (q.right <= r.left || q.left >= r.right) continue
+          const docTop = q.top + window.scrollY
+          const lo = docTop + q.height - r.bottom   // control's bottom edge meets the overlay's bottom
+          const hi = docTop - r.top                 // control's top edge meets the overlay's top
+          for (const y of [lo, (lo + hi) / 2, hi]) {
+            const v = Math.round(y)
+            if (v >= 0 && v <= maxScroll) out.add(v)
+          }
+        }
+      }
+      // Offsets within 8px of each other test the same thing; keep one.
+      const sorted = [...out].sort((a, b) => a - b)
+      const kept = []
+      for (const y of sorted) if (!kept.length || y - kept[kept.length - 1] > 8) kept.push(y)
+      return kept
+    }
+
 async function selftest() {
   // A positive control and a negative control. A detector that has never failed is not a detector.
   const dir = mkdtempSync(join(tmpdir(), 'overlay-selftest-'))
@@ -222,6 +300,20 @@ async function selftest() {
   writeFileSync(join(dir, 'covered.html'), page(true))
   writeFileSync(join(dir, 'clear.html'), page(false))
   writeFileSync(join(dir, 'floor.html'), floorPage)
+  /*
+   * The positive control for SCROLLING, which is the capability most likely to rot back.
+   *
+   * A 3000px page whose only control sits at y=2000, hard against the right edge, with the overlay
+   * fixed to the bottom-right. At scroll 0 that control is far off-screen and the page is clean by
+   * every rule this sweep has. It is only obstructed once the page has been scrolled to bring it
+   * level with the overlay - which is the exact defect a scroll-0-only run reports as ZERO.
+   */
+  const scrollPage = `<!doctype html><meta name=viewport content="width=device-width">
+    <body style="margin:0;height:3000px">
+      <button id=deep style="position:absolute;right:14px;top:2000px;width:24px;height:24px"></button>
+      <div id=fab3 style="position:fixed;right:10px;bottom:10px;width:46px;height:46px;background:#f00"></div>
+    </body>`
+  writeFileSync(join(dir, 'scroll.html'), scrollPage)
   const b = await chromium.launch()
   const ctx = await b.newContext({ viewport: { width: 320, height: 640 } })
   const p = await ctx.newPage()
@@ -241,8 +333,28 @@ async function selftest() {
   if (!floorFired || !quietOtherwise) ok = false
   console.log(`  ${floorFired ? 'ok  ' : 'FAIL'} floor.html: a 24px control clipped by 4px reported atFloor=${floorFired}`)
   console.log(`  ${quietOtherwise ? 'ok  ' : 'FAIL'} floor.html: the centre and area rules correctly stayed silent (${quietOtherwise})`)
+  // Does sampling down the page find what scroll 0 cannot see?
+  await p.goto('file://' + join(dir, 'scroll.html'))
+  const probeAt = async (y) => {
+    await p.evaluate((yy) => window.scrollTo(0, yy), y)
+    await p.waitForTimeout(120)
+    return p.evaluate(PROBE, [AREA_FAIL_RATIO, WCAG_MIN_TARGET_PX])
+  }
+  const atTop = await probeAt(0)
+  const offs = await p.evaluate(COLLISION_OFFSETS)
+  let foundDeep = false, foundAt = null
+  for (const y of offs) {
+    const rr = await probeAt(y)
+    if (rr.findings.length) { foundDeep = true; foundAt = y; break }
+  }
+  const topClean = atTop.findings.length === 0
+  if (!topClean || !foundDeep) ok = false
+  console.log(`  ${topClean ? 'ok  ' : 'FAIL'} scroll.html: at scroll 0 the page is clean (${atTop.findings.length} finding(s)) - a scroll-0-only run reports nothing here`)
+  console.log(`  ${foundDeep ? 'ok  ' : 'FAIL'} scroll.html: ${offs.length} collision offset(s) computed; the obstruction was found${foundAt !== null ? ` at scroll ${foundAt}` : ''}`)
+
   await b.close()
-  console.log(ok ? '\nselftest: the detector fires on a covered control and stays silent on a clear one.'
+  console.log(ok ? '\nselftest: the detector fires on a covered control and stays silent on a clear one,'
+                 + '\n          and sampling down the page finds what scroll 0 cannot see.'
                  : '\nselftest: FAILED. The sweep cannot be trusted until this passes.')
   process.exit(ok ? 0 : 1)
 }
@@ -286,26 +398,66 @@ for (const width of WIDTHS) {
     try { res = await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 90000 }) }
     catch { console.log(`  ${width}  ${route}  UNREACHABLE`); continue }
     await page.waitForTimeout(1800)
-    // The pointer stays where it last clicked, and a parked pointer hovers what is under it.
-    await page.mouse.move(0, 0)
-    const r = await page.evaluate(PROBE, [AREA_FAIL_RATIO, WCAG_MIN_TARGET_PX])
+    const maxScroll = await page.evaluate(() => Math.max(0, document.body.scrollHeight - innerHeight))
+    const candidates = await page.evaluate(COLLISION_OFFSETS)
+    const CANDIDATE_CAP = 60
+    const offsets = candidates.length ? candidates.slice(0, CANDIDATE_CAP) : [0]
+    const cappedOut = Math.max(0, candidates.length - offsets.length)
+    const seen = new Map()
+    let r = { overlays: [], fixedCount: 0, controls: 0, findings: [], textFindings: [] }
+    let sampled = 0
+    const startedAt = Date.now()
+    for (const y of offsets) {
+      if (Date.now() - startedAt > ROUTE_BUDGET_MS) break
+      await page.evaluate((yy) => window.scrollTo(0, yy), y)
+      await page.waitForTimeout(SETTLE_MS)
+      // The pointer stays where it last clicked, and a parked pointer hovers what is under it.
+      // Re-parked after every scroll, because scrolling changes what sits beneath it.
+      await page.mouse.move(0, 0)
+      const sample = await page.evaluate(PROBE, [AREA_FAIL_RATIO, WCAG_MIN_TARGET_PX])
+      sampled++
+      if (sample.overlays.length > r.overlays.length) r = { ...r, ...sample, findings: r.findings }
+      r.controls = Math.max(r.controls, sample.controls)
+      for (const f of sample.findings) {
+        // One control obstructed at six offsets is one finding, reported with where it was found.
+        const key = `${f.control}|${f.overlay}`
+        const prev = seen.get(key)
+        if (!prev) seen.set(key, { ...f, atScroll: [y] })
+        else { prev.atScroll.push(y); if (f.ratio > prev.ratio) { prev.ratio = f.ratio; prev.px = f.px }
+               prev.centreBlocked = prev.centreBlocked || f.centreBlocked; prev.atFloor = prev.atFloor || f.atFloor }
+      }
+      for (const t of sample.textFindings) {
+        const key = `TEXT|${t.overlay}|${t.text}`
+        if (!seen.has(key)) r.textFindings.push(t), seen.set(key, t)
+      }
+    }
+    r.findings = [...seen.values()].filter((v) => v.control)
+    const skipped = offsets.length - sampled
     visited++
     const bad = r.findings.filter((f) => f.kind === 'fixed' && (f.centreBlocked || f.atFloor || f.ratio >= AREA_FAIL_RATIO * 100))
     const stickyNote = r.findings.filter((f) => f.kind === 'sticky').length
     if (bad.length) {
       failures += bad.length
-      console.log(`  ${width}  ${route}  ${res?.status()}  *** ${bad.length} control(s) obstructed ***`)
+      console.log(`  ${width}  ${route}  ${res?.status()}  *** ${bad.length} control(s) obstructed *** (${sampled} of ${candidates.length} computed collision offsets, over ${maxScroll}px)`)
       for (const f of bad.slice(0, 4)) {
         const why = f.centreBlocked ? 'CENTRE BLOCKED'
           : f.atFloor ? `AT THE ${MINLABEL}px TARGET FLOOR, ${f.ratio}% taken`
           : `${f.ratio}% covered`
-        console.log(`        ${why} (${f.px}px, control ${f.size})  ${f.overlay}  over  ${f.control}`)
+        const where = f.atScroll.length === 1 ? `at scroll ${f.atScroll[0]}` : `at ${f.atScroll.length} offsets, first ${f.atScroll[0]}`
+        console.log(`        ${why} (${f.px}px, control ${f.size})  ${f.overlay}  over  ${f.control}  ${where}`)
       }
     } else if (r.overlays.length) {
       const worst = r.findings.length ? Math.max(...r.findings.map((f) => f.ratio)) : 0
-      console.log(`  ${width}  ${route}  ok   ${r.controls} control(s), ${r.fixedCount} fixed + ${r.overlays.length - r.fixedCount} sticky overlay(s), worst coverage ${worst}%${stickyNote ? `, ${stickyNote} sticky-over-control (by design)` : ''}`)
+      console.log(`  ${width}  ${route}  ok   ${r.controls} control(s), ${r.fixedCount} fixed + ${r.overlays.length - r.fixedCount} sticky overlay(s), worst coverage ${worst}%, ${sampled}/${candidates.length} collision offsets over ${maxScroll}px${stickyNote ? `, ${stickyNote} sticky-over-control (by design)` : ''}`)
     } else {
       console.log(`  ${width}  ${route}  ok   no fixed overlay on this route`)
+    }
+    if (cappedOut > 0) {
+      console.log(`        ⚠ ${cappedOut} computed collision offset(s) beyond the ${CANDIDATE_CAP} cap were NOT tested on this route.`)
+    }
+    if (skipped > 0) {
+      console.log(`        ⚠ ${skipped} of ${offsets.length} scroll offsets NOT sampled: the ${ROUTE_BUDGET_MS}ms budget ran out on this route.`)
+      console.log(`          This route is under-measured. A sweep that quietly stops reads exactly like one that passed.`)
     }
     for (const t of r.textFindings) console.log(`        note: ${t.overlay} sits over text "${t.text}"`)
   }
