@@ -29,11 +29,35 @@
  */
 
 import { createHash } from 'node:crypto'
+import { statSync } from 'node:fs'
 import { mkdir, readFile, writeFile, appendFile, access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { ARCHIVE_ROOT } from './db'
 import type { RetrievalMethod } from './types'
+
+/**
+ * THE ONE DEFINITION OF "WE HOLD THIS FILE", so a reader and a writer can never disagree.
+ *
+ * It lives here, in the lowest module, and `archive-reconcile.ts` imports it rather than
+ * writing its own. That is deliberate and it is the whole lesson of 2026-08-18: the capture's
+ * skip-set was taught to consult the disk while the archive WRITER was still consulting the
+ * manifest, and a skip-set that asks the disk feeding a writer that asks the record is
+ * strictly worse than either alone. The file gets re-fetched, the writer recognises the sha
+ * from an orphaned row, says `already_present`, and writes nothing. We would have paid for
+ * ~1.47 GB of transfer and still not held the bytes, with an exit code of 0.
+ *
+ * Length is checked, not merely existence. Present is not whole, and this archive has held a
+ * 141-byte capture of the letter X under the same name as a 439,490-byte index.
+ */
+export function bytesHeldAt(path: string, expectedByteLen: number): boolean {
+  try {
+    const s = statSync(path)
+    return s.isFile() && s.size === expectedByteLen
+  } catch {
+    return false
+  }
+}
 
 export type ArchiveRecord = {
   source_key: string
@@ -179,13 +203,29 @@ export async function archiveBytes(
 ): Promise<ArchiveOutcome> {
   const sha = createHash('sha256').update(input.bytes).digest('hex')
   const existing = await readArchiveManifest(root)
-  const already = existing.find(
+
+  /*
+   * THE DEDUPE MUST BE CONFIRMED AGAINST THE DISK, NOT SATISFIED BY THE RECORD.
+   *
+   * A matching row means we once wrote these bytes. It does not mean they are still here,
+   * and on 2026-08-18 production carried seven rows saying `200` whose 1.47 GB was gone. If
+   * a row alone were enough, this function would greet the re-fetched bytes with
+   * `already_present` and write nothing, so the only path that could repair the archive
+   * would be the one path guaranteed never to.
+   *
+   * So: among the rows that record these exact bytes for this exact day, accept only one we
+   * can still prove we hold. If none survives, fall through and write the file again under a
+   * fresh storage key. The old row stays: the manifest is an append-only ledger of what
+   * happened, and what happened is that we captured it, lost it, and captured it again.
+   */
+  const recorded = existing.filter(
     (r) =>
       r.source_key === input.sourceKey &&
       r.logical_date === input.logicalDate &&
       r.content_sha256 === sha,
   )
-  if (already) return { status: 'already_present', record: already }
+  const stillHeld = recorded.find((r) => bytesHeldAt(join(root, r.storage_key), r.byte_len))
+  if (stillHeld) return { status: 'already_present', record: stillHeld }
 
   const storageKey = join(
     input.sourceKey,

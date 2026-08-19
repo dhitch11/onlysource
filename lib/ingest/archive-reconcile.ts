@@ -84,7 +84,21 @@ export type ArchiveReconciliation = {
   lostBytes: number
 }
 
-/** Injectable so tests can drive every state without staging real gigabytes. */
+/**
+ * Injectable so tests can drive every state without staging real gigabytes.
+ *
+ * IT RETURNS A SIZE RATHER THAN A BOOLEAN because this module has to tell `lost` (nothing
+ * there) from `truncated` (something there, wrong length), and the archive WRITER only has
+ * to answer yes or no. That is why `archive.ts` exports the boolean `bytesHeldAt()` and this
+ * module keeps its own injectable stat instead of importing it: two different questions, and
+ * forcing one signature on both would cost the reconciler its testability.
+ *
+ * THE RISK THAT CREATES IS DRIFT, and drift between a reader and a writer about what
+ * "holding a file" means is the exact defect this whole commit exists to close. So it is
+ * closed by a test, not by a comment: `test/t2-ingest/archive-write-orphan.test.ts` asserts
+ * that `bytesHeldAt()` is true for precisely the files this module calls `held`, over the
+ * same staged archive.
+ */
 export type StatFile = (path: string) => { size: number } | null
 
 export const realStatFile: StatFile = (path) => {
