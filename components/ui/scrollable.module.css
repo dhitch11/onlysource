@@ -1,6 +1,27 @@
 /* Scrollable overflow affordance. Owner: T8 DESIGN. Every value from tokens.css. */
 
+/*
+ * A COLUMN: the scroll area, then the words. The hint used to be absolutely positioned against
+ * this box's bottom-right and floated over whatever sat at the bottom of the visible scroll
+ * area — a grid's last row, or the prose inside an expanded row. An affordance occluding the
+ * thing it exists to help you reach.
+ *
+ * Padding the content cannot fix that: padding moves where the content ENDS, and the hint stays
+ * pinned to the frame. Another lane measured exactly that before handing it over.
+ */
 .frame {
+  position: relative;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * The fade's anchor, and the reason this element exists rather than the fade using `.frame`.
+ * The frame is now taller than the scroller by one line of hint, so a fade with `inset-block: 0`
+ * on the frame would stretch down over the words. It belongs to the scrolling box alone.
+ */
+.scrollArea {
   position: relative;
   min-inline-size: 0;
 }
@@ -21,19 +42,27 @@
   background: linear-gradient(to right, transparent, color-mix(in srgb, var(--bg) 88%, transparent));
 }
 
-/* The words, for the reader the gradient alone fails. Quiet, pill-shaped, non-interactive. */
+/*
+ * The words, for the reader the gradient alone fails. Now a line UNDER the scroller rather than
+ * a pill ON it, end-aligned so it reads as belonging to the right edge it is talking about.
+ *
+ * NO PILL. It carried a panel background, a 1px border, a pill radius and a drop shadow, which
+ * is what made it read as a control sitting on the grid rather than a note about it. The
+ * background was also masking the overlap instead of preventing it: the same hint on the nav
+ * strip in AppShell looked fine until the pill came off, at which point two labels were visibly
+ * in the same pixels. A container that hides a collision is load-bearing by accident, which is
+ * the worst way for anything to be load-bearing.
+ *
+ * It costs one short line, and only while `more` is true, so a grid that fits pays nothing.
+ */
 .hint {
-  position: absolute;
-  inset-inline-end: var(--sp-2);
-  inset-block-end: var(--sp-2);
+  position: static;
+  align-self: flex-end;
+  margin-block-start: var(--sp-1);
+  padding-inline-end: var(--sp-2);
   pointer-events: none;
   font-size: var(--fs-100);
   font-weight: var(--fw-semibold);
   color: var(--dim);
-  background: var(--panel-2);
-  border: 1px solid var(--line-control);
-  border-radius: var(--radius-pill);
-  padding: 2px var(--sp-2);
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }

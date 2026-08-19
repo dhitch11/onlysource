@@ -61,17 +61,37 @@ export function Scrollable({
 }) {
   const { ref, more } = useScrollHint<HTMLDivElement>();
   return (
+    /*
+     * THE HINT SITS BELOW THE SCROLLER, NOT ON TOP OF IT.
+     *
+     * It used to be `position: absolute` pinned to the frame's bottom-right, so it floated over
+     * whatever happened to be at the bottom of the VISIBLE scroll area — the last row of a grid,
+     * or the prose inside an expanded row. An affordance occluding the thing it exists to help
+     * you reach. Padding the content cannot fix it: padding moves where the content ENDS and the
+     * hint stays pinned to the frame, which another lane proved before handing it over.
+     *
+     * The same defect lived on the nav strip in AppShell, where the hint's opaque pill background
+     * was hiding the collision rather than preventing it. Removing the pill for looking like a
+     * "weird bubble" made two labels visibly occupy the same pixels. THE FIX IN BOTH PLACES IS
+     * STRUCTURAL: stop floating over content and take a row.
+     *
+     * So the frame is a column. The scroll area keeps its own relative box, which is what the
+     * fade anchors to — the fade legitimately overlays the last few characters, pointer-
+     * transparent, the way torn paper reads, and it must not stretch over the hint row below.
+     * The words then sit under the scroller, end-aligned, costing one short line only while
+     * there is genuinely more to reach.
+     */
     <div className={styles.frame}>
-      <div ref={ref} className={className}>
-        {children}
+      <div className={styles.scrollArea}>
+        <div ref={ref} className={className}>
+          {children}
+        </div>
+        {more ? <div className={styles.fade} aria-hidden="true" /> : null}
       </div>
       {more ? (
-        <>
-          <div className={styles.fade} aria-hidden="true" />
-          <span className={styles.hint} aria-hidden="true" data-scroll-hint>
-            Scroll for more columns →
-          </span>
-        </>
+        <span className={styles.hint} aria-hidden="true" data-scroll-hint>
+          Scroll for more columns →
+        </span>
       ) : null}
     </div>
   );
