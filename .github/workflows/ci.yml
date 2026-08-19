@@ -42,6 +42,14 @@ jobs:
       - name: R0.2 secret scan
         run: npm run gate:r0:secrets
 
+      # Reachability self-test FIRST, for the reason the lint self-test runs first: on
+      # 2026-08-18 the census's three root-level route seeds were measured to be ZERO, because
+      # the seed list was filtered from a file list that could not contain a root-level path.
+      # A census with a silently empty seed category reports orphans that are live production
+      # code, and the obvious remedy banks them as permanent accepted debt.
+      - name: reachability self-test (prove the seeds are real)
+        run: npm run gate:reachability:selftest
+
       # Reachability. A ratchet: existing debt is recorded in .reachability-baseline.json and
       # this fails only when a NEW orphan appears. 35% of a 424-finding audit, in one second.
       - name: reachability census (no new orphans)
