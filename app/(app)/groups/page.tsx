@@ -108,11 +108,8 @@ export default async function GroupsPage() {
           <ExplainButton helpId="groups.map" sourceDetail={sourceDetail} />
         </div>
         <p className={styles.sub}>
-          The corner map cut by the government&rsquo;s own segmentation. The first four digits
-          of a stock number are its <b>Federal Supply Class</b> and the first two are its{' '}
-          <b>Federal Supply Group</b>, and each class carries the government&rsquo;s written
-          statement of what belongs in it and what does not. Use it to pick a lane and work
-          those rows first.
+          The corner map cut by the government&rsquo;s own <b>Federal Supply Class</b>. Pick a lane
+          and work those rows first.
         </p>
       </header>
 

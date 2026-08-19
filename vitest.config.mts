@@ -90,6 +90,11 @@ const HEAVY_INTELLIGENCE_TESTS = [
   // tests timed out at 5,000ms in the full suite while all 21 pass in 5.55s alone, the same
   // contention signature as the four files already listed.
   'test/feed-window/wiring.test.ts',
+  // Added the same day the rule above was written, by the lane that wrote it. This file calls
+  // buildAllDatasets() to test the sentence splitter against the REAL provenance string rather
+  // than an invented one, which is the right call for the test and makes it a heavy file.
+  // It timed out at 30s in the light project on its second full run.
+  'test/design/note-splitting.test.ts',
 ]
 
 // The known-bad lint fixtures are deliberately broken source. They are input to the

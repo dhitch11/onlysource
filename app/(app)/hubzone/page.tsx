@@ -82,10 +82,8 @@ export default async function HubzonePage() {
         <p className={styles.eyebrow}>Opportunities</p>
         <h1 className={styles.h1}>HUBZone set-asides</h1>
         <p className={styles.sub}>
-          Government buys the agency has reserved for <b>HUBZone-certified</b> small businesses. If
-          you hold the certification these are yours to bid; if not, they are still intelligence on
-          what is being bought and at what price, and a reason to partner with a certified firm.
-          Nothing here assumes you qualify.
+          Buys reserved for <b>HUBZone-certified</b> small businesses. Yours to bid if you hold the
+          certification, and worth reading either way. Nothing here assumes you qualify.
         </p>
       </header>
 

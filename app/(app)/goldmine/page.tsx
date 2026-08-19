@@ -152,10 +152,8 @@ export default async function GoldminePage() {
         <p className={styles.eyebrow}>Opportunities</p>
         <h1 className={styles.h1}>No-Quote Goldmine</h1>
         <p className={styles.sub}>
-          Parts the government tried to buy and got <b>zero</b> quotes back on. No competition showed
-          up, so the buyer has to come back and ask again. These closed buys are the proof that the
-          lane is wide open, and the same order returns. Get in front of the next one. A stock number
-          that is also on the corner map links into its dossier.
+          Buys that drew <b>zero</b> quotes. Nobody competed, so the buyer has to come back and ask
+          again &mdash; get in front of the next one.
         </p>
       </header>
 

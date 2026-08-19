@@ -167,11 +167,11 @@ export default async function CompetitorPage({
         <p className={styles.layerBody}>
           {pull ? (
             <>
-              Everything above came from the dedicated export. Everything below is the shallow teardown this
-              product derives for all {catalogs.competitors.length} companies in the parts files, from the
-              approved-source sheet alone. For {co.company ?? `CAGE ${co.cage}`} it reads{' '}
-              {co.summary.parts} reference row{co.summary.parts === 1 ? '' : 's'}, which is their reference
-              footprint and not the size of their business.
+              Above is the dedicated export. Below is the shallow teardown derived for all{' '}
+              {catalogs.competitors.length} companies from the approved-source sheet alone:{' '}
+              {co.summary.parts} reference row{co.summary.parts === 1 ? '' : 's'} for{' '}
+              {co.company ?? `CAGE ${co.cage}`} &mdash; a reference footprint, not the size of their
+              business.
             </>
           ) : (
             <>
@@ -244,9 +244,8 @@ function ShallowNotice({
         <StatusChip tone="idle">Generic teardown only</StatusChip>
       </div>
       <p className={styles.pullBandBody}>
-        We hold no company-specific export for {company}, so this page can only show what the approved-source
-        sheet says. It cannot say what they have won, what they were paid, who supplies them, or who we could
-        buy from instead.{' '}
+        No dedicated export for {company}, so this page shows only what the approved-source sheet
+        says &mdash; not what they won, were paid, or buy from.{' '}
         {deepCompanies.length > 0 ? (
           <>
             A dedicated pull exists for{' '}
