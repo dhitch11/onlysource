@@ -115,6 +115,16 @@ export interface DataGridProps<T> {
    *  whether to trust the tool, so it shows the actual government column names and values,
    *  not a summary. */
   expansion?: (row: T) => Array<{ field: string; value: string }>;
+  /**
+   * Fired when a row opens or closes, with the row or null.
+   *
+   * Additive and optional, so every existing caller is unaffected. It exists because a surface
+   * may need to FETCH what an expansion shows rather than already hold it: /suppliers keeps
+   * contact details off the wire entirely and behind `supplier.identity.view`, so the detail is
+   * requested when a person actually opens one company. Without this the fetch would have to be
+   * fired from inside `expansion()`, which runs during render.
+   */
+  onExpand?: (row: T | null) => void;
   density?: "compact" | "default" | "comfortable";
   /** Reports the real row count and the measured render time, so the virtualisation
    *  threshold is chosen from measurement rather than from a guess. */
@@ -157,6 +167,7 @@ export function DataGrid<T>({
   label,
   empty,
   expansion,
+  onExpand,
   density = "default",
   onMeasure,
 }: DataGridProps<T>) {
@@ -224,7 +235,11 @@ export function DataGrid<T>({
         case "Enter":
           if (expansion && modelRows[r]) {
             const key = rowKey(modelRows[r]!.original);
-            setExpanded((cur) => (cur === key ? null : key));
+            setExpanded((cur) => {
+              const next = cur === key ? null : key;
+              if (onExpand) onExpand(next === null ? null : modelRows[r]?.original ?? null);
+              return next;
+            });
             e.preventDefault();
           }
           return;
@@ -347,7 +362,11 @@ export function DataGrid<T>({
                             // A cell may hold a link or button (e.g. the stock-number link).
                             // Let those act; a click anywhere else on the row opens its records.
                             if ((e.target as HTMLElement).closest("a, button")) return;
-                            setExpanded((cur) => (cur === key ? null : key));
+                            setExpanded((cur) => {
+                              const next = cur === key ? null : key;
+                              if (onExpand) onExpand(next === null ? null : row.original);
+                              return next;
+                            });
                           }
                         : undefined
                     }

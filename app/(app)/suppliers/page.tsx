@@ -5,7 +5,8 @@ import { supplierNsnFacts } from "@/lib/intelligence/suppliers/outreach-dossier"
 import { resolveDataRoot } from "@/lib/data-root";
 import { ExplainButton } from "@/components/ui/ExplainButton";
 import { SuppliersGrid } from "./SuppliersGrid";
-import { boundSuppliersForWire } from "./wire-bound";
+import { leanBook } from "./wire-lean";
+import { callerCan, readCaller } from "@/lib/session/authz";
 import styles from "./suppliers.module.css";
 
 export const metadata: Metadata = { title: "Distressed Suppliers · ONLYSOURCE" };
@@ -63,18 +64,42 @@ export default async function SuppliersPage() {
   // the open-requirement flag). They personalise the compose draft with facts the data
   // actually holds; a CAGE with no tie gets no line, never a padded one.
   /*
-   * BOUND THE BOOK BEFORE ANYTHING CROSSES THE WIRE.
+   * THE WHOLE BOOK CROSSES THE WIRE, AND NOBODY'S CONTACT DETAILS DO.
    *
    * Measured before this: 3,471 suppliers and 9,748 contact records serialised on every load,
-   * 6.22MB of RSC flight payload, to paint 544 rows. The virtualiser bounds what is painted and
-   * nothing else. See ./wire-bound.ts for why the budget is in bytes rather than rows, and why
-   * the contact records make this a privacy fix and not only a payload one.
+   * 6.22MB of RSC flight payload, to paint 544 rows. A previous version capped the book at
+   * 1.5MB, which fixed the payload by TRUNCATING THE ROSTER, and an operator could not reach a
+   * supplier outside the budget.
+   *
+   * Capacity and privacy were never the trade-off; the row SHAPE was. Contact details are 40%
+   * of a row and the researcher's prose another 24%, and neither is read anywhere but inside a
+   * row expansion. So every supplier ships, lean, at 265 bytes each, and the omitted fields
+   * live behind `supplier.identity.view` at `/api/suppliers/detail`, one company at a time.
+   *
+   * ★ THE TYPE IS THE ENFORCEMENT. `leanBook` returns `LeanSupplier[]`, which structurally has
+   * no contacts, email, phone or executive field, and `<SuppliersGrid>` accepts nothing else.
+   * A future refactor cannot put the contact book back on the wire without a type error, which
+   * is a stronger guarantee than remembering to filter.
    */
-  const bound = boundSuppliersForWire(suppliers);
+  const book = leanBook(suppliers);
 
-  // nsnFacts is derived from what SHIPS, not from the whole book: a tie for a supplier nobody
-  // can see on this screen is a lookup nobody can make.
-  const nsnFacts = supplierNsnFacts(bound.shipped.map((s) => s.cage));
+  /*
+   * WHETHER THIS CALLER MAY SEE WHO THE PEOPLE ARE.
+   *
+   * `supplier.identity.view` is `sensitive: true` and the `read_only` role deliberately does not
+   * hold it. This page previously carried NO permission check at all and handed every signed-in
+   * caller the names, titles, emails, phones and LinkedIn profiles of 3,471 companies' contacts.
+   * The permission existed and was correct; the read path never asked.
+   *
+   * It is passed down so the UI can be honest rather than merely broken for a caller who lacks
+   * it: no compose affordance offered, and the expansion says which boundary it hit. The flag is
+   * a DISPLAY decision only. Every actual contact record is fetched from a route that checks the
+   * permission itself, so a tampered flag reveals nothing.
+   */
+  const canSeeIdentities = callerCan(await readCaller(), "supplier.identity.view");
+
+  // nsnFacts is derived from what SHIPS, which is now the whole book.
+  const nsnFacts = supplierNsnFacts(book.map((s) => s.cage));
 
   return (
     <main className={styles.page}>
@@ -132,7 +157,7 @@ export default async function SuppliersPage() {
         </p>
       </div>
 
-      <SuppliersGrid suppliers={bound.shipped} nsnFacts={nsnFacts} totals={bound.totals} />
+      <SuppliersGrid suppliers={book} nsnFacts={nsnFacts} canSeeIdentities={canSeeIdentities} />
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { AiLoader } from "@/components/ui/AiLoader";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
@@ -14,6 +14,7 @@ import {
   type ComposeRecipient,
   type SupplierNsnFact,
 } from "@/lib/sales/outreach-templates";
+import type { LeanSupplier, SupplierDetail } from "./wire-lean";
 import styles from "./suppliers.module.css";
 
 type Filter = "hot" | "manufacturer" | "all";
@@ -27,9 +28,16 @@ const tierTone = (tier: string | null): "verified" | "accent" | "idle" => {
   return "idle";
 };
 
-function bestPhone(r: DistressedSupplier): string | null {
-  if (r.phone) return r.phone;
-  const c = r.contacts.find((c) => c.phone);
+/**
+ * A phone number, from DETAIL rather than from the row.
+ *
+ * The row on the wire carries `hasPhone`, a boolean, and never the number. The grid can say a
+ * company is reachable without saying how to reach them, and the number itself only arrives for
+ * a company a permitted person opened.
+ */
+function bestPhone(d: SupplierDetail): string | null {
+  if (d.phone) return d.phone;
+  const c = d.contacts.find((c) => c.phone);
   return c?.phone ?? null;
 }
 
@@ -45,7 +53,7 @@ function bestPhone(r: DistressedSupplier): string | null {
  * award index ties THIS CAGE to a stock number, the draft names it. No em dashes, and the
  * operator signs: nothing after "Thanks,".
  */
-function composeHref(r: DistressedSupplier, rec: ComposeRecipient, facts: SupplierNsnFact[]): string {
+function composeHref(r: LeanSupplier, d: SupplierDetail, rec: ComposeRecipient, facts: SupplierNsnFact[]): string {
   const draft = buySideEmailDraft({
     recipientFirstName: firstNameOf(rec.name),
     company: r.company,
@@ -86,13 +94,30 @@ function csvCell(v: string | number | null | undefined): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-function exportCsv(rows: DistressedSupplier[], name: string) {
-  const head = ["Company", "CAGE", "Tier", "Score", "City", "State", "Email", "Email belongs to", "Phone", "Executive", "Holds inventory", "SAM status"];
+/**
+ * THE EXPORT, AND WHAT IT DELIBERATELY NO LONGER CONTAINS.
+ *
+ * It used to write Email, "Email belongs to", Phone and Executive for every row on screen, built
+ * entirely in the browser from data the page had already been given. Two things were wrong with
+ * that and only one of them was the payload.
+ *
+ * `data.export` is `sensitive: true` in the permission model and `supplier.identity.view` governs
+ * seeing who a supplier is. **Neither was checked.** A client-side Blob download is not a route,
+ * so it never passed a permission gate at all: any signed-in caller could take the contact
+ * details of every company in the book as a file, including roles defined to withhold exactly
+ * that. The same class as the page itself, one step further out, and the harder one to notice
+ * because nothing about it looks like a request.
+ *
+ * So this writes what the OPERATOR CAN SEE ON THE GRID and nothing more. A CSV carrying contact
+ * details is a real operator need and it is not gone: it belongs behind a route that checks both
+ * permissions and can be audited, which is a server change rather than a Blob.
+ */
+function exportCsv(rows: LeanSupplier[], name: string) {
+  const head = ["Company", "CAGE", "Tier", "Score", "City", "State", "Contacts on file", "Holds inventory", "SAM status", "Last awarded"];
   const lines = [head.map(csvCell).join(",")];
   for (const r of rows) {
-    const rec = bestRecipient(r);
     lines.push(
-      [r.company, r.cage, r.prospectTier, r.prospectScore, r.city, r.state, rec?.email ?? null, rec?.name ?? null, bestPhone(r), r.executive, r.holdsInventory, r.samStatus]
+      [r.company, r.cage, r.prospectTier, r.prospectScore, r.city, r.state, r.contactCount, r.holdsInventory, r.samStatus, r.lastAwardedAt]
         .map(csvCell)
         .join(","),
     );
@@ -111,22 +136,62 @@ function exportCsv(rows: DistressedSupplier[], name: string) {
 export function SuppliersGrid({
   suppliers,
   nsnFacts,
-  totals,
+  canSeeIdentities,
 }: {
-  suppliers: DistressedSupplier[];
+  /*
+   * THE WHOLE BOOK, LEAN. Every supplier ships; no contact detail does. `LeanSupplier` has no
+   * contacts, email, phone or executive field AT THE TYPE LEVEL, so a future refactor cannot
+   * put the contact book back on the wire without a compile error.
+   */
+  suppliers: LeanSupplier[];
   /** Measured CAGE-to-NSN ties from the award index, computed server-side. Absent CAGE = no tie. */
   nsnFacts: Record<string, SupplierNsnFact[]>;
   /*
-   * COUNTED OVER THE WHOLE BOOK, NEVER OVER `suppliers`.
-   *
-   * `suppliers` is bounded for the wire (see ./wire-bound.ts), so every count this component
-   * prints about the BOOK has to come from here. A tab reading "Tier A - hot 41" counted off
-   * the bounded array would be a count of the page wearing the book's label, which is the exact
-   * defect the bound exists to avoid reintroducing one level down.
+   * Whether this caller holds `supplier.identity.view`. A DISPLAY decision only: it chooses
+   * whether to offer an affordance and what the refusal says. Every actual contact record comes
+   * from a route that checks the permission itself, so a tampered flag reveals nothing.
    */
-  totals: { all: number; hot: number; manufacturer: number };
+  canSeeIdentities: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("hot");
+
+  /*
+   * ONE COMPANY'S CONTACT DETAILS, FETCHED WHEN A PERSON OPENS THAT COMPANY.
+   *
+   * Keyed by CAGE and never prefetched. `denied` is kept as a distinct state from `error`
+   * because they are different facts and the operator is told which one happened: a refusal
+   * names the boundary, a failure says it failed.
+   */
+  const [detail, setDetail] = useState<
+    Record<string, { status: "loading" | "ok" | "denied" | "error"; data?: SupplierDetail }>
+  >({});
+
+  const loadDetail = useCallback(
+    (cage: string) => {
+      if (!cage) return;
+      setDetail((cur) => {
+        if (cur[cage]) return cur; // already loading, loaded, refused or failed: ask once
+        void (async () => {
+          try {
+            const r = await fetch(`/api/suppliers/detail?cage=${encodeURIComponent(cage)}`, {
+              // A 403 must be READ, not followed. `fetch` follows a redirect by default and an
+              // auth redirect answering 200 would read as success for a request that never ran.
+              redirect: "manual",
+            });
+            if (r.status === 403) return setDetail((c) => ({ ...c, [cage]: { status: "denied" } }));
+            if (!r.ok) return setDetail((c) => ({ ...c, [cage]: { status: "error" } }));
+            const body = (await r.json()) as { detail?: SupplierDetail };
+            if (!body.detail) return setDetail((c) => ({ ...c, [cage]: { status: "error" } }));
+            setDetail((c) => ({ ...c, [cage]: { status: "ok", data: body.detail } }));
+          } catch {
+            setDetail((c) => ({ ...c, [cage]: { status: "error" } }));
+          }
+        })();
+        return { ...cur, [cage]: { status: "loading" } };
+      });
+    },
+    [],
+  );
   /**
    * Switching to "All distressed" re-ranks and re-lays 3,471 rows and measured ~6s on a warm
    * machine. React keeps the previous rows on screen through a transition, which is right, but
@@ -163,8 +228,8 @@ export function SuppliersGrid({
     } catch {}
   };
 
-  const isHot = (r: DistressedSupplier) => /hot|^a/i.test(r.prospectTier ?? "");
-  const isMfr = (r: DistressedSupplier) => /manufact/i.test(r.holdsInventory ?? "");
+  const isHot = (r: LeanSupplier) => /hot|^a/i.test(r.prospectTier ?? "");
+  const isMfr = (r: LeanSupplier) => /manufact/i.test(r.holdsInventory ?? "");
 
   const shown = useMemo(() => {
     let base = filter === "hot" ? suppliers.filter(isHot) : filter === "manufacturer" ? suppliers.filter(isMfr) : suppliers;
@@ -172,7 +237,7 @@ export function SuppliersGrid({
     return base;
   }, [suppliers, filter, hideContacted, contacted]);
 
-  const columns: GridColumn<DistressedSupplier>[] = useMemo(
+  const columns: GridColumn<LeanSupplier>[] = useMemo(
     () => [
       {
         id: "company",
@@ -242,9 +307,32 @@ export function SuppliersGrid({
         header: "Reach out",
         width: "22ch",
         cell: (r): Cell => {
-          const rec = bestRecipient(r);
-          const phone = bestPhone(r);
-          if (!rec && !phone) return { state: "unknown", reason: "no contact channel in the file" };
+          /*
+           * ★ THE ROW KNOWS THAT PEOPLE EXIST. IT DOES NOT KNOW WHO THEY ARE.
+           *
+           * `contactCount` and `hasPhone` travel on the lean row; no name, email or number does.
+           * So this cell can be honest about whether a company is reachable without the browser
+           * ever holding the means to reach them, and the means arrive only for a company a
+           * permitted person actually opened.
+           */
+          const d = detail[r.cage];
+          const rec = d?.status === "ok" && d.data ? bestRecipient(d.data) : null;
+          const phone = d?.status === "ok" && d.data ? bestPhone(d.data) : null;
+
+          if (r.contactCount === 0 && !r.hasPhone) {
+            return { state: "unknown", reason: "no contact channel in the file" };
+          }
+          /*
+           * The refusal NAMES THE BOUNDARY. A blank cell would teach an operator this company has
+           * nobody on file, which is a false statement about the world rather than a true one
+           * about their role.
+           */
+          if (!canSeeIdentities) {
+            return {
+              state: "unknown",
+              reason: `${r.contactCount} on file; your role does not include seeing supplier identities`,
+            };
+          }
           return {
             state: "known",
             provenance: "measured",
@@ -253,7 +341,7 @@ export function SuppliersGrid({
                 {rec ? (
                   <a
                     className={styles.reachBtn}
-                    href={composeHref(r, rec, nsnFacts[r.cage] ?? [])}
+                    href={composeHref(r, d!.data!, rec, nsnFacts[r.cage] ?? [])}
                     onClick={(e) => e.stopPropagation()}
                     title={rec.name ? `Drafts to ${rec.name}, ${rec.email}` : `Drafts to ${rec.email}`}
                   >
@@ -262,6 +350,24 @@ export function SuppliersGrid({
                 ) : null}
                 {rec ? <CopyButton text={rec.email} label="Copy email" /> : null}
                 {!rec && phone ? <CopyButton text={phone} label="Copy phone" /> : null}
+                {!d ? (
+                  <button
+                    type="button"
+                    className={styles.miniBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      loadDetail(r.cage);
+                    }}
+                    title={`Fetch the ${r.contactCount} contact record(s) held for this company`}
+                  >
+                    Show contacts ({r.contactCount})
+                  </button>
+                ) : null}
+                {d?.status === "loading" ? <span className={styles.reachNote}>loading…</span> : null}
+                {d?.status === "denied" ? (
+                  <span className={styles.reachNote}>your role does not include seeing supplier identities</span>
+                ) : null}
+                {d?.status === "error" ? <span className={styles.reachNote}>could not load</span> : null}
                 <button
                   type="button"
                   className={`${styles.miniBtn} ${contacted.has(r.cage) ? styles.miniBtnOn : ""}`}
@@ -285,9 +391,9 @@ export function SuppliersGrid({
   );
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
-    { id: "hot", label: "Tier A · hot", n: totals.hot },
-    { id: "manufacturer", label: "Manufacturers (hold stock)", n: totals.manufacturer },
-    { id: "all", label: "All distressed", n: totals.all },
+    { id: "hot", label: "Tier A · hot", n: suppliers.filter(isHot).length },
+    { id: "manufacturer", label: "Manufacturers (hold stock)", n: suppliers.filter(isMfr).length },
+    { id: "all", label: "All distressed", n: suppliers.length },
   ];
 
   return (
@@ -319,14 +425,7 @@ export function SuppliersGrid({
         </button>
         <div className={styles.toolbarRight}>
           <span className={styles.resultCount} aria-live="polite">
-            {shown.length.toLocaleString()} shown
-            {totals.all > suppliers.length ? (
-              <span className={styles.resultNote}>
-                {" "}
-                of {totals.all.toLocaleString()} in the book · this screen carries the{" "}
-                {suppliers.length.toLocaleString()} highest-scoring, Tier A first
-              </span>
-            ) : null}
+            {shown.length.toLocaleString()} shown of {suppliers.length.toLocaleString()} in the book
           </span>
           <button type="button" className={styles.exportBtn} onClick={() => exportCsv(shown, `distressed-suppliers-${filter}`)}>
             Export to CSV
@@ -361,15 +460,40 @@ export function SuppliersGrid({
             setHideContacted(false);
           },
         }}
+        /*
+         * Opening a row is what FETCHES that company's contact details. Nothing is prefetched,
+         * and the request is made once per CAGE. See `loadDetail`.
+         */
+        onExpand={(r) => { if (r && canSeeIdentities) loadDetail(r.cage); }}
         expansion={(r) => {
-          const phone = bestPhone(r);
+          const d = detail[r.cage];
+          const det = d?.status === "ok" ? d.data ?? null : null;
+          const phone = det ? bestPhone(det) : null;
           const facts = nsnFacts[r.cage] ?? [];
+          /*
+           * ★ EVERY WITHHELD FIELD SAYS WHY IT IS WITHHELD, AND THE FOUR REASONS ARE DIFFERENT
+           * FACTS: not permitted, not yet loaded, failed to load, and genuinely absent. A single
+           * blank for all four would teach an operator the company has nothing on file, which is
+           * a statement about the world rather than about their session.
+           */
+          const held =
+            det !== null
+              ? null
+              : !canSeeIdentities
+                ? "(your role does not include seeing supplier identities)"
+                : d?.status === "loading"
+                  ? "(loading…)"
+                  : d?.status === "denied"
+                    ? "(your role does not include seeing supplier identities)"
+                    : d?.status === "error"
+                      ? "(could not be loaded)"
+                      : "(not loaded)";
           return [
             { field: "CAGE", value: r.cage },
             { field: "Company", value: r.company ?? "(none)" },
-            { field: "Why no awards", value: r.whyNoAwards ?? "(not researched)" },
-            { field: "Prospect rationale", value: r.prospectRationale ?? "(none)" },
-            ...(r.keyFindings ? [{ field: "Signals", value: r.keyFindings }] : []),
+            { field: "Why no awards", value: det ? det.whyNoAwards ?? "(not researched)" : held! },
+            { field: "Prospect rationale", value: det ? det.prospectRationale ?? "(none)" : held! },
+            ...(det?.keyFindings ? [{ field: "Signals", value: det.keyFindings }] : []),
             ...facts.map((f, i) => ({
               field: i === 0 ? "Their stock numbers" : "",
               value: `NSN ${f.nsn} (${f.kind === "awarded" ? "on the recorded award history" : "lists stock"}${f.liveRequirement ? "; open government requirement right now" : ""})`,
@@ -378,12 +502,14 @@ export function SuppliersGrid({
             { field: "Employees", value: r.employees ?? "(unknown)" },
             { field: "SAM", value: [r.samStatus, r.samExpiration ? `expires ${r.samExpiration}` : null].filter(Boolean).join(" · ") || "(not read)" },
             { field: "Holds inventory", value: r.holdsInventory ?? "(not researched)" },
-            { field: "Website", value: r.url ?? "(none)" },
-            ...(r.executive ? [{ field: "Executive", value: `${r.executive}${r.executiveTitle ? `, ${r.executiveTitle}` : ""}` }] : []),
-            ...r.contacts.slice(0, 8).map((c, i) => ({
-              field: i === 0 ? "Verified contacts" : "",
-              value: `${c.name ?? "?"}${c.title ? `, ${c.title}` : ""}${c.email ? ` · ${c.email}` : ""}${c.phone ? ` · ${c.phone}` : ""}${c.verified ? " ✓" : ""}`,
-            })),
+            { field: "Website", value: det ? det.url ?? "(none)" : held! },
+            ...(det?.executive ? [{ field: "Executive", value: `${det.executive}${det.executiveTitle ? `, ${det.executiveTitle}` : ""}` }] : []),
+            ...(det
+              ? det.contacts.slice(0, 8).map((c, i) => ({
+                  field: i === 0 ? "Verified contacts" : "",
+                  value: `${c.name ?? "?"}${c.title ? `, ${c.title}` : ""}${c.email ? ` · ${c.email}` : ""}${c.phone ? ` · ${c.phone}` : ""}${c.verified ? " ✓" : ""}`,
+                }))
+              : [{ field: "Verified contacts", value: `${r.contactCount} on file ${held}` }]),
             /*
              * THE CALL SIDE OF THE LOOP. When a phone is on file the operator's own
              * follow-up script rides in the expansion, so a call is made with the discovery
