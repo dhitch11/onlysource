@@ -5,6 +5,7 @@ import { supplierNsnFacts } from "@/lib/intelligence/suppliers/outreach-dossier"
 import { resolveDataRoot } from "@/lib/data-root";
 import { ExplainButton } from "@/components/ui/ExplainButton";
 import { SuppliersGrid } from "./SuppliersGrid";
+import { boundSuppliersForWire } from "./wire-bound";
 import styles from "./suppliers.module.css";
 
 export const metadata: Metadata = { title: "Distressed Suppliers · ONLYSOURCE" };
@@ -61,7 +62,19 @@ export default async function SuppliersPage() {
   // Measured CAGE-to-NSN ties from the award index (awarded history and listed stock, with
   // the open-requirement flag). They personalise the compose draft with facts the data
   // actually holds; a CAGE with no tie gets no line, never a padded one.
-  const nsnFacts = supplierNsnFacts(suppliers.map((s) => s.cage));
+  /*
+   * BOUND THE BOOK BEFORE ANYTHING CROSSES THE WIRE.
+   *
+   * Measured before this: 3,471 suppliers and 9,748 contact records serialised on every load,
+   * 6.22MB of RSC flight payload, to paint 544 rows. The virtualiser bounds what is painted and
+   * nothing else. See ./wire-bound.ts for why the budget is in bytes rather than rows, and why
+   * the contact records make this a privacy fix and not only a payload one.
+   */
+  const bound = boundSuppliersForWire(suppliers);
+
+  // nsnFacts is derived from what SHIPS, not from the whole book: a tie for a supplier nobody
+  // can see on this screen is a lookup nobody can make.
+  const nsnFacts = supplierNsnFacts(bound.shipped.map((s) => s.cage));
 
   return (
     <main className={styles.page}>
@@ -119,7 +132,7 @@ export default async function SuppliersPage() {
         </p>
       </div>
 
-      <SuppliersGrid suppliers={suppliers} nsnFacts={nsnFacts} />
+      <SuppliersGrid suppliers={bound.shipped} nsnFacts={nsnFacts} totals={bound.totals} />
     </main>
   );
 }

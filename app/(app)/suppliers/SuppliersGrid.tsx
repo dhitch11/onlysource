@@ -111,10 +111,20 @@ function exportCsv(rows: DistressedSupplier[], name: string) {
 export function SuppliersGrid({
   suppliers,
   nsnFacts,
+  totals,
 }: {
   suppliers: DistressedSupplier[];
   /** Measured CAGE-to-NSN ties from the award index, computed server-side. Absent CAGE = no tie. */
   nsnFacts: Record<string, SupplierNsnFact[]>;
+  /*
+   * COUNTED OVER THE WHOLE BOOK, NEVER OVER `suppliers`.
+   *
+   * `suppliers` is bounded for the wire (see ./wire-bound.ts), so every count this component
+   * prints about the BOOK has to come from here. A tab reading "Tier A - hot 41" counted off
+   * the bounded array would be a count of the page wearing the book's label, which is the exact
+   * defect the bound exists to avoid reintroducing one level down.
+   */
+  totals: { all: number; hot: number; manufacturer: number };
 }) {
   const [filter, setFilter] = useState<Filter>("hot");
   /**
@@ -275,9 +285,9 @@ export function SuppliersGrid({
   );
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
-    { id: "hot", label: "Tier A · hot", n: suppliers.filter(isHot).length },
-    { id: "manufacturer", label: "Manufacturers (hold stock)", n: suppliers.filter(isMfr).length },
-    { id: "all", label: "All distressed", n: suppliers.length },
+    { id: "hot", label: "Tier A · hot", n: totals.hot },
+    { id: "manufacturer", label: "Manufacturers (hold stock)", n: totals.manufacturer },
+    { id: "all", label: "All distressed", n: totals.all },
   ];
 
   return (
@@ -310,6 +320,13 @@ export function SuppliersGrid({
         <div className={styles.toolbarRight}>
           <span className={styles.resultCount} aria-live="polite">
             {shown.length.toLocaleString()} shown
+            {totals.all > suppliers.length ? (
+              <span className={styles.resultNote}>
+                {" "}
+                of {totals.all.toLocaleString()} in the book · this screen carries the{" "}
+                {suppliers.length.toLocaleString()} highest-scoring, Tier A first
+              </span>
+            ) : null}
           </span>
           <button type="button" className={styles.exportBtn} onClick={() => exportCsv(shown, `distressed-suppliers-${filter}`)}>
             Export to CSV
