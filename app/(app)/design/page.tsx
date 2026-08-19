@@ -41,8 +41,15 @@ import {
 } from "@/components/ui/States";
 import { allHelp } from "@/components/help/registry";
 import styles from "./design.module.css";
+import rt from '@/components/ui/responsive-table.module.css'
 
 type Theme = "dark" | "light";
+
+const COVERAGE_COLS = {
+  helpId: "helpId",
+  owner: "Owner",
+  content: "Content",
+} as const
 
 export default function DesignPage() {
   const [theme, setTheme] = useState<Theme>("dark");
@@ -401,21 +408,21 @@ export default function DesignPage() {
         title="Explainer coverage"
         note="The coverage report. Every registered id, which lane owns it, and whether its content is written. A requirement that lives only in a document decays, so this is mechanical."
       >
-        <div className={styles.coverageWrap}>
+        <div className={`${styles.coverageWrap} ${rt.cards}`}>
         <table className={styles.coverage}>
           <thead>
             <tr>
-              <th>helpId</th>
-              <th>Owner</th>
-              <th>Content</th>
+              <th>{COVERAGE_COLS.helpId}</th>
+              <th>{COVERAGE_COLS.owner}</th>
+              <th>{COVERAGE_COLS.content}</th>
             </tr>
           </thead>
           <tbody>
             {help.map((h) => (
               <tr key={h.id}>
-                <td className="mono">{h.id}</td>
-                <td>{h.owner}</td>
-                <td>
+                <td className="mono" data-label={COVERAGE_COLS.helpId}>{h.id}</td>
+                <td data-label={COVERAGE_COLS.owner}>{h.owner}</td>
+                <td data-label={COVERAGE_COLS.content}>
                   <StatusChip tone="verified">written</StatusChip>
                 </td>
               </tr>
