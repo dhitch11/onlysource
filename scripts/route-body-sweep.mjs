@@ -154,6 +154,26 @@ const GROWTH_MULTIPLE = 1.5
 /** Below this, a percentage swing is noise: a changed timestamp can move a small page 20%. */
 const GROWTH_FLOOR_BYTES = 50_000
 
+/**
+ * ★ WHY A REGRESSION GUARD ALONE IS NOT ENOUGH, AND THE HOLE IS IN THIS FILE'S OWN DESIGN.
+ *
+ * The 1.5x guard compares against the LAST RECORDED size, and `--update-baseline` rewrites that
+ * number every time it runs. So a route that grows 40% per promote never trips it and its
+ * baseline is re-blessed at the new size on each pass. **A gate anchored to the last promote
+ * cannot see a slow climb, only a jump.** Measured instance on this estate the same day:
+ * /pricing went 1.55MB at 331 rows to 5.45MB at 1,200 rows across a handful of promotes, and
+ * the moment the baseline was recorded at 5.45MB that became the accepted floor.
+ *
+ * `maxBytes` is the answer and it is deliberately NOT derived from an observation: the baseline
+ * writer preserves a ceiling an owner set and never writes or raises one. A ceiling a machine
+ * can raise is not a ceiling.
+ *
+ * But a bare ceiling is a cliff: a route sits quietly at 99% and then fails a promote with no
+ * warning. So every run prints HEADROOM, and a route past this share of its ceiling is called
+ * out while it still passes. Drift becomes visible as a gradient instead of arriving as a wall.
+ */
+const HEADROOM_WARN_AT = 0.8
+
 export function judge({ route, status, body, expected }) {
   const problems = []
   if (!expected) {
@@ -369,6 +389,46 @@ for (const r of results) {
   const head = r.heading === null ? '' : `  "${r.heading.slice(0, 46)}"`
   console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${String(r.status ?? '---').padEnd(4)} ${String(r.bytes ?? '').padStart(7)}b  ${r.route}${head}`)
   for (const p of r.problems) console.log(`          ${p}`)
+}
+
+/*
+ * HEADROOM. Printed on every run, for every route that has a ceiling, so a route approaching
+ * one is visible before it fails rather than at the moment it does.
+ */
+const withCeilings = results
+  .map((r) => {
+    const max = expectations[r.route]?.maxBytes
+    if (typeof max !== 'number' || max <= 0 || typeof r.bytes !== 'number') return null
+    return { route: r.route, bytes: r.bytes, max, used: r.bytes / max }
+  })
+  .filter(Boolean)
+  .sort((a, b) => b.used - a.used)
+
+if (withCeilings.length) {
+  console.log(`\n  headroom (${withCeilings.length} route(s) carry a ceiling):`)
+  for (const c of withCeilings) {
+    const flag = c.used >= 1 ? 'OVER' : c.used >= HEADROOM_WARN_AT ? 'near' : '    '
+    console.log(
+      `    ${flag}  ${(100 * c.used).toFixed(0).padStart(3)}%  ${c.bytes.toLocaleString().padStart(10)} of ${c.max.toLocaleString()}  ${c.route}`,
+    )
+  }
+  const near = withCeilings.filter((c) => c.used >= HEADROOM_WARN_AT && c.used < 1)
+  if (near.length) {
+    console.log(
+      `\n  ${near.length} route(s) are past ${HEADROOM_WARN_AT * 100}% of their ceiling and still passing. ` +
+        'A ceiling reached without warning is a cliff; this is the warning.',
+    )
+  }
+}
+const noCeiling = results.filter((r) => typeof r.bytes === 'number' && r.bytes >= 1_000_000 && expectations[r.route]?.maxBytes === undefined)
+if (noCeiling.length) {
+  console.log(
+    `\n  ${noCeiling.length} route(s) over 1MB carry NO ceiling, so only the 1.5x regression guard bounds them, ` +
+      'and that guard re-blesses whatever the last promote recorded:',
+  )
+  for (const r of noCeiling.sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0))) {
+    console.log(`    ${(r.bytes ?? 0).toLocaleString().padStart(10)}  ${r.route}`)
+  }
 }
 
 const noHeading = results.filter((r) => r.status === 200 && r.heading === null)
