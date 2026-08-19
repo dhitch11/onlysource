@@ -129,9 +129,41 @@
     border-right: none;
     border-bottom: none;
   }
+  /*
+   * ON A PHONE THE LAUNCHER BECOMES THE MARK ALONE.
+   *
+   * It is `position: fixed`, so it sits on whatever is under it at the current scroll offset,
+   * not merely at the end of the page. Reserving bottom padding on the content — which the
+   * shell now does — stops it covering the LAST line and does nothing about the other
+   * thousand. Measured at 320 it covered a sentence mid-word on /corner and the row count in
+   * the /pricing disclosure, at two different scroll positions, with the padding already in
+   * place. A fixed element cannot be solved by making room somewhere else.
+   *
+   * What can be solved is HOW MUCH it covers. As a labelled pill it is ~148px wide across the
+   * lower right of a 320px screen, nearly half the line. As the mark alone it is a 46px
+   * circle in the corner, the shape every phone user already reads as an assistant, and it
+   * covers about a fifth of what it did.
+   *
+   * NOTHING IS LOST TO ASSISTIVE TECHNOLOGY: the button already carries
+   * `aria-label={open ? 'Close Thomas' : 'Ask Thomas'}`, so the name is announced whether or
+   * not the visible label renders. The label is hidden with the same visually-hidden pattern
+   * the shell uses for the account name at this width, rather than `display: none`, so it
+   * stays in the accessibility tree.
+   */
   .launcher {
     right: var(--sp-3);
     bottom: var(--sp-3);
+    padding: var(--sp-2);
+    gap: 0;
+  }
+
+  .launcherLabel {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
