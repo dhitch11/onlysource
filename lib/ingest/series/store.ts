@@ -27,6 +27,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { DATA_ROOT } from '../db'
+import { civilInZone } from '../../time/zoned'
 import type { SeriesObservation } from './bls'
 
 /** Beside the archive, outside git, for the same reason: it grows forever and is not source. */
@@ -157,4 +158,125 @@ export function summariseCoverage(
     })
   }
   return out.sort((a, b) => a.series_id.localeCompare(b.series_id))
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* SERIES FRESHNESS. A DATED SERIES NOBODY REFRESHES IS A SLOWER STALE CONSTANT           */
+/* ------------------------------------------------------------------------------------ */
+
+export type SeriesTone = 'fresh' | 'aging' | 'stale'
+
+export type SeriesFreshness = {
+  series_id: string
+  /** The newest MONTHLY period held. Annual averages are excluded: see below. */
+  newestMonthlyPeriod: string | null
+  /** Calendar months from that period to the month this was measured in. */
+  monthsBehind: number | null
+  tone: SeriesTone
+  /** The Eastern civil month the measurement was made in, as YYYY-MM. */
+  measuredIn: string
+  /** The most recent vintage any row of this series carries. */
+  newestVintage: string | null
+}
+
+/**
+ * TONE THRESHOLDS, stated rather than smuggled, and calibrated to the PUBLISHER'S cadence
+ * rather than to a calendar. BLS publishes a month's CPI-U in the middle of the FOLLOWING
+ * month, so being one month behind is the newest publishable state and is not staleness. Two
+ * is a missed release. More than that and the anchor is escalating with an index that has
+ * stopped tracking the economy it is supposed to describe.
+ *
+ * This is the same distinction the feed archive already draws, and for the same reason: an
+ * alarm that fires on a source's normal operating lag is an alarm nobody reads by the end of
+ * the month.
+ */
+export const SERIES_FRESH_MAX_MONTHS = 1
+export const SERIES_AGING_MAX_MONTHS = 2
+
+/**
+ * How current the ledger is, per series.
+ *
+ * ★ ANNUAL AVERAGES ARE EXCLUDED FROM THE MEASUREMENT ON PURPOSE. BLS publishes a year's
+ * annual average (period M13) only after that year ends, so a ledger holding 2025-M13 and
+ * nothing newer looks respectable while being eight months behind on the monthly series the
+ * anchor actually resolves against. Judging freshness by the annual average would report the
+ * comfortable number instead of the true one, which is the same error as judging a
+ * solicitation against the newest day captured instead of against today.
+ *
+ * ★ AND IT USES THE SAME EASTERN CIVIL CLOCK AS THE FEED ARCHIVE, imported rather than
+ * re-derived. Two clocks in one product is how the chrome and the filter came to name two
+ * different todays on this build in a single day.
+ */
+export function measureSeriesFreshness(
+  observations: readonly SeriesObservation[],
+  nowMs: number,
+): SeriesFreshness[] {
+  const today = civilInZone(nowMs, 'America/New_York')
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const measuredIn = `${today.year}-${p2(today.month)}`
+
+  const bySeries = new Map<string, SeriesObservation[]>()
+  for (const o of observations) {
+    const list = bySeries.get(o.series_id) ?? []
+    list.push(o)
+    bySeries.set(o.series_id, list)
+  }
+
+  const out: SeriesFreshness[] = []
+  for (const [series_id, rows] of bySeries) {
+    const monthly = rows.filter((r) => /^M(0[1-9]|1[0-2])$/.test(r.period_code))
+    const newest = monthly.reduce<SeriesObservation | null>(
+      (a, b) => (a === null || b.period > a.period ? b : a),
+      null,
+    )
+    const newestVintage = rows.reduce<string | null>(
+      (a, b) => (a === null || b.vintage > a ? b.vintage : a),
+      null,
+    )
+
+    if (newest === null) {
+      // Holding only annual averages is not a freshness reading, it is an absence of one.
+      out.push({
+        series_id,
+        newestMonthlyPeriod: null,
+        monthsBehind: null,
+        tone: 'stale',
+        measuredIn,
+        newestVintage,
+      })
+      continue
+    }
+
+    const year = Number(newest.period.slice(0, 4))
+    const month = Number(newest.period_code.slice(1))
+    const monthsBehind = (today.year - year) * 12 + (today.month - month)
+    const tone: SeriesTone =
+      monthsBehind <= SERIES_FRESH_MAX_MONTHS
+        ? 'fresh'
+        : monthsBehind <= SERIES_AGING_MAX_MONTHS
+          ? 'aging'
+          : 'stale'
+    out.push({
+      series_id,
+      newestMonthlyPeriod: newest.period,
+      monthsBehind,
+      tone,
+      measuredIn,
+      newestVintage,
+    })
+  }
+  return out.sort((a, b) => a.series_id.localeCompare(b.series_id))
+}
+
+/** One line per series that is not fresh. Empty when every series is current. */
+export function seriesFreshnessReport(freshness: readonly SeriesFreshness[]): string[] {
+  return freshness
+    .filter((f) => f.tone !== 'fresh')
+    .map((f) =>
+      f.newestMonthlyPeriod === null
+        ? `series ${f.series_id}: NO MONTHLY READING HELD (annual averages alone cannot date an award)`
+        : `series ${f.series_id}: ${f.tone.toUpperCase()}, newest monthly reading ${f.newestMonthlyPeriod} is ` +
+          `${f.monthsBehind} month(s) behind ${f.measuredIn}. The anchor is escalating with an index that ` +
+          `has stopped tracking. Run: npm run ingest:series`,
+    )
 }

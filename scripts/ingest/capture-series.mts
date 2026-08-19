@@ -43,8 +43,15 @@ if (!(await hasReactServerCondition())) {
 const { BLS_API_URL, blsRequestBody, parseBlsResponse, BlsRequestFailed, yearWindows, missingYears } =
   await import('../../lib/ingest/series/bls')
 type ParseResult = Awaited<ReturnType<typeof parseBlsResponse>>
-const { appendObservations, readSeriesLedger, seriesLedgerPath, summariseCoverage, SERIES_ROOT } =
-  await import('../../lib/ingest/series/store')
+const {
+  appendObservations,
+  measureSeriesFreshness,
+  readSeriesLedger,
+  seriesFreshnessReport,
+  seriesLedgerPath,
+  summariseCoverage,
+  SERIES_ROOT,
+} = await import('../../lib/ingest/series/store')
 
 const args = process.argv.slice(2)
 function flag(name: string): string | null {
@@ -244,7 +251,8 @@ if (outcome.contradictions.length > 0) {
   }
 }
 
-const coverage = summariseCoverage(await readSeriesLedger(SERIES_ROOT))
+const ledger = await readSeriesLedger(SERIES_ROOT)
+const coverage = summariseCoverage(ledger)
 process.stdout.write(`\ncapture-series coverage:\n`)
 for (const c of coverage) {
   process.stdout.write(
@@ -253,8 +261,24 @@ for (const c of coverage) {
   )
 }
 
+/*
+ * AND SAY HOW CURRENT THE LEDGER IS, EVERY RUN. The whole point of this ingestion was that a
+ * factor taken once and never taken again goes stale invisibly. A ledger nobody refreshes is
+ * the same defect with a longer fuse, so the staleness is stated rather than left to be
+ * noticed.
+ */
+const freshness = measureSeriesFreshness(ledger, Date.now())
+for (const f of freshness) {
+  process.stdout.write(
+    `  freshness ${f.series_id}: ${f.tone}` +
+      `${f.newestMonthlyPeriod ? `, newest monthly ${f.newestMonthlyPeriod} (${f.monthsBehind} month(s) behind ${f.measuredIn})` : ', no monthly reading held'}\n`,
+  )
+}
+for (const line of seriesFreshnessReport(freshness)) process.stderr.write(`${line}\n`)
+
 process.exit(
-  parsed.emptySeries.length > 0 ||
+  freshness.some((f) => f.tone === 'stale') ||
+    parsed.emptySeries.length > 0 ||
     outcome.contradictions.length > 0 ||
     droppedYears.length > 0 ||
     parsed.warnings.length > 0

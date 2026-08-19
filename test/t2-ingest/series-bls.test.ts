@@ -27,7 +27,9 @@ import {
 } from '../../lib/ingest/series/bls'
 import {
   appendObservations,
+  measureSeriesFreshness,
   readSeriesLedger,
+  seriesFreshnessReport,
   summariseCoverage,
 } from '../../lib/ingest/series/store'
 
@@ -375,5 +377,73 @@ describe('a request the publisher silently narrowed', () => {
     ])
     expect(yearWindows(2020, 2022, 10)).toEqual([{ startYear: 2020, endYear: 2022 }])
     expect(yearWindows(2000, 2026, 10)).toHaveLength(3)
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ A DATED SERIES NOBODY REFRESHES IS A SLOWER STALE CONSTANT                        */
+/* ---------------------------------------------------------------------------------- */
+
+describe('series freshness', () => {
+  const AUG_2026 = Date.parse('2026-08-19T12:00:00Z')
+  const row = (period_code: string, year: number, value = 300): SeriesObservation => ({
+    series_id: 'CUUR0000SA0',
+    period: `${year}-${period_code}`,
+    year,
+    period_code,
+    value,
+    vintage: '2026-08-19',
+    retrieved_at: '2026-08-19T00:00:00.000Z',
+    retrieval_method: 'api_fetch',
+    retrieved_at_basis: 'http_response',
+    source_url: 'x',
+    footnotes: null,
+  })
+
+  it('treats one month behind as FRESH, because that is the publisher cadence', () => {
+    // BLS publishes a month's CPI-U in the middle of the FOLLOWING month, so in August the
+    // July reading is the newest that can exist. An alarm firing on a source's normal
+    // operating lag is an alarm nobody reads by the end of the month.
+    const [f] = measureSeriesFreshness([row('M07', 2026)], AUG_2026)
+    expect(f!.monthsBehind).toBe(1)
+    expect(f!.tone).toBe('fresh')
+    expect(f!.measuredIn).toBe('2026-08')
+    expect(seriesFreshnessReport([f!])).toEqual([])
+  })
+
+  it('escalates to aging and then stale, and says what to run', () => {
+    expect(measureSeriesFreshness([row('M06', 2026)], AUG_2026)[0]!.tone).toBe('aging')
+    const stale = measureSeriesFreshness([row('M01', 2026)], AUG_2026)[0]!
+    expect(stale.monthsBehind).toBe(7)
+    expect(stale.tone).toBe('stale')
+    expect(seriesFreshnessReport([stale]).join('\n')).toContain('npm run ingest:series')
+  })
+
+  it('★ is NOT fooled by a recent ANNUAL AVERAGE, which is the comfortable number', () => {
+    // A ledger holding 2025-M13 (the 2025 annual average) and nothing newer looks respectable
+    // and is eight months behind on the monthly series the anchor actually resolves against.
+    // Judging freshness by the annual average reports the flattering figure instead of the
+    // true one, which is the same error as judging a solicitation against the newest day
+    // captured rather than against today.
+    const withAnnualOnly = measureSeriesFreshness([row('M13', 2025)], AUG_2026)[0]!
+    expect(withAnnualOnly.newestMonthlyPeriod).toBeNull()
+    expect(withAnnualOnly.tone).toBe('stale')
+    expect(seriesFreshnessReport([withAnnualOnly]).join('\n')).toContain('NO MONTHLY READING HELD')
+
+    // POSITIVE CONTROL: an annual average alongside a CURRENT monthly reading must not drag
+    // the measurement down either. The annual is ignored in both directions.
+    const both = measureSeriesFreshness([row('M13', 2025), row('M07', 2026)], AUG_2026)[0]!
+    expect(both.newestMonthlyPeriod).toBe('2026-M07')
+    expect(both.tone).toBe('fresh')
+  })
+
+  it('measures each series separately, so one current series cannot mask a dead one', () => {
+    const dead = { ...row('M01', 2025), series_id: 'WPU10' }
+    const out = measureSeriesFreshness([row('M07', 2026), dead], AUG_2026)
+    expect(out.map((f) => [f.series_id, f.tone])).toEqual([
+      ['CUUR0000SA0', 'fresh'],
+      ['WPU10', 'stale'],
+    ])
+    expect(seriesFreshnessReport(out)).toHaveLength(1)
   })
 })
