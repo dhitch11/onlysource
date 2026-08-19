@@ -102,8 +102,14 @@ export function computeSignals(): SignalSet {
       id: `no_quote:${noQuote.summary.makeSideOnly}`,
       kind: 'no_quote',
       severity: 'medium',
-      title: `${noQuote.summary.makeSideOnly.toLocaleString()} no-quote lanes nobody can source`,
-      body: `${noQuote.summary.makeSideOnly.toLocaleString()} government buys drew zero quotes and no supplier holds any material. Whoever can make the part wins with no competition.`,
+      title: `${noQuote.summary.makeSideOnly.toLocaleString()} no-quote lanes with no supplier match`,
+      /*
+       * ★ NOT "no supplier holds any material", WHICH IS A CENSUS OF THE WORLD. 479 of 839 rows
+       * land here because the availability workbook this joins carries no match for them, over
+       * whatever suppliers that run covered. A holder outside it would look identical. The lead
+       * is real; the absolute claim was not.
+       */
+      body: `${noQuote.summary.makeSideOnly.toLocaleString()} government buys drew zero quotes and the supplier match found no one holding material. Whoever can make the part likely faces little competition. No match is not a census: a holder outside the availability data we joined would not appear.`,
       href: '/goldmine',
     })
   }

@@ -72,7 +72,7 @@ export const SERVER_TOOLS: ToolSpec[] = [
   {
     name: 'goldmine_snapshot',
     description:
-      'Read the CURRENT No-Quote Goldmine: solicitations where nobody quoted at all, split into make-side (nobody could source it) versus sourcing-side, with the real size of buy. Call for any question about no-quotes or unfilled demand.',
+      'Read the CURRENT No-Quote Goldmine: solicitations where nobody quoted at all, split into make-side (no supplier matched in the availability data) versus sourcing-side, with the real size of buy. Call for any question about no-quotes or unfilled demand.',
     input_schema: {
       type: 'object',
       properties: { limit: { type: 'number', description: 'Top rows to name. Default 5.' } },
@@ -405,7 +405,7 @@ function goldmineSnapshot(limit: number): ToolOutcome {
 
   return {
     text: [
-      `LIVE NO-QUOTE GOLDMINE. Solicitations that drew no quote at all: ${s.solicitations}. Somebody holds material: ${s.withHolder}. MAKE-SIDE, nobody holds it anywhere: ${s.makeSideOnly}.`,
+      `LIVE NO-QUOTE GOLDMINE. Solicitations that drew no quote at all: ${s.solicitations}. Somebody holds material: ${s.withHolder}. MAKE-SIDE, no supplier matched in the availability data: ${s.makeSideOnly}. That is the absence of a match over the suppliers that data covers, NOT a census of the world: do not say nobody holds it anywhere.`,
       `Size of buy across the make-side rows that carry both a quantity and a last sold price: ${money(makeValue)}, computed over ${priced} of ${make.length} make-side rows. The rest do not carry both figures, so they are not in that total.`,
       ...top.map(
         (r, i) =>

@@ -129,7 +129,7 @@ export default async function GoldminePage() {
 
   const metrics: Array<{ display: string; label: string; hint: string; hot: boolean; helpId?: string; sourceDetail?: string }> = [
     { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false, helpId: 'capability.no_quote', sourceDetail: nqSource },
-    { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'nobody can even source it', hint: 'the make-side: you win by building it', hot: true },
+    { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'no supplier matched', hint: 'the make-side: likely built, not sourced', hot: true },
     { display: noQuote.summary.withHolder.toLocaleString(), label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
     {
       display: makeSideValue.counted > 0 ? usd0(makeSideValue.usd) : '—',
@@ -176,8 +176,8 @@ export default async function GoldminePage() {
 
       {/* -------------------------------------------------- make-side: the millions class */}
       <Section
-        title="Make-side: nobody holds it anywhere"
-        blurb="No supplier shows any material for these. The only way to fill the order is to make the part, which means whoever can make it faces no one. This is the set a person cannot work by hand."
+        title="Make-side: no supplier matched in this run"
+        blurb="The supplier match found no one holding material for these, so the likely way to fill the order is to make the part. Read it as the strongest lead we can derive, not as a census: it means no match in the availability workbook this page joins, over the suppliers that run covered, and a holder outside it would not appear here."
         sized={makeSide.sized}
         unsized={makeSide.unsized}
         linkable={cornerDigits}
