@@ -175,7 +175,20 @@ export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
         <span className={styles.basisState}>{rec.evidenceState}</span>
       </p>
 
-      <p className={styles.sentence}>{rec.sentence}</p>
+      {/*
+        ★ `rec.sentence` IS DELIBERATELY NOT RENDERED HERE, AND THIS IS A DUPLICATION FIX RATHER
+        THAN A REMOVAL. Measured by reading the panel at 320: it restates the rung label verbatim
+        and the arithmetic verbatim, both of which are already on this panel as structured,
+        scannable fields directly above and below it. Asserted, not assumed:
+        `sentence.includes(rungLabel)` and `sentence.includes(arithmetic)` are both true.
+
+        On a phone that was five lines of repeated label plus three of repeated arithmetic inside
+        a run-on paragraph, in a panel already 1,543px tall.
+
+        The ONE thing the sentence carried that lives nowhere else is the quoted-versus-evaluated
+        qualifier, and that is now stated unconditionally in the What we send block below rather
+        than only when an evaluated context happens to be available.
+      */}
 
       {/* ------------------------------------------------------- the arithmetic shown */}
       <p className={styles.arith}>
@@ -197,6 +210,17 @@ export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
               {rec.requirementQuantity != null
                 ? `${rec.requirementQuantity.toLocaleString()} units on this requirement`
                 : 'Requirement quantity not read on this row'}
+            </span>
+            {/*
+              UNCONDITIONAL. This used to reach the operator only inside `rec.sentence`, and the
+              separate "What DLA compares" block that repeats it appears only when an evaluated
+              context is available, which is often not the case. The one sentence that stops
+              somebody adding DLA's factors into their own quote may not be conditional on DLA's
+              factors being computable.
+            */}
+            <span className={styles.totalNote}>
+              This is what we send. The evaluation factors DLA adds when it ranks offers are the
+              buyer&rsquo;s arithmetic and are never added to it.
             </span>
           </div>
 
