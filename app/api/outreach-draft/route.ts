@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requirePermission } from '@/lib/session/authz'
+import { callerCan, readCaller, requirePermission } from '@/lib/session/authz'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { buildOutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
@@ -40,7 +40,14 @@ export async function POST(req: NextRequest) {
   } catch {
     return Response.json({ error: 'bad_request', message: 'Expected a JSON body.' }, { status: 400 })
   }
-  const built = buildOutreachDossier(typeof body.nsn === 'string' ? body.nsn : '')
+  /*
+   * `supplier.pursue` says you may DO outreach. It does not say you may SEE who the supplier is:
+   * it is not marked sensitive, so `read_only` holds it. This response returns the whole dossier,
+   * so the identity permission is resolved separately and the dossier is built without the names
+   * for a caller who does not hold it.
+   */
+  const mayReadIdentities = callerCan(await readCaller(), 'supplier.identity.view')
+  const built = buildOutreachDossier(typeof body.nsn === 'string' ? body.nsn : '', mayReadIdentities)
   if (!built.ok) {
     return Response.json({ error: built.error, message: built.message }, { status: built.status })
   }

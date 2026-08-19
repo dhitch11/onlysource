@@ -79,7 +79,28 @@ function bookRecord(cage: string | null, byCage: Map<string, DistressedSupplier>
   }
 }
 
-export function buildOutreachDossier(nsnRaw: string): OutreachDossierResult {
+/**
+ * ★ SECOND INSTANCE OF THE SAME BYPASS, found by walking every route rather than waiting for a
+ * report. `/api/pursuit-package` was fixed earlier tonight; this one was not, and it is worse in
+ * one respect: the route returns the WHOLE dossier in its JSON response and the email route
+ * prints "Send it yourself to: {person}, {email}" in the body.
+ *
+ * Both outreach routes gate on `supplier.pursue`, and `supplier.pursue` is NOT sensitive, so the
+ * `read_only` role holds it. The role whose sales promise is that it "never sees a supplier
+ * identity" could ask for an outreach draft and be handed the supplier's name and address.
+ *
+ * The general rule, third time it has bitten this product: FOUR of the fourteen permissions govern
+ * SEEING a fact rather than doing one, and this codebase enforces permissions at the point of
+ * ACTION. A permission only ever checked before a write is not enforced on a read path.
+ *
+ * `mayReadIdentities` is REQUIRED and UNDEFAULTED, exactly as in `assemblePursuitPackage`: a call
+ * site that forgets to resolve the permission must fail to compile rather than be the one that
+ * leaks.
+ */
+export function buildOutreachDossier(
+  nsnRaw: string,
+  mayReadIdentities: boolean,
+): OutreachDossierResult {
   const root = resolveDataRoot()
   if (!root.present) {
     return { ok: false, status: 503, error: 'no_data', message: 'The data directory is not mounted here.' }
@@ -114,8 +135,33 @@ export function buildOutreachDossier(nsnRaw: string): OutreachDossierResult {
     quantityListed: h.quantity,
     book: bookRecord(h.cage, byCage),
   }))
+  /*
+   * ★★ THE TARGET IS CHOSEN BEFORE ANYTHING IS WITHHELD, AND THAT ORDER IS THE WHOLE POINT.
+   *
+   * This picks the holder to write to by who has an email, then who has a phone. Withhold the
+   * identities first and both predicates go false, so the draft silently addresses `joined[0]`
+   * instead — a DIFFERENT COMPANY. The permission would have changed not just what a caller sees
+   * but which supplier the product decided to contact, and nothing anywhere would have said so.
+   *
+   * Redaction must never reach back into a decision that was already made on the full facts.
+   */
   const target =
     joined.find((h) => h.book?.email) ?? joined.find((h) => h.book?.phone) ?? joined[0]!
+
+  /*
+   * Reachability is computed on the FULL records too, for the same reason and one more: a count
+   * of how many companies can be reached is not an identity. Collapsing it to zero would tell an
+   * operator that nobody is contactable, which is a false statement about the data rather than a
+   * refusal to show a name. `/suppliers` already draws exactly this line: "Show contacts (32)" to
+   * everyone, the names behind the permission.
+   */
+  const reachable = new Map(
+    joined.map((h) => [h, Boolean(h.book && (h.book.email || h.book.phone))] as const),
+  )
+
+  /** Strip the three protected fields, keeping everything the caller may legitimately read. */
+  const redact = (b: OutreachBookRecord | null): OutreachBookRecord | null =>
+    b === null || mayReadIdentities ? b : { ...b, person: null, email: null, phone: null }
 
   const latest = summary?.latest ?? null
   const blank = (v: string | null | undefined): string | null => {
@@ -146,14 +192,18 @@ export function buildOutreachDossier(nsnRaw: string): OutreachDossierResult {
             cage: latest.cage,
           }
         : null,
-      target,
+      target: { ...target, book: redact(target.book) },
+      /*
+       * `contactOnFile` reads the map computed above, NOT the redacted record. Recomputing it
+       * here from `h.book` would be the false zero, one line after the comment explaining it.
+       */
       otherHolders: joined
         .filter((h) => h !== target)
         .map((h) => ({
           company: h.company,
           cage: h.cage,
           quantityListed: h.quantityListed,
-          contactOnFile: Boolean(h.book && (h.book.email || h.book.phone)),
+          contactOnFile: reachable.get(h) ?? false,
         })),
     },
   }

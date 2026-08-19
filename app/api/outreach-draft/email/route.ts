@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requirePermission } from '@/lib/session/authz'
+import { callerCan, readCaller, requirePermission } from '@/lib/session/authz'
 import { MODEL_CHAINS } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { buildOutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const built = buildOutreachDossier(typeof body.nsn === 'string' ? body.nsn : '')
+  const mayReadIdentities = callerCan(await readCaller(), 'supplier.identity.view')
+  const built = buildOutreachDossier(typeof body.nsn === 'string' ? body.nsn : '', mayReadIdentities)
   if (!built.ok) {
     return Response.json({ error: built.error, message: built.message }, { status: built.status })
   }
@@ -66,9 +67,16 @@ export async function POST(req: NextRequest) {
   const grounded = groundBrief(draftRaw, dossier)
 
   const to = readSettings().emailRecipient
-  const targetLine = dossier.target.book?.email
-    ? `Send it yourself to: ${dossier.target.book.person ? `${dossier.target.book.person}, ` : ''}${dossier.target.book.email}`
-    : 'No email is on file for the target holder; the Suppliers book carries what is known.'
+  /*
+   * ★ THREE STATES, NOT TWO. "we have no address" and "you may not see the address" are different
+   * facts, and the original sentence said the first about both. An operator told no email is on
+   * file goes looking for one that is already there.
+   */
+  const targetLine = !mayReadIdentities
+    ? 'The recipient address is withheld: your role does not include seeing supplier identities. An owner can grant it.'
+    : dossier.target.book?.email
+      ? `Send it yourself to: ${dossier.target.book.person ? `${dossier.target.book.person}, ` : ''}${dossier.target.book.email}`
+      : 'No email is on file for the target holder; the Suppliers book carries what is known.'
   const text = [
     `Supplier outreach draft for NSN ${dossier.nsn}${dossier.item ? ` (${dossier.item})` : ''}.`,
     targetLine,
