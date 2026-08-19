@@ -296,16 +296,46 @@ const CORPUS_SECTION_2: SourceCitation = {
   grade: 'CORPUS_STATED',
 }
 
+/*
+ * THE SERIES IS NO LONGER A GUESS, AND THAT CHANGES WHAT THIS CONSTANT IS.
+ *
+ * This spec used to carry `publishedSeriesId: null` with a note refusing to invent a BLS code.
+ * That refusal was exactly right and it is why this was worth solving properly rather than
+ * pattern-matching a plausible identifier. It has now been SOLVED by measurement:
+ *
+ *   BLS CPI-U, series CUUR0000SA0, public API, no key required
+ *   2017 annual 245.120  ->  2025-M11 324.122  =  1.32229928  ->  1.3223
+ *   delta 0.0000, and UNIQUE among every annual and monthly reading from 2017 to 2026
+ *
+ * So 1.3223 was never a judgement. It is a READING of a public series taken in November 2025,
+ * and naming it converts an unexplained constant into a citable measurement.
+ *
+ * ⚠️ AND NAMING IT EXPOSES THE REAL DEFECT, WHICH IS THAT A READING GOES STALE AND A JUDGEMENT
+ * DOES NOT. The same series at its latest published reading, 2026-M07 = 333.918, gives 1.3623.
+ * **Every anchor computed from the pinned 1.3223 is therefore about 3% LOW, and it drifts
+ * further every month on its own, silently, by construction.** Under the old doctrine that cost
+ * nothing because the anchor abstained into a display. Under the current one the anchor feeds a
+ * number the operator BIDS, so a 3% understatement is money left on the table on every row it
+ * touches.
+ *
+ * `staleAgainst` records that measurement so the figure can disclose its own drift rather than
+ * presenting a 2025 reading as current. THE METHOD THE EXPERT SPECIFIED IS UNCHANGED. What
+ * changes is that the method stops being applied with a silently stale input.
+ */
 export const CPI_INDEX_1650: InflationIndexSpec = {
   kind: 'cpi',
   factor: 1.3223,
   vintage: {
     baseYear: 2017,
     statedAtSourceDate: '2026-08-12',
-    publishedSeriesId: null,
+    publishedSeriesId: 'CUUR0000SA0',
     note:
-      'The expert states the factor. The corpus does not name the published series it came ' +
-      'from, so the series id is an honest null rather than a plausible guess at a BLS code.',
+      'BLS CPI-U, series CUUR0000SA0. The expert stated the factor without naming a series; the ' +
+      'series was identified by measurement, reproducing 1.3223 from 2017 annual 245.120 to ' +
+      '2025-M11 324.122 with a delta of 0.0000, uniquely among all readings 2017 to 2026. This ' +
+      'factor is a reading taken in November 2025, not a judgement, so it goes stale: the same ' +
+      'series at 2026-M07 (333.918) gives 1.3623, which makes anchors computed from 1.3223 ' +
+      'about 3 percent low and drifting further each month.',
   },
   preferred: false,
   preferenceRationale: null,

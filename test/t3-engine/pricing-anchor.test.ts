@@ -150,12 +150,36 @@ describe('anchorPrice on NSN 1650-01-059-8221', () => {
     expect(cpi.preferenceRationale).toBeNull()
   })
 
-  it('carries a series vintage per index, with an honest null where no series is named', () => {
+  it('names the CPI series now that it is proven, and keeps an honest null on the judgement', () => {
+    /*
+     * THIS TEST USED TO ASSERT BOTH IDS WERE NULL, AND IT WAS RIGHT TO. The engine deliberately
+     * refused to invent a plausible BLS code, and that refusal is why the identification was
+     * worth doing properly instead of pattern-matching something that looked official.
+     *
+     * The CPI leg is now MEASURED rather than guessed: BLS CPI-U series CUUR0000SA0, 2017 annual
+     * 245.120 to 2025-M11 324.122, reproduces 1.3223 with a delta of 0.0000, uniquely among
+     * every reading from 2017 to 2026. So 1.3223 was never a judgement, it was a READING, and
+     * naming it is the honest state.
+     *
+     * ★ THE DoD LEG KEEPS ITS NULL, AND THAT ASYMMETRY IS THE WHOLE POINT OF THIS TEST.
+     * 1.40 genuinely IS the expert's judgement, not a series reading. Measured against the real
+     * producer-price series over the same window it sits BELOW every metals index (WPU10 1.5858,
+     * WPU1017 1.5925, WPU114 1.5474, WPU101 1.4832) and above final demand (WPUFD4 1.3205), so
+     * his stated rationale is directionally confirmed and his number is CONSERVATIVE. Confirming
+     * a judgement is a reason to CITE it, never a licence to replace it with a series we prefer:
+     * swapping 1.5858 in would raise every recommended bid about 13 percent on our own
+     * initiative, and under the current doctrine a number this product recommends is a number
+     * the operator bids. That is an owner decision and this null is what keeps it one.
+     */
     expect(cpi.vintage.baseYear).toBe(2017)
     expect(dod.vintage.baseYear).toBe(2017)
-    expect(cpi.vintage.publishedSeriesId).toBeNull()
+    expect(cpi.vintage.publishedSeriesId).toBe('CUUR0000SA0')
     expect(dod.vintage.publishedSeriesId).toBeNull()
     expect(cpi.vintage.statedAtSourceDate).toBe('2026-08-12')
+    // The staleness must be disclosed on the figure, not discovered later: a reading goes stale
+    // and a judgement does not, and this one is already about 3 percent low.
+    expect(cpi.vintage.note).toContain('1.3623')
+    expect(cpi.vintage.note).toContain('CUUR0000SA0')
   })
 
   it('NEVER blends the two into a single number', () => {
