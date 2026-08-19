@@ -115,12 +115,6 @@ export function callerPermissions(caller: Caller): readonly string[] {
 }
 
 /**
- * May this caller do this?
- *
- * The whole answer for an account is `can()` over the permissions its CURRENT role holds, so
- * adding a permission to a role changes what the API allows with no second edit anywhere.
- */
-/**
  * The role name to SHOW this caller, for a refusal that names who they are.
  *
  * It lives here rather than in a page because it is a fact about a `Caller`, and the second
@@ -134,6 +128,12 @@ export function callerRoleName(caller: Caller): string {
   return 'No account'
 }
 
+/**
+ * May this caller do this?
+ *
+ * The whole answer for an account is `can()` over the permissions its CURRENT role holds, so
+ * adding a permission to a role changes what the API allows with no second edit anywhere.
+ */
 export function callerCan(caller: Caller, permissionKey: string): boolean {
   return can(callerPermissions(caller), permissionKey)
 }

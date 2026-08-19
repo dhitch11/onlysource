@@ -485,3 +485,53 @@
   margin-bottom: 0.9rem;
   line-height: 1.45;
 }
+
+/* ---------------------------------------------------------------------------------------
+   Phone. Measured on the live console at 320 and 390, before and after. Three row actions
+   free-flowed to a ragged 2-then-1 at 390 and to three left-aligned pills of three different
+   widths (106 / 133 / 88px) at 320, and the two short status chips stacked into two separate
+   bubbles because a cell is a column. Both read as broken layout rather than as controls.
+   The actions become one hairline-separated list at the foot of the card, left aligned to the
+   same edge as the name, the role and the title, so the card has one left rhythm instead of
+   four. This block is last in the file on purpose: a media query above the base rule it means
+   to override loses on cascade order and changes nothing at all.
+   --------------------------------------------------------------------------------------- */
+@media (max-width: 60rem) {
+  /* A cell is a column at desk width because it stacks a control under its label. On a phone
+     that turned two short chips into two stacked bubbles, so a cell flows as a wrapping row
+     and takes a second line only when the content genuinely needs one. */
+  .cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* These two are the row's real inputs and want the row's width, not their content width,
+     or they read as stray boxes floating at the left edge. */
+  .roleSelect,
+  .titleInput {
+    inline-size: 100%;
+    min-block-size: 2.75rem;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    inline-size: 100%;
+    margin-block-start: 0.4rem;
+    border-block-start: 1px solid var(--line);
+  }
+
+  /* Full width with centred text reads as floating labels rather than controls, because the
+     quiet variant carries no chrome. Left aligned against a hairline, it reads as a list of
+     actions. 2.75rem is the touch target; the three were 39px tall before. */
+  .actions > * {
+    inline-size: 100%;
+    min-block-size: 2.75rem;
+    justify-content: flex-start;
+    text-align: start;
+    border-radius: 0;
+    border-block-end: 1px solid var(--line);
+  }
+}
