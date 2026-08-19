@@ -178,10 +178,25 @@ fi
 # than the defect. A route that ANSWERS BADLY is a different matter and fails.
 # --------------------------------------------------------------------------
 WARM_ROUTES="${WARM_ROUTES:-/monopoly /board /pricing /suppliers /intelligence /}"
-MINT="${MINT_SCRIPT:-/tmp/mint.js}"
 
-if [ -r "$MINT" ]; then
-  say "warming the new build and smoking it signed in"
+# ★ THE DURABLE MINT FIRST, THE LEGACY ONE SECOND, AND IT SAYS WHICH IT USED.
+#
+# The first version of this step hardcoded /tmp/mint.js and skipped on the very first deploy that
+# reached it, because the droplet had rebooted and /tmp was wiped. It said so and finished, which
+# was the right calibration and is why this is a two-minute correction rather than a warm that
+# silently never ran. But a session minter living in /tmp is a control with a reboot in it.
+#
+# So the repo copy is preferred and the /tmp path is kept as a fallback rather than replaced,
+# because these two land in separate commits and neither of us controls the order. Whichever
+# exists is used, and the run PRINTS WHICH, so a future reader never has to guess which minter
+# produced the session a deploy was verified with.
+MINT=""
+for candidate in "${MINT_SCRIPT:-}" "$ROOT/scripts/mint-gate.mjs" /tmp/mint.js; do
+  if [ -n "$candidate" ] && [ -r "$candidate" ]; then MINT="$candidate"; break; fi
+done
+
+if [ -n "$MINT" ]; then
+  say "warming the new build and smoking it signed in (session from $MINT)"
   WARM_COOKIE="__Host-os_gate=$(node "$MINT" deploy:warm 2>/dev/null || true)"
   if [ "$WARM_COOKIE" = "__Host-os_gate=" ]; then
     printf '   could not mint a session; skipping the warm. First visitor will pay the cold build.\n'
@@ -206,7 +221,7 @@ if [ -r "$MINT" ]; then
     say "warm: every route above was served once, so the first real visitor does not build the cache"
   fi
 else
-  printf '\n   no %s on this host; skipping the warm. First visitor will pay the cold build.\n' "$MINT"
+  printf '\n   no session minter found (tried $MINT_SCRIPT, scripts/mint-gate.mjs, /tmp/mint.js);\n   skipping the warm AND the signed-in smoke. First visitor will pay the cold build.\n' 
 fi
 
 say "LIVE: $TARGET_SHA · /enter 200 · previous build kept at $PREVIOUS"
