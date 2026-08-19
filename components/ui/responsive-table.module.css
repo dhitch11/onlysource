@@ -66,6 +66,23 @@
     overflow-x: visible;
   }
 
+  /*
+   * ★ `min-inline-size: 0` IS THE LOAD-BEARING DECLARATION HERE, NOT `inline-size: auto`.
+   *
+   * A hand-rolled table almost always carries a `min-width` — it is how these tables were made
+   * scrollable in the first place. /goldmine has `min-width: 720px` on `.table`. Setting
+   * `inline-size: auto` does NOT release that floor, so the first version of this file turned the
+   * rows into cards, rendered every label correctly, and left the table 720px wide.
+   *
+   * And because `.cards` had already set the wrapper to `overflow-x: visible`, the 720px no longer
+   * had anything containing it: the page itself began scrolling sideways. Measured on the deployed
+   * build, `documentElement.scrollWidth > clientWidth` went from FALSE to TRUE.
+   *
+   * I REMOVED THE CONTAINMENT BEFORE THE CONTENT COULD ACTUALLY FIT, which is strictly worse than
+   * the defect I was fixing: an unreadable table inside a scroller is at least confined, and the
+   * same table loose on the page drags every other element sideways with it. Release the floor in
+   * the same rule that removes the scroller, never in a later one.
+   */
   .cards table,
   .cards thead,
   .cards tbody,
@@ -74,6 +91,8 @@
   .cards th {
     display: block;
     inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: 100%;
   }
 
   /* Clipped, not hidden: this is the accessible name for every value below it. */
