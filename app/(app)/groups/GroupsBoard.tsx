@@ -250,23 +250,23 @@ function Row({
   return (
     <>
       <tr className={isOpen ? styles.rowOpen : undefined}>
-        <td className={styles.classCell}>
+        <td className={styles.classCell} data-label="Class">
           <span className={styles.code}>{row.fsc}</span>
           <span className={`${styles.name} ${row.className.stated ? styles.stated : ''}`}>
             {row.className.name}
           </span>
         </td>
 
-        <td className={styles.groupCell}>
+        <td className={styles.groupCell} data-label="Supply group">
           <span className={styles.groupCode}>{row.fsg}</span>{' '}
           <span className={row.groupName.stated ? styles.stated : undefined}>
             {row.groupName.name}
           </span>
         </td>
 
-        <td className={styles.numCol}>{row.counts.rows}</td>
-        <td className={styles.numCol}>{row.counts.soleSource}</td>
-        <td className={`${styles.numCol} ${row.candidates === 0 ? styles.zero : ''}`}>
+        <td className={styles.numCol} data-label="Rows">{row.counts.rows}</td>
+        <td className={styles.numCol} data-label="Sole source">{row.counts.soleSource}</td>
+        <td className={`${styles.numCol} ${row.candidates === 0 ? styles.zero : ''}`} data-label="Candidates">
           {row.counts.candidates}
         </td>
 
@@ -276,7 +276,7 @@ function Row({
          * percentage at all, only the word and the reason. There is no fourth branch and no
          * fallback, because a fallback here would be the fabrication.
          */}
-        <td className={styles.rateCell}>
+        <td className={styles.rateCell} data-label="Candidate rate vs map average">
           {row.rate.kind === 'finding' ? (
             <>
               <span className={styles.rateFinding}>{row.rate.rate}</span>
@@ -299,13 +299,13 @@ function Row({
           )}
         </td>
 
-        <td>
+        <td data-label="Evidence">
           <StatusChip tone={row.chip.tone} srLabel={row.chip.srLabel}>
             {row.chip.word}
           </StatusChip>
         </td>
 
-        <td className={styles.detailCol}>
+        <td className={styles.detailCol} data-label="Scope">
           <button
             type="button"
             className={styles.detailBtn}

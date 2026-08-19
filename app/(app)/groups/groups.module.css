@@ -786,3 +786,93 @@
     animation: groups-fade-up var(--dur-slow) 180ms var(--ease) both;
   }
 }
+
+/* ==========================================================================================
+ * THE SUPPLY-GROUP TABLE BECOMES CARDS ON A PHONE.
+ *
+ * `min-width: 62rem` (about 1,097px) inside an `overflow-x: auto` wrapper that is ~246px at 320.
+ * Contained, and unreadable: eight columns read across four screens. Same claim confusion the
+ * shared DataGrid and the corner award table were both shipping.
+ *
+ * Every value is labelled from `data-label`, and the eight labels were diffed against the eight
+ * real `<th>` texts rather than grepped — three of these headers carry an `ExplainButton` beside
+ * the label, so a naive read picks up markup instead of the word.
+ * ========================================================================================== */
+@media (max-width: 700px) {
+  .tableWrap {
+    overflow-x: visible;
+    border: 0;
+  }
+  .table {
+    min-width: 0;
+    display: block;
+  }
+  /*
+   * Visually hidden, not removed: these headers are the accessible names for every number below
+   * them, and two of them carry the only explainer for what "candidate rate" and "evidence" mean.
+   */
+  .table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .table tbody,
+  .table tbody tr {
+    display: block;
+  }
+  .table tbody tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm, 8px);
+    padding: var(--sp-2) var(--sp-3);
+    margin-block-start: var(--sp-3);
+    box-sizing: border-box;
+  }
+  .table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
+    gap: var(--sp-2);
+    align-items: baseline;
+    padding: var(--sp-1) 0;
+    border-bottom: 0;
+    box-sizing: border-box;
+  }
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: var(--fs-100);
+    text-transform: uppercase;
+    letter-spacing: var(--track-label);
+    color: var(--faint);
+    grid-column: 1;
+    grid-row: 1;
+  }
+  /*
+   * A cell with more than one child does not stay in its column by wishing: without this the
+   * second child auto-places into row 2 COLUMN 1 and renders where a label belongs.
+   */
+  .table tbody td > * {
+    grid-column: 2;
+  }
+
+  /*
+   * THE EXPANSION ROW IS NOT A FIELD. It is a `colSpan={8}` cell carrying the government's own
+   * scope prose, and it carries no `data-label` on purpose. Without this it would render an empty
+   * label column and lose 44% of its width to nothing.
+   */
+  .detailRow td,
+  .table tbody td:not([data-label]) {
+    display: block;
+  }
+  .detailRow td::before,
+  .table tbody td:not([data-label])::before {
+    content: '';
+    display: none;
+  }
+
+  /* Right-alignment is a column property; a card has no column to align against. */
+  .numCol {
+    text-align: left;
+  }
+}
