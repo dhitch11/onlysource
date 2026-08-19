@@ -1,0 +1,147 @@
+/*
+ * THE RESPONSIVE TABLE, FOR TABLES THAT ARE NOT `DataGrid`.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * WHY THIS FILE EXISTS
+ * ---------------------------------------------------------------------------------------------
+ * `357038c` taught `DataGrid` to render as labelled cards below 700px and fixed /pricing, /board,
+ * /monopoly and /suppliers in one change, because those four share the component. It fixed nothing
+ * else, and the gap was invisible until somebody measured a page that hand-rolls its own table:
+ *
+ *      "WE FIXED THE GRID" IS NOT "WE FIXED THE TABLES."
+ *
+ * Measured on the deployed build at 320, every rect clipped to its own scroller's visible box, so
+ * these are pixels a person cannot reach rather than bounding-box artefacts:
+ *
+ *      /goldmine       4 tables   worst 1,166px wide in a 246px scroller   921px past the edge
+ *      /competitor     7 tables   worst 1,152px                            907px
+ *      /groups         1 table          1,097px                            852px
+ *      /hubzone        1 table          1,056px                            811px
+ *      /intelligence   1 table            750px                            505px
+ *      14 visible tables, 5 routes, every one unreadable at 320.
+ *      Body sideways scroll: FALSE on all five. Every geometry assertion passed.
+ *
+ * The fix is not five bespoke card layouts invented by five lanes in one night. It is one opt-in
+ * treatment, so the next hand-rolled table costs a class name and a `data-label` per cell.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * HOW TO USE IT
+ * ---------------------------------------------------------------------------------------------
+ *   import rt from '@/components/ui/responsive-table.module.css'
+ *   <div className={`${styles.myTableWrap} ${rt.cards}`}>
+ *     <table>… <td data-label="Final price">$1,204.00</td> …</table>
+ *   </div>
+ *
+ * ★ `data-label` MUST COME FROM THE SAME PLACE THE HEADER TEXT COMES FROM — a column definition, a
+ * constant, anything shared. NEVER from the cell's index. A label bound to column position is
+ * correct until somebody reorders a column, and then it silently mislabels money, which is worse
+ * than no label at all. This is the rule `DataGrid` follows and it is the only part of this that
+ * cannot be enforced by CSS.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * TWO DECISIONS THAT LOOK LIKE DETAILS AND ARE NOT
+ * ---------------------------------------------------------------------------------------------
+ * THE HEADER IS CLIPPED, NOT DELETED. `display: none` on a `<thead>` is the obvious move and it
+ * takes the accessible NAME of every number in the table away from a screen reader. The visible
+ * label is reproduced from `data-label`; the header stays in the accessibility tree, clipped.
+ * (`DataGrid` differs deliberately: its header carries sort controls, so removing it removes a
+ * feature, and it becomes a strip of sort chips instead. Different reason, different treatment.)
+ *
+ * A CELL WITH MORE THAN ONE CHILD DOES NOT STAY IN ITS COLUMN BY WISHING. In a two-column grid,
+ * a `<td>` holding a text node AND an element lets the element auto-place into row 2 column 1 —
+ * the LABEL column. Measured on /corner: a CAGE code rendered directly under `AWARDEE`, reading
+ * like a field name rather than a supplier. Nothing overflowed; it was in the wrong column at the
+ * right width, and no overflow check in the product would ever have found it. Hence the explicit
+ * `grid-column` on every element child below.
+ */
+
+.cards {
+  min-inline-size: 0;
+}
+
+@media (max-width: 700px) {
+  /* Nothing left to scroll sideways, and a live scroll container here would trap touch gestures
+   * over content that no longer needs them. */
+  .cards {
+    overflow-x: visible;
+  }
+
+  .cards table,
+  .cards thead,
+  .cards tbody,
+  .cards tr,
+  .cards td,
+  .cards th {
+    display: block;
+    inline-size: auto;
+  }
+
+  /* Clipped, not hidden: this is the accessible name for every value below it. */
+  .cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .cards tbody tr {
+    display: block;
+    margin-block-end: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .cards tbody tr:last-child {
+    margin-block-end: 0;
+  }
+
+  /*
+   * Label left, value right. `auto` on the label column lets a long label take the width it needs
+   * rather than truncating, and `minmax(0, 1fr)` on the value is what allows a long value to wrap
+   * instead of forcing the row wider — a `1fr` alone refuses to shrink below its content.
+   */
+  .cards tbody td {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sp-2) var(--sp-3);
+    align-items: baseline;
+    padding: var(--sp-1) 0;
+    border: 0;
+    inline-size: auto;
+    text-align: start;
+    overflow-wrap: break-word;
+  }
+
+  .cards tbody td::before {
+    content: attr(data-label);
+    grid-column: 1;
+    font-size: var(--fs-100);
+    font-weight: var(--fw-semibold);
+    color: var(--dim);
+    white-space: nowrap;
+  }
+
+  /* Every element child pinned to the value column. See the note above: this is the /corner
+   * defect that no measurement could see. */
+  .cards tbody td > * {
+    grid-column: 2;
+    min-inline-size: 0;
+  }
+
+  /* A cell with no label still occupies the value column rather than sliding under the labels. */
+  .cards tbody td:not([data-label])::before {
+    content: "";
+  }
+
+  /* Right-alignment is a column affordance. In a card the value is already in its own column and
+   * the eye reads it against the label, so end-alignment only pushes numbers away from their
+   * names. */
+  .cards tbody td[data-align="end"],
+  .cards tbody td[class*="alignEnd"] {
+    text-align: start;
+  }
+}

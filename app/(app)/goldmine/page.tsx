@@ -17,6 +17,7 @@ import { readDeals } from '@/lib/sales/deals-store'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import styles from './goldmine.module.css'
+import rt from '@/components/ui/responsive-table.module.css'
 
 export const metadata: Metadata = { title: 'No-Quote Goldmine · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
@@ -307,7 +308,7 @@ function OpportunityTable({
   showHolders: boolean
 }) {
   return (
-    <Scrollable className={styles.tableWrap}>
+    <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -324,7 +325,7 @@ function OpportunityTable({
         <tbody>
           {rows.map((r) => (
             <tr key={`${r.digits}:${r.solicitation}`}>
-              <td className="mono">
+              <td className="mono" data-label="Stock number">
                 {linkable.has(r.digits) ? (
                   <Link href={`/corner/${r.digits}` as never} className={styles.nsnLink}>
                     {r.nsn}
@@ -333,15 +334,15 @@ function OpportunityTable({
                   <span className={styles.nsnPlain}>{r.nsn}</span>
                 )}
               </td>
-              <td className={styles.partCell} title={r.description}>
+              <td className={styles.partCell} title={r.description} data-label="Part">
                 {r.description}
               </td>
-              <td className={`mono ${styles.numCol}`}>{r.quantity?.toLocaleString() ?? '—'}</td>
-              <td className={`mono ${styles.numCol}`}>{usd(r.lastSoldPrice)}</td>
-              <td className={`mono ${styles.numCol} ${styles.sizeCol}`}>
+              <td className={`mono ${styles.numCol}`} data-label="Qty">{r.quantity?.toLocaleString() ?? '—'}</td>
+              <td className={`mono ${styles.numCol}`} data-label="Last price">{usd(r.lastSoldPrice)}</td>
+              <td className={`mono ${styles.numCol} ${styles.sizeCol}`} data-label="Size of buy">
                 {r.size.known ? usd0(r.size.usd) : '—'}
               </td>
-              <td className={styles.closeCell}>
+              <td className={styles.closeCell} data-label="Close date">
                 {r.closeDate ? (
                   <span className={styles.closeRow}>
                     <span className="mono">{r.closeDate}</span>
@@ -352,12 +353,12 @@ function OpportunityTable({
                 )}
               </td>
               {showHolders ? (
-                <td className={styles.holderCell}>
+                <td className={styles.holderCell} data-label="Holders">
                   {r.holders.slice(0, 2).map((h) => h.name).join(', ')}
                   {r.holders.length > 2 ? ` +${r.holders.length - 2}` : ''}
                 </td>
               ) : null}
-              <td>
+              <td data-label="Action">
                 {/* The pursuit wire, on rows whose corner dossier exists (the same rows whose
                     stock number links in). The deal carries the modeled buy value only when the
                     government line supplied both legs; otherwise it carries none, and the
