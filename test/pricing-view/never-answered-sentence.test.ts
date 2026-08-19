@@ -67,9 +67,18 @@ describe('an unanswered request never reads as an empty market', () => {
       awardHistoryState: 'never_answered', // deliberately contradictory
       awards: [
         {
-          nsn: base.nsn,
           awardDateIso: '2024-03-01',
-          unitPriceUsd: 100,
+          /*
+           * The three price columns, kept INTERNALLY CONSISTENT rather than filled with a single
+           * number. `effectiveUnitPriceUsd` is a DERIVATION — Final Price over quantity — and the
+           * module checks it against the two columns it came from (`checkPriceColumns`). A fixture
+           * where 100 x 5 does not equal the extended total would be testing this negative control
+           * against a row the product would flag as inconsistent, which is a different test than
+           * the one this file means to run.
+           */
+          effectiveUnitPriceUsd: 100,
+          statedUnitPriceUsd: 100,
+          extendedPriceUsd: 500,
           quantity: 5,
           awardeeCage: '12345',
           awardeeCompany: 'ACME',
