@@ -74,6 +74,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     reporters: ['default'],
+    /*
+     * Refuse once, before any test file is collected, when the gitignored `data/` root is absent.
+     * Without it the dependent tests fail as assertion failures and an absence reads as the code
+     * being wrong. See test/global-setup.ts for the measurement that prompted it.
+     */
+    globalSetup: ['./test/global-setup.ts'],
     // Vitest 4 removed `test.workspace` / `poolOptions.forks.singleFork` in favor of
     // `test.projects` (each project a full sub-config that can override pool behavior).
     // Once `projects` is set, the root-level `test.include` is NOT run as an implicit
