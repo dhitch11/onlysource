@@ -2,11 +2,26 @@ import 'server-only'
 import { Pool, type PoolClient } from 'pg'
 
 /**
- * THE ONLY DOOR TO THE DATABASE.
+ * THE MAIN DOOR TO THE DATABASE, AND THE ONLY ONE THAT SCOPES BY ORG.
  *
- * Every query in this application goes through `withOrg()` or `withoutOrg()`. A lint
- * forbids any other file from constructing a Pool or Client, and it ships with a known-bad
- * fixture proving it fires. Per-route discipline decays; a single door does not.
+ * Every tenant-scoped query in this application goes through `withOrg()` or `withoutOrg()`.
+ * A lint now forbids any other file from constructing a Pool or Client, and it ships with a
+ * known-bad fixture proving it fires: `pg-client-outside-the-unit-of-work` in
+ * scripts/lint-gates.mjs. Per-route discipline decays; a single door does not.
+ *
+ * ★ THIS BLOCK SAID "THE ONLY DOOR" AND CLAIMED THAT LINT FOR MONTHS. Neither was true. No such
+ * lint existed — there is no eslint config in this repository at all — and the invariant was
+ * already broken in two places when it was finally measured on 2026-08-19:
+ *
+ *     lib/ingest/db.ts     T2's embedded-Postgres loader. Its own comment scopes it to the LOCAL
+ *                          ingest database rather than to tenant data, so it is defensible.
+ *     lib/auth/server.ts   an auth path holding its own connection. This one sits outside every
+ *                          org-scoping guarantee made below and is worth closing.
+ *
+ * Both are baselined BY NAME in that gate rather than quietly tolerated, so the count can only go
+ * down and a THIRD door cannot appear without someone adding it to the list on purpose. A comment
+ * asserting an invariant nothing enforces is worse than no comment: it is a guarantee readers
+ * rely on, and this repo has now found that shape three times in one night.
  *
  * ==========================================================================================
  * WHY `SET LOCAL` AND NOT `SET`. This is the failure that kills serverless Postgres apps.

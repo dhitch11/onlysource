@@ -296,6 +296,30 @@ const RULES = [
     knownGood: 'export function stamp(clock) { return clock.now() }',
   },
   {
+    id: 'pg-client-outside-the-unit-of-work',
+    spec: 'R0.6',
+    why:
+      'lib/db/unit-of-work.ts documents itself as THE ONLY DOOR TO THE DATABASE and claims "a ' +
+      'lint forbids any other file from constructing a Pool or Client". No such lint existed, and ' +
+      'the invariant was already false in two places. This is that lint. The two existing doors ' +
+      'are baselined by name and everything else is refused, so the count can only go down: a ' +
+      'THIRD door cannot appear without someone deciding to add it here.',
+    reads: 'bare',
+    /*
+     * BASELINED, NOT EXEMPTED-AND-FORGOTTEN. Both are real and both are named:
+     *   lib/db/          the unit of work itself, which must construct the pool it owns
+     *   lib/ingest/db.ts T2's embedded-Postgres loader, whose own comment scopes it to the LOCAL
+     *                    ingest database and not to the application's tenant-scoped data
+     *   lib/auth/server.ts  the outlier, and the one worth removing: an auth path holding its own
+     *                    connection is outside every org-scoping guarantee the unit of work makes.
+     */
+    applies: (f) =>
+      !f.startsWith('lib/db/') && f !== 'lib/ingest/db.ts' && f !== 'lib/auth/server.ts',
+    test: (t) => hits(t, /new\s+(Pool|Client)\s*\(|from\s+['"]pg['"]/),
+    knownBad: "import { Pool } from 'pg'\nconst pool = new Pool()",
+    knownGood: "import { withOrg } from '@/lib/db/unit-of-work'",
+  },
+  {
     id: 'model-sdk-outside-lib-ai',
     spec: 'R0.5',
     why:

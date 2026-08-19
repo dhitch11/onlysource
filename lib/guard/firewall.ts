@@ -26,7 +26,23 @@
  * case, separators and homoglyphs, because 5365-01-180-5372 and 5365-01-180-5327 are different
  * parts. Numeric equality is meaningless on an identifier, and a transposition is exactly the
  * failure this whole layer exists to stop: a wrong part number in a supplier email is a wrong
- * part on a federal quote three steps later.
+ * part on a federal quote three steps later. *
+ * ==========================================================================================
+ * ★ NOT WIRED. MEASURED 2026-08-19. READ THIS BEFORE RELYING ON ANYTHING ABOVE.
+ * ==========================================================================================
+ * `checkNumerals`, `assertOnlyApprovedNumerals` and `validateVoicemailScript` are imported by
+ * nothing outside `test/guard/`. No file in app/, components/ or the rest of lib/ imports any
+ * module in lib/guard/. The blocking behaviour described above therefore does not happen.
+ *
+ * What DOES run on the live outbound path is `groundBrief` (lib/ai/grounding.ts), reached from
+ * app/api/outreach-draft/email/route.ts and the pursuit-package email route. By its own
+ * description it "walks the brief sentence by sentence and drops any sentence carrying a number
+ * that is not in that set" — that is, it does precisely the SILENT EDITING this file argues is
+ * worse than refusing to send.
+ *
+ * So the estate has a numeral guard; it is not this one, and it has the failure mode this one was
+ * written to avoid. Either wire this in front of the send path or delete the claim above. Until
+ * one of those happens, nothing here may be cited as protection.
  */
 
 import { extractNumerals, type NumeralToken, type ProtectedClass } from './numerals'
