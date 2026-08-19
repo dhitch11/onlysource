@@ -23,7 +23,39 @@ const securityHeaders = [
   },
 ]
 
+/**
+ * ★ THE BUILD DIRECTORY IS OVERRIDABLE SO A DEPLOY NEED NOT REWRITE THE ONE BEING SERVED.
+ *
+ * MEASURED ON PRODUCTION 2026-08-19 02:01 UTC, during a live demo. `/enter` returned HTTP 500
+ * with a bare "Internal Server Error", on both the droplet and the Netlify host, for the
+ * duration of a promote. The pm2 log named it exactly:
+ *
+ *     InvariantError: The client reference manifest for route "/enter" does not exist
+ *     Failed to load static file for page: /500  ENOENT .next/server/pages/500.html
+ *
+ * Neither file was missing from the build. They were missing from the build **that was being
+ * overwritten underneath the running server**, because `npm run build` writes into the same
+ * `.next` the live process is reading from. Both existed again 53 seconds later.
+ *
+ * WHY THIS IS WORSE THAN IT SOUNDS, AND WHY IT SURVIVED EVERY CHECK WE HAVE. Signed-in traffic
+ * notices nothing: every app route is a correct 307 and every page still serves from chunks
+ * already resolved. **The only route that breaks is `/enter`, which is the only route an
+ * anonymous visitor can load.** So anyone holding a cookie sees a perfect product and anyone
+ * arriving fresh sees a bare error, with no error boundary, because `500.html` is being
+ * rewritten in the same instant. Production moved 14 times in one day. That is 14 windows on
+ * the one URL you would hand to a stranger.
+ *
+ * And the deploy protocol cannot see it BY CONSTRUCTION: it reads back health and sweeps the
+ * routes AFTER the restart, so every check looks at the far side of the gap.
+ *
+ * The remedy is not a better check. It is to stop writing where something is reading:
+ * `NEXT_DIST_DIR=.next-staging npm run build`, then swap the finished directory into place and
+ * restart. The running server reads a complete `.next` until the instant it reads the new one.
+ * Same rule as the archive's bytes-then-record ordering, one layer up: **never let a reader see
+ * a fact that is not yet durable.** `scripts/deploy-swap.sh` is that sequence.
+ */
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   reactStrictMode: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
