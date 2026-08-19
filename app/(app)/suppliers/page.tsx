@@ -135,7 +135,13 @@ export default async function SuppliersPage() {
           <div className={styles.statN}>{counts.verifiedContacts.toLocaleString()}</div>
           <div className={styles.statL}>
             verified contacts
-            <span className={styles.statHint}>names, titles, emails, phones</span>
+            {/*
+              * The hint says what the file actually holds, not the best case. "names, titles,
+              * emails, phones" was true of 6,526 of the 10,167 records: every row has an email,
+              * 9,997 a phone, 7,837 a title and 6,596 a name. A row with a bare "?" for a name
+              * renders under a promise of names.
+              */}
+            <span className={styles.statHint}>checked and confirmed; every record has an email</span>
           </div>
         </div>
         <div className={styles.stat}>

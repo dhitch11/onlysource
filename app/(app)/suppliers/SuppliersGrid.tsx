@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AiLoader } from "@/components/ui/AiLoader";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { StatusChip } from "@/components/ui/StatusChip";
@@ -18,6 +18,40 @@ import type { LeanSupplier, SupplierDetail } from "./wire-lean";
 import styles from "./suppliers.module.css";
 
 type Filter = "hot" | "manufacturer" | "all";
+
+/**
+ * THE FIELDS A PERSON ACTUALLY ARRIVES WITH.
+ *
+ * An operator comes to this page holding one of four things: a company name they heard on a call,
+ * a CAGE code off an award, or a place they are trying to source from. So those are what the box
+ * searches, and the hint under it SAYS so - a search box that silently declines to match the thing
+ * you typed teaches you the record is missing when it is only unindexed.
+ *
+ * Deliberately NOT searched: prospect score, tier, employees, SAM status. They are filters, not
+ * identifiers, and folding them in makes "OH" match Ohio, "OHM Industries" and every row whose
+ * status contains those letters.
+ */
+export function haystack(r: LeanSupplier): string {
+  return `${r.company ?? ""}\u0000${r.cage}\u0000${r.city ?? ""}\u0000${r.state ?? ""}`.toLowerCase();
+}
+
+/**
+ * Every term must match, in any field and any order, so "acme ohio" narrows rather than widens.
+ *
+ * The NUL between fields stops a term straddling two of them: without it "acme cleveland" would
+ * match a company literally named "Acme Cleve" in a city starting "land". Cheap, and it removes a
+ * class of match nobody could explain.
+ */
+export function matches(r: LeanSupplier, terms: readonly string[]): boolean {
+  if (terms.length === 0) return true;
+  const hay = haystack(r);
+  for (const t of terms) if (!hay.includes(t)) return false;
+  return true;
+}
+
+export function termsOf(query: string): string[] {
+  return query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+}
 
 // Tier A / hot wears the house brass accent: the act-first band, loud without spending the
 // amber that is reserved for the award clock alone.
@@ -156,6 +190,17 @@ export function SuppliersGrid({
   const [filter, setFilter] = useState<Filter>("hot");
 
   /*
+   * SEARCH. 3,471 rows, three coarse tabs, and until now no way to find a company you already know.
+   *
+   * `useDeferredValue` rather than a debounce timer: the input stays exact and instant while the
+   * 3,471-row list re-filters against a lagging copy, so typing never waits on a render. A timer
+   * would also work and would additionally make the value wrong for its duration.
+   */
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  /*
    * ONE COMPANY'S CONTACT DETAILS, FETCHED WHEN A PERSON OPENS THAT COMPANY.
    *
    * Keyed by CAGE and never prefetched. `denied` is kept as a distinct state from `error`
@@ -209,6 +254,25 @@ export function SuppliersGrid({
       .catch(() => {});
   }, []);
 
+  /*
+   * "/" focuses the box, the convention every operator already has in their fingers. Guarded on
+   * the event target so it does not steal the key from someone typing a slash into a field, and
+   * on the modifiers so it never fights a browser shortcut.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const toggleContacted = async (cage: string) => {
     // Optimistic; the server is the source of truth on reload.
     setContacted((prev) => {
@@ -231,11 +295,30 @@ export function SuppliersGrid({
   const isHot = (r: LeanSupplier) => /hot|^a/i.test(r.prospectTier ?? "");
   const isMfr = (r: LeanSupplier) => /manufact/i.test(r.holdsInventory ?? "");
 
+  const terms = useMemo(() => termsOf(deferredQuery.trim()), [deferredQuery]);
+
   const shown = useMemo(() => {
     let base = filter === "hot" ? suppliers.filter(isHot) : filter === "manufacturer" ? suppliers.filter(isMfr) : suppliers;
     if (hideContacted) base = base.filter((r) => !contacted.has(r.cage));
+    if (terms.length > 0) base = base.filter((r) => matches(r, terms));
     return base;
-  }, [suppliers, filter, hideContacted, contacted]);
+  }, [suppliers, filter, hideContacted, contacted, terms]);
+
+  /*
+   * ★ THE TRAP THIS EXISTS TO CLOSE, AND THE REASON SEARCH IS NOT JUST A FILTER.
+   *
+   * The page opens on "Tier A · hot", 543 of 3,471 rows. Search a company that is real but not
+   * Tier A and a plain filter returns nothing — and an empty result is read as "this firm is not
+   * in the book", which is a false statement about the data made by a UI decision.
+   *
+   * So when the query finds nothing HERE, we count it across the whole book and say which of the
+   * two happened. The tab is never changed silently: being moved out of the filter you chose is
+   * its own small betrayal. It is offered as one press.
+   */
+  const elsewhere = useMemo(() => {
+    if (terms.length === 0 || shown.length > 0) return 0;
+    return suppliers.reduce((n, r) => (matches(r, terms) ? n + 1 : n), 0);
+  }, [suppliers, terms, shown.length]);
 
   const columns: GridColumn<LeanSupplier>[] = useMemo(
     () => [
@@ -385,9 +468,29 @@ export function SuppliersGrid({
         },
       },
     ],
-    // toggleContacted is stable enough; contacted (and the server-computed facts) drive the re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contacted, nsnFacts],
+    /*
+     * ★ `detail` BELONGS HERE, AND ITS ABSENCE MADE THE PAGE'S PRIMARY ACTION LOOK DEAD.
+     *
+     * Five branches of the "Reach out" cell read `detail[r.cage]`. With `detail` omitted from this
+     * array every cell closure kept the initial `{}` forever, so pressing "Show contacts (5)" fired
+     * `GET /api/suppliers/detail` -> 200 with all five records and the cell text stayed
+     * byte-identical at +200ms, +800ms, +1.5s, +3s, +5s and +9s. Repeat presses fire no second
+     * request either (`loadDetail` asks once per CAGE), so the natural retry does nothing and the
+     * row never heals. Measured on five companies at 320/390/1440.
+     *
+     * The tell: pressing "Mark contacted" on an UNRELATED row snapped every stale cell to
+     * "Compose | Copy email" instantly, using data fetched nine seconds earlier. `contacted` was
+     * the only thing rebuilding the columns.
+     *
+     * It also silenced the honest-refusal states this file was written to provide: `loading`,
+     * `denied` ("your role does not include seeing supplier identities") and `error` all render
+     * inside that same dead cell, so a permission refusal was indistinguishable from a button that
+     * does nothing. Forcing a 403 and a network abort confirmed both stayed invisible for 5s.
+     *
+     * The eslint suppression that used to sit here was the rule telling us this, and being told
+     * to be quiet. It is removed rather than narrowed.
+     */
+    [contacted, nsnFacts, detail, canSeeIdentities],
   );
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
@@ -414,6 +517,50 @@ export function SuppliersGrid({
       </div>
 
       <div className={styles.toolbar}>
+        <div className={styles.searchWrap}>
+          <label className={styles.srOnly} htmlFor="supplier-search">
+            Search the supplier book by company, CAGE code, city or state
+          </label>
+          <span className={styles.searchIcon} aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="M10.5 10.5 14 14" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            id="supplier-search"
+            ref={searchRef}
+            type="search"
+            className={styles.search}
+            placeholder="Search company, CAGE, city or state"
+            value={query}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query !== "") {
+                e.preventDefault();
+                setQuery("");
+              }
+            }}
+          />
+          {query !== "" ? (
+            <button
+              type="button"
+              className={styles.searchClear}
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
+              aria-label="Clear the search"
+            >
+              &times;
+            </button>
+          ) : (
+            /* The hint occupies the same slot as the clear button, so nothing shifts when it swaps. */
+            <kbd className={styles.searchKbd} aria-hidden="true">/</kbd>
+          )}
+        </div>
         <button
           type="button"
           aria-pressed={hideContacted}
@@ -425,13 +572,28 @@ export function SuppliersGrid({
         </button>
         <div className={styles.toolbarRight}>
           <span className={styles.resultCount} aria-live="polite">
-            {shown.length.toLocaleString()} shown of {suppliers.length.toLocaleString()} in the book
+            {terms.length > 0
+              ? `${shown.length.toLocaleString()} matching "${deferredQuery.trim()}" of ${suppliers.length.toLocaleString()} in the book`
+              : `${shown.length.toLocaleString()} shown of ${suppliers.length.toLocaleString()} in the book`}
           </span>
           <button type="button" className={styles.exportBtn} onClick={() => exportCsv(shown, `distressed-suppliers-${filter}`)}>
             Export to CSV
           </button>
         </div>
       </div>
+
+      {elsewhere > 0 ? (
+        <p className={styles.elsewhere} role="status">
+          <strong>
+            No match in this filter, but {elsewhere.toLocaleString()}{" "}
+            {elsewhere === 1 ? "firm matches" : "firms match"} in the whole book.
+          </strong>{" "}
+          You are looking at {filter === "hot" ? "Tier A only" : filter === "manufacturer" ? "manufacturers only" : "the whole book"}.
+          <button type="button" className={styles.elsewhereBtn} onClick={() => startTransition(() => setFilter("all"))}>
+            Search all {suppliers.length.toLocaleString()}
+          </button>
+        </p>
+      ) : null}
 
       {pending ? (
         <AiLoader
@@ -454,10 +616,19 @@ export function SuppliersGrid({
         density="compact"
         empty={{
           cause: "filtered",
-          message: "No supplier matches this filter.",
+          /*
+           * The message names the search when there is one. "No supplier matches this filter" in
+           * front of somebody who just typed a company name points at the wrong control, and they
+           * clear the tabs and stay empty.
+           */
+          message:
+            terms.length > 0
+              ? `No supplier matches "${deferredQuery.trim()}" here.`
+              : "No supplier matches this filter.",
           onClearFilters: () => {
             setFilter("all");
             setHideContacted(false);
+            setQuery("");
           },
         }}
         /*

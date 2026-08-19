@@ -152,7 +152,7 @@ the rivals. 40-company picker; the default is Rural Route 2 Parts, CAGE 89YT2, a
 competitor. The decision it serves: where is a rival structurally strong, and where are they exposed.
 
 **Suppliers (/suppliers)** — the distressed-supplier book: 3,471 firms, 543 of them Tier-A hot
-prospects, 10,121 verified contacts. Per row: compose a draft, copy the email or phone, mark
+prospects, 8,901 verified contacts. Per row: compose a draft, copy the email or phone, mark
 contacted. Outreach is single-operator; the platform drafts, the human sends. Never an automated
 blast.
 
@@ -196,7 +196,7 @@ catalog (18.2 million rows). It carries AMSC acquisition posture on 5,479,581 di
 the roughly 3,418 currently scored, which is about a 1,600x expansion already proven feasible.
 
 **C. Supplier intelligence** — the distressed-supplier dataset with prospect tiers, scores,
-rationale, SAM status, inventory flags and named executives, plus 10,121 verified contacts.
+rationale, SAM status, inventory flags and named executives, plus 8,901 verified contacts.
 
 **D. Competitor market data** — approved-source exports parsed by the teardown tool.
 

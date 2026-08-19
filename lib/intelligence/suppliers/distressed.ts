@@ -174,7 +174,28 @@ export function buildDistressedSuppliers(): DistressedSuppliersIndex | Distresse
       const cage = s(r['cage'])?.toUpperCase()
       if (!cage) continue
       const sup = byCage.get(cage)
-      const verified = /^y|true|verified/i.test(r['Verified'] ?? '')
+      /*
+       * ★ EXACT MATCH, BECAUSE THE REGEX THAT USED TO BE HERE MATCHED ITS OWN NEGATION.
+       *
+       * It was `/^y|true|verified/i`, and alternation binds looser than the anchor, so it reads as
+       * `(^y) | (true) | (verified)` — only the FIRST branch is anchored. "Unverified" contains
+       * "verified", so it matched. Measured against the file:
+       *
+       *     Verified    8,901        <- the truth
+       *     Unverified  1,220        <- counted as verified, and rendered with a tick
+       *     Catch-all      46
+       *     8,901 + 1,220 = 10,121   <- the number the page has been printing
+       *
+       * 12.1% of a headline whose whole load-bearing word is "verified", and worse per-record than
+       * in aggregate: the tick is an affirmative claim attached to a specific named person's email
+       * address, on data that was checked and FAILED. `michaelcriner@aol.com` is "Unverified" in
+       * the file and rendered "Michael Criner, Business Owner ... ✓".
+       *
+       * The column is a small enumeration, so it is compared by identity. A "verified-ish" regex
+       * over a field whose vocabulary you control is a guess where a lookup was available, and
+       * "Catch-all" stays false on purpose: a catch-all address is not a person who was reached.
+       */
+      const verified = (r['Verified'] ?? '').trim() === 'Verified'
       const c: SupplierContact = {
         name: s(r['Contact Name']),
         title: s(r['Title']),
