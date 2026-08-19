@@ -12,7 +12,7 @@
 
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -445,5 +445,48 @@ describe('series freshness', () => {
       ['WPU10', 'stale'],
     ])
     expect(seriesFreshnessReport(out)).toHaveLength(1)
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ THE LEDGER MUST LIVE UNDER THE SAME DATA ROOT THE APPLICATION READS               */
+/* ---------------------------------------------------------------------------------- */
+
+describe('where the ledger lives', () => {
+  it('★ shares a root with the archive, so it cannot be written where nothing reads', async () => {
+    const { SERIES_ROOT: root } = await import('../../lib/ingest/series/store')
+    const { dataPath, archivePath } = await import('../../lib/data-root')
+
+    expect(root).toBe(dataPath('series'))
+    // Same parent as the archive. If these ever diverge, one of them is being written to a
+    // tree the application does not read, which is exactly what happened here.
+    expect(dirname(root)).toBe(dirname(archivePath()))
+  })
+
+  it('★ POSITIVE CONTROL: the two roots are different MECHANISMS, not the same one twice', async () => {
+    const { DATA_ROOT } = await import('../../lib/ingest/db')
+    const { resolveDataRoot } = await import('../../lib/data-root')
+
+    // A first draft of this control asserted the two paths were literally different, and it
+    // passed in the repo and FAILED in a detached worktree -- because `resolveDataRoot()` only
+    // returns `<cwd>/data` when that directory exists, and otherwise falls back to the same
+    // development default `DATA_ROOT` hardcodes. So the two roots coincide exactly when nobody
+    // is looking and diverge on the server. THAT is the defect, and a control whose result
+    // depends on the caller's working directory cannot state it.
+    //
+    // So this asserts the thing that is true everywhere: they are governed by DIFFERENT
+    // environment variables and therefore cannot be assumed to agree.
+    const steered = resolveDataRoot({
+      ...process.env,
+      ONLYSOURCE_DATA_DIR: '/tmp/a-deliberately-different-root',
+    })
+    expect(steered.root).toBe('/tmp/a-deliberately-different-root')
+    expect(steered.basis).toBe('ONLYSOURCE_DATA_DIR')
+
+    // DATA_ROOT does not respond to that variable at all. It answers to ONLYSOURCE_DATA_ROOT
+    // and otherwise to a hardcoded macOS home path, which is why it resolved to a directory
+    // that does not exist on the production droplet.
+    expect(DATA_ROOT).not.toBe(steered.root)
+    expect(DATA_ROOT.startsWith('/Users/') || process.env.ONLYSOURCE_DATA_ROOT !== undefined).toBe(true)
   })
 })

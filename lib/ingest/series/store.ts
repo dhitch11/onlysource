@@ -26,12 +26,30 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { DATA_ROOT } from '../db'
+import { dataPath } from '../../data-root'
 import { civilInZone } from '../../time/zoned'
 import type { SeriesObservation } from './bls'
 
-/** Beside the archive, outside git, for the same reason: it grows forever and is not source. */
-export const SERIES_ROOT = process.env.INGEST_SERIES_ROOT ?? join(DATA_ROOT, 'series')
+/**
+ * Beside the archive, under the SAME resolved data root, outside git for the same reason: it
+ * grows forever and is not source.
+ *
+ * ★ IT IS `dataPath()` AND NOT `DATA_ROOT`, AND THAT DISTINCTION WAS A LIVE DEFECT. This
+ * originally read `join(DATA_ROOT, 'series')`. `DATA_ROOT` comes from `lib/ingest/db.ts`, whose
+ * own comment says it "feeds the LOCAL embedded-Postgres location only", and it is hardcoded to
+ * `/Users/user/onlysource-data` when `ONLYSOURCE_DATA_ROOT` is unset. On the production droplet
+ * that variable is unset and that directory does not exist, so the scheduled ingest would have
+ * created a tree under a laptop path on a Linux box and written the ledger somewhere the
+ * application never looks: `resolveDataRoot()` returns the bundled `<cwd>/data` there.
+ *
+ * The two roots agree on nothing but the archive, which resolves through `archivePath()` and so
+ * was never affected. Measured on prod: `dataPath('series')` = /opt/onlysource/data/series,
+ * `join(DATA_ROOT, 'series')` = /Users/user/onlysource-data/series.
+ *
+ * BUILT, CORRECT, AND WRITING WHERE NOTHING READS. The test below asserts the series root shares
+ * a parent with the archive root, so a second data root can never silently reappear.
+ */
+export const SERIES_ROOT = process.env.INGEST_SERIES_ROOT ?? dataPath('series')
 
 export const seriesLedgerPath = (root: string = SERIES_ROOT): string =>
   join(root, 'SERIES.jsonl')
