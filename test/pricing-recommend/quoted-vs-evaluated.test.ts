@@ -30,7 +30,7 @@ import {
   recommendPrice,
   type PriceRecommendation,
 } from '@/lib/intelligence/pricing/recommend'
-import { DECLARED_OFFER, PRICING_INSTANT_MS, cleanAward } from './_fixtures'
+import { DECLARED_OFFER, PRICING_INSTANT_MS, cleanAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 /** One fresh award, so the rung is a POINT and the totals are single numbers a person can check. */
 function pointRow(declared: boolean) {
@@ -47,6 +47,7 @@ function pointRow(declared: boolean) {
     ],
     requirementQuantity: 4,
     atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     ...(declared ? { declarations: DECLARED_OFFER } : {}),
   })
 }
@@ -168,6 +169,7 @@ describe('the recommendation is a quoted number and the adders are the buyer’s
       ],
       requirementQuantity: 4,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       declarations: DECLARED_OFFER,
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')

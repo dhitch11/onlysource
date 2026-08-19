@@ -20,7 +20,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { PEER_FLOOR_COUNT, recommendPrice } from '@/lib/intelligence/pricing/recommend'
-import { PRICING_INSTANT_MS, REFERENCE_FSC, peer, peerLookupFor } from './_fixtures'
+import { PRICING_INSTANT_MS, REFERENCE_FSC, peer, peerLookupFor, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 function peerOnlyRow(peers: Parameters<typeof peerLookupFor>[1]) {
   return recommendPrice({
@@ -29,6 +29,7 @@ function peerOnlyRow(peers: Parameters<typeof peerLookupFor>[1]) {
     awards: [],
     requirementQuantity: 4,
     atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     peerLookup: peerLookupFor(REFERENCE_FSC, peers),
   })
 }
@@ -120,6 +121,7 @@ describe('the peer rung floor', () => {
       awards: [],
       requirementQuantity: 4,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     const rung5 = rec.ladder.find((r) => r.rung === 'R5_FSC_PEER_BAND')
     if (rung5?.resolved !== false) throw new Error('the peer rung must be unresolved')

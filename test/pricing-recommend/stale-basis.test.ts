@@ -22,7 +22,7 @@
 import { describe, expect, it } from 'vitest'
 import { INDEX_CONFIG_1650 } from '@/lib/engine/pricing'
 import { driftHalfWidthPerYear, recommendPrice } from '@/lib/intelligence/pricing/recommend'
-import { PRICING_INSTANT_MS, cleanAward } from './_fixtures'
+import { PRICING_INSTANT_MS, cleanAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 function rowWithBasisDated(awardDateIso: string) {
   return recommendPrice({
@@ -33,6 +33,7 @@ function rowWithBasisDated(awardDateIso: string) {
     ],
     requirementQuantity: 6,
     atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
   })
 }
 

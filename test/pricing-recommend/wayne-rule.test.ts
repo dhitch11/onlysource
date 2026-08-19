@@ -22,7 +22,7 @@ import {
   recommendPrice,
   type RecommendationConfig,
 } from '@/lib/intelligence/pricing/recommend'
-import { PRICING_INSTANT_MS, cleanAward } from './_fixtures'
+import { PRICING_INSTANT_MS, cleanAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 /** The previous award unit price implied by his own sentence. Fixture input, never corpus output. */
 const IMPLIED_PREVIOUS_AWARD_UNIT_PRICE = 1188.33
@@ -48,6 +48,7 @@ function hisRow(config?: RecommendationConfig) {
     approvedSourceCages: [],
     requirementQuantity: 3,
     atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     ...(config ? { config } : {}),
   })
 }

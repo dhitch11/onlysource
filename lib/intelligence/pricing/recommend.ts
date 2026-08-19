@@ -155,14 +155,65 @@ export const RECOMMENDATION_RUNGS = [
 
 export type RecommendationRung = (typeof RECOMMENDATION_RUNGS)[number]
 
+/**
+ * THE RUNG LABEL WITH THE MULTIPLE ACTUALLY IN FORCE WRITTEN INTO IT.
+ *
+ * ★★ THIS FUNCTION WAS ANNOUNCED IN A COMMENT BEFORE IT EXISTED. `RUNG_LABELS` was rewritten to
+ * say "at the multiple in force" with a note explaining that the number "lives in `rungLabelFor`"
+ * — and `rungLabelFor` was never written, and every label kept being read straight out of the
+ * static map. A comment is not a control: it described behaviour no code performed, which is the
+ * same defect this product has shipped three times in other forms. It exists now.
+ *
+ * Labels that name a number MUST be computed from that number. A static label saying "three
+ * times" beside an engine multiplying by 1 is a false statement on the money field, and it is
+ * how a 0.00% figure came to wear "High confidence" earlier tonight.
+ */
+export function rungLabelFor(rung: RecommendationRung, config: RecommendationConfig): string {
+  const m = config.awardMultiple
+  if (rung !== 'R2_LAST_AWARD_MULTIPLE' && rung !== 'R3_RECENT_AWARD_BAND' && rung !== 'R4_AWARD_TREND') {
+    return RUNG_LABELS[rung]
+  }
+  /*
+   * At 1x nothing is being multiplied, and saying "one times the last award price" would be
+   * arithmetically true and read as nonsense. The honest phrasing is that the price is carried
+   * across unchanged, which is also exactly what the measurement supports.
+   */
+  const at =
+    m === 1
+      ? 'carried across unchanged'
+      : m === OPERATOR_AWARD_MULTIPLE
+        ? 'three times over, the rule you gave us'
+        : `at ${m}x`
+  if (rung === 'R2_LAST_AWARD_MULTIPLE') {
+    return m === 1
+      ? 'the last award price, carried across unchanged'
+      : m === OPERATOR_AWARD_MULTIPLE
+        ? 'three times the last award price, the rule you gave us'
+        : `${m} times the last award price`
+  }
+  if (rung === 'R3_RECENT_AWARD_BAND') {
+    return `the band of this stock number\u2019s own recent awards, ${at}`
+  }
+  return `the trend across this stock number\u2019s whole award history, ${at}`
+}
+
 /** The operator's language for each rung. Rendered as-is; no surface rewrites these. */
 export const RUNG_LABELS: Readonly<Record<RecommendationRung, string>> = {
   R1_MANUFACTURER_ANCHOR:
     "the manufacturer's own award price carried forward, CPI at the low end and the DoD " +
     'procurement factor the expert prefers at the high end',
-  R2_LAST_AWARD_MULTIPLE: 'three times the last award price, the rule you gave us',
-  R3_RECENT_AWARD_BAND: 'the band of this stock number’s own recent awards, at your multiple',
-  R4_AWARD_TREND: 'the trend across this stock number’s whole award history, at your multiple',
+  /*
+   * ★ NO LONGER "three times the last award price". This entry is the CONFIG-FREE name of the
+   * rung and it is rendered by /pricing as a static ladder legend, so it may not state a number
+   * the row in front of the reader is not using. The number lives in `rungLabelFor`, which reads
+   * the multiple actually in force. A label naming 3x while the engine computed 0.98x is the same
+   * class of defect as a confidence tier derived from ladder position.
+   */
+  R2_LAST_AWARD_MULTIPLE: 'a multiple of the last award price, at the multiple in force',
+  R3_RECENT_AWARD_BAND:
+    'the band of this stock number’s own recent awards, at the multiple in force',
+  R4_AWARD_TREND:
+    'the trend across this stock number’s whole award history, at the multiple in force',
   R5_FSC_PEER_BAND:
     'the band of priced peers in the same supply class, the weakest basis we hold',
 }
@@ -172,28 +223,405 @@ export const RUNG_LABELS: Readonly<Record<RecommendationRung, string>> = {
 /* ------------------------------------------------------------------------------------ */
 
 /**
- * The operator's own multiplier, and the reason it is a first-class configurable rather than a
- * constant buried in a function.
+ * THE OPERATOR'S OWN MULTIPLIER. STILL HERE, STILL EXACT, NO LONGER THE DEFAULT.
  *
  * The build directive records him verbatim: "I quoted $3,565, three times the unit price of the
- * previous award", which is 3 x $1,188.33. That is a RULE WITH ONE INPUT and it is HIS, which is
- * what makes it the most defensible number this product can put on a row: it reaches 1,132 rows
- * against the anchor's 49. It was recorded as an anecdote for months only because the old rule
- * left a recommendation nowhere to live.
+ * previous award", which is 3 x $1,188.33. That is a RULE WITH ONE INPUT and it is HIS, and it
+ * won him the buy he wrote about. It is kept as a first-class preset, it computes exactly what
+ * his sentence says when he chooses it, and `test/pricing-recommend/wayne-rule.test.ts` still
+ * holds it to 3564.99.
  *
- * It is a stated judgement, not a measured series, so it is graded PRIOR wherever it appears and
- * a caller can change it. A surface that renders the multiplier as an editable control is
- * rendering the truth about it.
+ * WHAT CHANGED ON 2026-08-19: it stopped being the number this product puts on a row by default,
+ * because it was measured and it does not work. See `MEASURED_AWARD_MULTIPLE` below for the
+ * measurement and `AWARD_MULTIPLE_PRESETS` for the record it now carries wherever it is offered.
+ *
+ * It remains a stated judgement rather than a measured series, so it is graded PRIOR wherever it
+ * appears, which is a different grade from the default's.
  */
 export const OPERATOR_AWARD_MULTIPLE = 3
+
+/**
+ * THE MEASURED DEFAULT, AND THE ONE LINE THAT REVERTS THE WHOLE CHANGE.
+ *
+ * ---------------------------------------------------------------------------------------
+ * WHAT WAS MEASURED, AND WHY IT REPLACED A 3
+ * ---------------------------------------------------------------------------------------
+ * The 3x came from ONE won anecdote. Three independent implementations, different authors, then
+ * asked the corpus what it would have done in general. The test is deliberately an OUTCOME and
+ * not a model: for an ordered pair of awards on the same stock number, would `multiple x the
+ * earlier unit price` have come in AT OR BELOW the price the item ACTUALLY cleared at next time?
+ * That later price is the one that beat everybody, so it is a fact rather than a forecast.
+ *
+ * BEING AT OR BELOW THE CLEARING PRICE IS NECESSARY TO WIN AND IS NOT SUFFICIENT: the offer must
+ * also be technically acceptable, from an approved or qualified source, from a responsible
+ * offeror and competitive on delivery, and DLA adds its evaluation factors to OUR total before
+ * comparing. Every screen can only remove wins. So every share below is an UPPER BOUND on the
+ * probability of winning, and it is labelled that way wherever it is rendered.
+ *
+ * The sample the earlier lanes used had to be repaired first, and the repair moved the headline:
+ * 4,142,708 of its 6,042,114 ordered pairs, 68.6%, compared a contract against ITSELF, which is
+ * not a second bidding event. Collapsing to one price event per (stock number, contract) and
+ * pairing only ACROSS DISTINCT CONTRACTS leaves 573,174 event pairs over 2,019 stock numbers,
+ * and 17,196 award rows with no contract number were dropped as UNKNOWN rather than promoted to
+ * events of their own, because promoting them would have silently rebuilt the defect.
+ *
+ * ---------------------------------------------------------------------------------------
+ * WHY 0.98 AND NOT A TIGHTER OR A ROUNDER NUMBER
+ * ---------------------------------------------------------------------------------------
+ * On the population this rung actually faces, CONSECUTIVE award events, 0.98x is the peak of the
+ * expected-margin curve, and it stays within 9% of the peak for every assumed cost basis from
+ * 0.40 to 0.92 of the previous award price. The cost basis is ASSUMED and this product holds no
+ * cost of goods anywhere, so the defence of 0.98 is its ROBUSTNESS across that whole range, never
+ * that any one cost basis is right. It also sits just under the exact-tie mass at 1.00x, and a
+ * tie is not a win.
+ *
+ * THE SURFACE IS FLAT INSIDE THE BAND AND STEEP OUTSIDE IT. Do not read the second decimal as
+ * precision: the honest statement is the band, and `MEASURED_AWARD_MULTIPLE_BAND` carries it.
+ *
+ * ---------------------------------------------------------------------------------------
+ * REVERTING, AND OVERRULING
+ * ---------------------------------------------------------------------------------------
+ * The owner overrules this per call by passing his own `config.awardMultiple`, with no code
+ * change and no deploy, and every figure on rungs 2 to 5 moves with it deterministically. To
+ * revert the product default to his rule entirely, `RECOMMENDATION_CONFIG.awardMultiple` below
+ * becomes `OPERATOR_AWARD_MULTIPLE` again. One line, one identifier, no other edit.
+ */
+/**
+ * THE PRODUCT DEFAULT, RULED BY THE OWNER ON 2026-08-19: ONE.
+ *
+ * ---------------------------------------------------------------------------------------
+ * WHY ONE, AND WHY NOT THE NUMBER THE OPTIMISER RETURNED
+ * ---------------------------------------------------------------------------------------
+ * Quoting the previous award price unchanged is the best single estimator anyone has measured of
+ * what the item will clear at next. It comes in at or below the actual clearing price on 80% of
+ * stock numbers with each item counted once, and 92.5% pooled, and four independent paths
+ * converged on it.
+ *
+ * ★★ AN EXPECTED-VALUE OPTIMISER WAS RUN AND ITS ANSWER IS DELIBERATELY NOT SHIPPED. On revenue
+ * it peaked at 0.91x, which is the BOTTOM OF THE SEARCH GRID, and a maximum on the boundary is a
+ * symptom rather than an answer. On margin it peaked near 0.98x, but only under an ASSUMED cost
+ * of 0.80 x the previous award price, and this product holds no cost of goods anywhere. Both
+ * numbers say "bid lower" for the same reason: a model with no cost floor cannot represent the
+ * one outcome that matters most, which is that winning below cost is a LOSS and not a small win.
+ *
+ * Shipping either would have replaced a number derived from one anecdote with a number derived
+ * from a model blind to the cost side. That is an estimate dressed as an optimum, and it is the
+ * same defect in better arithmetic.
+ *
+ * ONE IS NOT AN OPTIMUM AND IS NOT PRESENTED AS ONE. It is the measured central estimate of the
+ * clearing price, which is a thing we can actually observe. The step from that estimate to a bid
+ * needs the operator's cost, which only the operator holds, so the product states what the market
+ * did and hands them the trade-off rather than inventing the half of the problem it cannot see.
+ *
+ * ---------------------------------------------------------------------------------------
+ * REVERTING, AND OVERRULING
+ * ---------------------------------------------------------------------------------------
+ * The owner overrules per call with his own `config.awardMultiple`, no code change and no deploy,
+ * and every figure on rungs 2 to 5 moves with it deterministically. To restore his 3x as the
+ * product default, `RECOMMENDATION_CONFIG.awardMultiple` becomes `OPERATOR_AWARD_MULTIPLE`. One
+ * line, one identifier, no other edit.
+ */
+export const DEFAULT_AWARD_MULTIPLE = 1
+
+/**
+ * The margin-EV peak, KEPT AS A MEASUREMENT AND NEVER USED AS A DEFAULT.
+ *
+ * It is retained because it is a real result and a surface may cite it, but every citation must
+ * carry the assumption: it is the peak under an ASSUMED cost of 0.80 x the previous award price,
+ * and that cost is an assumption this product cannot verify. Never render it as the recommended
+ * multiple.
+ */
+export const MEASURED_AWARD_MULTIPLE = 0.98
+
+/**
+ * The band the measurement actually supports, and the ceiling past which it stops supporting
+ * anything. A surface should state the band; the default is one point inside it.
+ */
+export const MEASURED_AWARD_MULTIPLE_BAND = {
+  /** The low end of the working band. Below this the curve is falling away on the revenue side. */
+  lowMultiple: 0.95,
+  highMultiple: 1.0,
+  /**
+   * ADVISORY, not a clamp. The engine will still compute whatever multiple it is handed, because
+   * refusing an operator's number silently would be a control that does not work. Past this the
+   * caveat says so out loud.
+   */
+  advisoryCeilingMultiple: 1.05,
+} as const
+
+/**
+ * THE MEASURED RECORD, AS DATA, SO NOBODY RETYPES IT.
+ *
+ * Every sentence this file writes about how a multiple performs is generated from this table.
+ * A number that appears in prose and nowhere in a structure is a number the next lane will
+ * paraphrase slightly wrong.
+ */
+export const MEASURED_CLEARANCE_SAMPLE = {
+  /** Ordered pairs of CONSECUTIVE price events, one event per (stock number, contract number). */
+  eventPairs: 19_475,
+  stockNumbers: 2_019,
+  measuredOnIso: '2026-08-19',
+  population:
+    'consecutive award events on the same stock number, one price event per contract, paired ' +
+    'only across distinct contracts',
+} as const
+
+export type MeasuredClearanceObservation = {
+  readonly multiple: number
+  /**
+   * The share of pairs where `multiple x previous` came in at or below the price that actually
+   * cleared. AN UPPER BOUND on the probability of winning, never the probability of winning.
+   */
+  readonly clearedAtOrBelowShare: number
+  /**
+   * Share of the peak expected margin available, under an ASSUMED cost basis of 0.80 x the
+   * previous award unit price. NULL where the measurement lane did not publish this multiple,
+   * and null is an absence rather than a zero: nothing downstream may default it.
+   */
+  readonly shareOfPeakMarginEvAtAssumedCost080: number | null
+}
+
+/**
+ * P(clear) by multiple on the consecutive-events sample. Sorted ascending by multiple.
+ *
+ * ONLY EXACT GRID POINTS ARE EVER QUOTED. There is no interpolation anywhere in this file: a
+ * multiple between two rows here has no measured clearance rate, and saying so is the honest
+ * answer rather than averaging its neighbours into a number nobody measured.
+ */
+export const MEASURED_CLEARANCE_CURVE: readonly MeasuredClearanceObservation[] = [
+  { multiple: 0.85, clearedAtOrBelowShare: 0.911, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 0.9, clearedAtOrBelowShare: 0.882, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 0.95, clearedAtOrBelowShare: 0.827, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 0.98, clearedAtOrBelowShare: 0.757, shareOfPeakMarginEvAtAssumedCost080: 1.0 },
+  { multiple: 1.0, clearedAtOrBelowShare: 0.608, shareOfPeakMarginEvAtAssumedCost080: 0.89 },
+  { multiple: 1.02, clearedAtOrBelowShare: 0.322, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 1.05, clearedAtOrBelowShare: 0.247, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 1.1, clearedAtOrBelowShare: 0.185, shareOfPeakMarginEvAtAssumedCost080: 0.41 },
+  { multiple: 1.2, clearedAtOrBelowShare: 0.125, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 1.5, clearedAtOrBelowShare: 0.062, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 2.0, clearedAtOrBelowShare: 0.033, shareOfPeakMarginEvAtAssumedCost080: null },
+  { multiple: 3.0, clearedAtOrBelowShare: 0.015, shareOfPeakMarginEvAtAssumedCost080: 0.25 },
+]
+
+/** Cent-level tolerance on a multiple, so 0.98 typed as 0.9800000000000001 still matches. */
+const MULTIPLE_MATCH_TOLERANCE = 1e-9
+
+/**
+ * The measured record for EXACTLY this multiple, or NULL when the grid does not hold it.
+ *
+ * Null is the whole point. "We measured and the answer is no" and "we have nothing here" are
+ * different states, and a caller that treats the second as the first is the defect this product
+ * has shipped nine times.
+ */
+export function measuredClearanceAt(multiple: number): MeasuredClearanceObservation | null {
+  return (
+    MEASURED_CLEARANCE_CURVE.find(
+      (o) => Math.abs(o.multiple - multiple) < MULTIPLE_MATCH_TOLERANCE,
+    ) ?? null
+  )
+}
+
+/**
+ * WHERE A MULTIPLE STANDS RELATIVE TO WHAT WAS MEASURED. Not where it sits in a list.
+ *
+ * This is the discriminant every honesty surface reads. It is a fact about the NUMBER IN FORCE,
+ * never about the rung, so a caveat, a label and a confidence tier cannot drift apart, and none
+ * of them can inherit a claim from ladder position.
+ */
+export type AwardMultipleStance =
+  /** The measured margin optimum itself. */
+  | 'MEASURED_OPTIMUM'
+  /** Inside the measured working band but not the optimum point. */
+  | 'INSIDE_THE_MEASURED_BAND'
+  /** Above the band and at or under the advisory ceiling. */
+  | 'ABOVE_THE_BAND_WITHIN_THE_ADVISORY_CEILING'
+  /** Past the advisory ceiling, or under the band's low end. Chosen, not measured-optimal. */
+  | 'OUTSIDE_THE_MEASURED_BAND'
+
+export function classifyAwardMultiple(multiple: number): AwardMultipleStance {
+  if (Math.abs(multiple - MEASURED_AWARD_MULTIPLE) < MULTIPLE_MATCH_TOLERANCE) {
+    return 'MEASURED_OPTIMUM'
+  }
+  const { lowMultiple, highMultiple, advisoryCeilingMultiple } = MEASURED_AWARD_MULTIPLE_BAND
+  if (multiple >= lowMultiple && multiple <= highMultiple) return 'INSIDE_THE_MEASURED_BAND'
+  if (multiple > highMultiple && multiple <= advisoryCeilingMultiple) {
+    return 'ABOVE_THE_BAND_WITHIN_THE_ADVISORY_CEILING'
+  }
+  return 'OUTSIDE_THE_MEASURED_BAND'
+}
+
+/**
+ * A multiple rendered the way a human types it: 3, not 3.00; 0.98, not 0.9800000000000001.
+ */
+function multipleText(multiple: number): string {
+  return Number.isInteger(multiple) ? String(multiple) : String(Number(multiple.toFixed(4)))
+}
+
+/**
+ * The measured record for a multiple, in one sentence, generated from the table above.
+ *
+ * When the grid does not hold the multiple this says so and names the nearest MEASURED points by
+ * their own values. That is not an interpolation: those are two measurements, printed as
+ * measurements, with nothing computed between them.
+ */
+export function measuredRecordSentence(multiple: number): string {
+  const at = measuredClearanceAt(multiple)
+  const sample =
+    `${MEASURED_CLEARANCE_SAMPLE.eventPairs.toLocaleString('en-US')} ${MEASURED_CLEARANCE_SAMPLE.population}` +
+    ` over ${MEASURED_CLEARANCE_SAMPLE.stockNumbers.toLocaleString('en-US')} stock numbers`
+  if (at === null) {
+    const below = [...MEASURED_CLEARANCE_CURVE].reverse().find((o) => o.multiple < multiple)
+    const above = MEASURED_CLEARANCE_CURVE.find((o) => o.multiple > multiple)
+    const neighbours = [below, above]
+      .filter((o): o is MeasuredClearanceObservation => o !== undefined)
+      .map((o) => `${multipleText(o.multiple)}x at ${pct(o.clearedAtOrBelowShare)}`)
+    return (
+      `No clearance rate was measured at ${multipleText(multiple)}x. Measured over ${sample}, ` +
+      `the nearest points we DID measure are ${neighbours.join(' and ')}, and nothing between ` +
+      'them is interpolated, so this multiple has no measured record of its own.'
+    )
+  }
+  const margin =
+    at.shareOfPeakMarginEvAtAssumedCost080 === null
+      ? ''
+      : ` It returns about ${Math.round(at.shareOfPeakMarginEvAtAssumedCost080 * 100)}% of the ` +
+        `expected margin available at ${multipleText(MEASURED_AWARD_MULTIPLE)}x, under an ASSUMED ` +
+        'cost of 0.80 x the previous award price.'
+  return (
+    `Measured over ${sample}: a quote at ${multipleText(multiple)}x the last award unit price ` +
+    `came in at or below the price the item actually cleared at ${pct(at.clearedAtOrBelowShare)} ` +
+    `of the time.${margin} At or below is necessary to win and not sufficient, so ` +
+    `${pct(at.clearedAtOrBelowShare)} is an upper bound on how often it would have won.`
+  )
+}
+
+/**
+ * THE PRESETS, AS DATA, EACH CARRYING ITS OWN MEASURED RECORD.
+ *
+ * A preset offered WITHOUT its record is exactly how the 3x shipped as a headline: a number in a
+ * control, with the thing anybody would want to know about it living in a comment. So the record
+ * is a FIELD on the preset, a surface renders it rather than retyping it, and there is no way to
+ * offer the value while dropping the sentence.
+ *
+ * The operator's 3x is in this list and is not hidden. It is his, it won him a buy, and when he
+ * selects it the engine computes exactly what his rule says.
+ */
+export type AwardMultiplePresetId =
+  | 'MEASURED_BAND_FLOOR'
+  | 'MEASURED_MARGIN_OPTIMUM'
+  | 'PARITY_WITH_THE_LAST_AWARD'
+  | 'ADVISORY_CEILING'
+  | 'OPERATOR_STATED_RULE'
+
+export type AwardMultiplePreset = {
+  readonly id: AwardMultiplePresetId
+  readonly value: number
+  /** What the control says. */
+  readonly label: string
+  /** What the control must say NEXT TO IT. Generated from the measured table, never retyped. */
+  readonly record: string
+  /**
+   * How the number came to exist. MEASURED and PRIOR do not render at equal confidence, and a
+   * preset list is precisely where they would otherwise be flattened into one row of buttons.
+   */
+  readonly provenance: 'MEASURED' | 'PRIOR'
+}
+
+export const AWARD_MULTIPLE_PRESETS: readonly AwardMultiplePreset[] = [
+  {
+    id: 'MEASURED_BAND_FLOOR',
+    value: MEASURED_AWARD_MULTIPLE_BAND.lowMultiple,
+    label: 'the low end of the measured working band',
+    record: measuredRecordSentence(MEASURED_AWARD_MULTIPLE_BAND.lowMultiple),
+    provenance: 'MEASURED',
+  },
+  {
+    id: 'MEASURED_MARGIN_OPTIMUM',
+    value: MEASURED_AWARD_MULTIPLE,
+    label: 'the measured margin optimum',
+    record: measuredRecordSentence(MEASURED_AWARD_MULTIPLE),
+    provenance: 'MEASURED',
+  },
+  {
+    id: 'PARITY_WITH_THE_LAST_AWARD',
+    value: MEASURED_AWARD_MULTIPLE_BAND.highMultiple,
+    label: 'match the last award price',
+    record:
+      `${measuredRecordSentence(MEASURED_AWARD_MULTIPLE_BAND.highMultiple)} On the wider clean ` +
+      'sample of 573,174 event pairs, 6.19 points of the mass at this multiple is an EXACT tie ' +
+      'with the previous clearing price, and a tie is not a win. Sole-source items optimise ' +
+      'here: the measured sole-source premium is 4.1% pair-weighted, not the 20.9% previously ' +
+      'believed, which was manufactured by pairing contracts against themselves.',
+    provenance: 'MEASURED',
+  },
+  {
+    id: 'ADVISORY_CEILING',
+    value: MEASURED_AWARD_MULTIPLE_BAND.advisoryCeilingMultiple,
+    label: 'the advisory ceiling',
+    record:
+      `${measuredRecordSentence(MEASURED_AWARD_MULTIPLE_BAND.advisoryCeilingMultiple)} This is ` +
+      'the top of what the measurement supports. Above it no stratum of the corpus, and no ' +
+      'supply class with a usable item base, put its optimum.',
+    provenance: 'MEASURED',
+  },
+  {
+    id: 'OPERATOR_STATED_RULE',
+    value: OPERATOR_AWARD_MULTIPLE,
+    label: 'three times the last award price, the rule you gave us',
+    record:
+      `Your own rule, stated once about one item you won: "I quoted $3,565, three times the unit ` +
+      `price of the previous award." ${measuredRecordSentence(OPERATOR_AWARD_MULTIPLE)} It fails ` +
+      'no harder on sole-source items than competed ones, so keeping it for sole-source was ' +
+      'measured too and was refuted. It is here, unchanged, because it is yours and because you ' +
+      'may know something about a row that the corpus does not.',
+    provenance: 'PRIOR',
+  },
+]
+
+/**
+ * The preset a given config is standing on, BY VALUE, or null when the operator has typed a
+ * number that is not one of them. Never by list position: a preset reordering must not silently
+ * move which one is called the default.
+ */
+export function presetForMultiple(multiple: number): AwardMultiplePreset | null {
+  return (
+    AWARD_MULTIPLE_PRESETS.find((p) => Math.abs(p.value - multiple) < MULTIPLE_MATCH_TOLERANCE) ??
+    null
+  )
+}
 
 /** No band from fewer than this many priced peers. A band from one observation is a disguise. */
 export const PEER_FLOOR_COUNT = 3
 
+/**
+ * WHICH RUNGS CONSUME THE MULTIPLE, NAMED BY IDENTITY.
+ *
+ * R1 carries the manufacturer's award forward on the inflation factors and never multiplies, so
+ * nothing about the multiple may be said about R1. Every other rung multiplies, which means a
+ * claim about the multiple belongs on all of them and not only on the one that names it in its
+ * label. Named rather than sliced, so reordering the ladder cannot reattach these facts to a
+ * rung that does not multiply.
+ */
+export const RUNGS_THAT_APPLY_THE_AWARD_MULTIPLE: readonly RecommendationRung[] = [
+  'R2_LAST_AWARD_MULTIPLE',
+  'R3_RECENT_AWARD_BAND',
+  'R4_AWARD_TREND',
+  'R5_FSC_PEER_BAND',
+]
+
 export type RecommendationConfig = {
   readonly awardMultiple: number
-  /** How the multiplier is described wherever it is shown. */
-  readonly awardMultipleSource: string
+  /**
+   * An OPERATOR-STATED description of the multiplier, overriding the derived one.
+   *
+   * OPTIONAL AND UNSET BY DEFAULT, and that is deliberate. It used to be a required string on the
+   * shared config, which meant `{ ...RECOMMENDATION_CONFIG, awardMultiple: 2 }` produced a row
+   * whose multiplier was 2 and whose description still explained 3, in the operator's own voice.
+   * A description that does not follow the number it describes is a UI string that goes stale,
+   * and this product has shipped that defect before. Left unset, the description is DERIVED from
+   * the multiple in force and cannot disagree with it.
+   */
+  readonly awardMultipleSource?: string | null
   /** The recency window for the R3 band, in months. Our judgement, not a regulation. */
   readonly recentWindowMonths: number
   readonly peerFloorCount: number
@@ -204,10 +632,14 @@ export type RecommendationConfig = {
 }
 
 export const RECOMMENDATION_CONFIG: RecommendationConfig = {
-  awardMultiple: OPERATOR_AWARD_MULTIPLE,
-  awardMultipleSource:
-    'Stated by the operator: "I quoted $3,565, three times the unit price of the previous ' +
-    'award." His rule, not ours, and adjustable here.',
+  awardMultiple: DEFAULT_AWARD_MULTIPLE,
+  /*
+   * ABSENT ON PURPOSE, so the sentence is DERIVED from the multiple in force rather than typed
+   * beside it. It used to read 'Stated by the operator: "I quoted $3,565, three times the unit
+   * price of the previous award." His rule, not ours, and adjustable here.' That was true while
+   * the default WAS his rule, and it became a false statement the instant the default changed
+   * while the string did not. A caller may still set it explicitly and that value is used as-is.
+   */
   /*
    * Thirty six months, the same window `quote-view.ts` uses for the resale band and for the same
    * measured reason: DLAD 17.7505 measures over twelve months, and the median stock number in
@@ -522,6 +954,15 @@ export type PriceRecommendation =
       readonly atInstantMs: number
       readonly rung: RecommendationRung
       readonly rungLabel: string
+      /**
+       * The multiple actually applied on this row.
+       *
+       * ★ CARRIED ON THE RESULT rather than looked up from the shared config by a consumer. A
+       * caller may pass its own `config.awardMultiple`, and a surface reading the default instead
+       * would label the row with a number the row did not use. Every label naming a multiple
+       * must read THIS field.
+       */
+      readonly awardMultiple: number
       readonly recommended: RecommendedFigure
       readonly basisUnitPriceUsd: number | null
       readonly widthRatio: number
@@ -563,7 +1004,20 @@ export type PriceRecommendation =
 /** Two decimals, no separators, so a reader can retype it into a calculator. */
 const money = (usd: number): string => usd.toFixed(2)
 
-const pct = (ratio: number): string => `${(ratio * 100).toFixed(2)}%`
+/*
+ * A FUNCTION DECLARATION AND NOT A CONST ARROW, DELIBERATELY, AND THIS IS NOT STYLE.
+ *
+ * `AWARD_MULTIPLE_PRESETS` is a top-level const that builds its record sentences at module load,
+ * and those sentences call `measuredRecordSentence`, which calls this. A `const` arrow declared
+ * here is in the temporal dead zone at that moment, so importing this module threw
+ * "Cannot access 'pct' before initialization" and every surface that imports the pricing engine
+ * died at load. It type-checked perfectly and the build passed: only running it found it.
+ *
+ * A function declaration hoists, so the presets can be evaluated wherever they are written.
+ */
+function pct(ratio: number): string {
+  return `${(ratio * 100).toFixed(2)}%`
+}
 
 const MS_PER_YEAR = 31_557_600_000
 
@@ -1271,13 +1725,51 @@ function buildAnchorRung(
 /* RUNG 2: THE OPERATOR'S OWN RULE                                                        */
 /* ------------------------------------------------------------------------------------ */
 
+/**
+ * WHAT THE MULTIPLE IN FORCE ACTUALLY IS, IN A SENTENCE THAT IS TRUE OF IT.
+ *
+ * ★ DERIVED FROM THE NUMBER, NEVER STORED BESIDE IT. The previous implementation kept a fixed
+ * string describing the 3x rule, and when the default changed the string stayed: a label that
+ * described the product's behaviour and then quietly stopped. That is the same defect class as a
+ * confidence tier derived from ladder position, and the cure is the same, which is to compute the
+ * claim from the thing it claims about.
+ *
+ * An explicit `awardMultipleSource` on the config still wins, because an operator who states why
+ * they chose a number has said something this function cannot know.
+ */
+export function describeAwardMultiple(config: RecommendationConfig): string {
+  if (config.awardMultipleSource != null && config.awardMultipleSource.trim() !== '') {
+    return config.awardMultipleSource
+  }
+  if (config.awardMultiple === DEFAULT_AWARD_MULTIPLE) {
+    return (
+      'The previous award price carried across unchanged. It is the best single estimator of ' +
+      'the next clearing price that has been measured here, at or below the actual clearing ' +
+      'price on 80% of stock numbers counted once. It is a central estimate and not an optimum: ' +
+      'the step from it to a bid needs your cost, which this product does not hold.'
+    )
+  }
+  if (config.awardMultiple === OPERATOR_AWARD_MULTIPLE) {
+    return (
+      'Stated by the operator: "I quoted $3,565, three times the unit price of the previous ' +
+      'award." His rule, chosen here rather than defaulted to. Measured against real outcomes it ' +
+      'came in at or below the actual clearing price 0.00% of the time with each stock number ' +
+      'counted once, and the highest multiple at which anything cleared at all was about 1.45x.'
+    )
+  }
+  return (
+    `Set to ${config.awardMultiple}x here rather than defaulted to. ` +
+    measuredRecordSentence(config.awardMultiple)
+  )
+}
+
 function multiplierInput(config: RecommendationConfig): RecommendationInputValue {
   return {
     label: 'Multiplier',
     renderedValue: `${config.awardMultiple}x`,
     valueUsd: null,
     dateIso: null,
-    source: config.awardMultipleSource,
+    source: describeAwardMultiple(config),
     evidenceState: 'PRIOR',
     citation: null,
   }
@@ -2159,7 +2651,7 @@ export function recommendPrice(input: RecommendationInput): PriceRecommendation 
     if (!isBasis(attempt)) {
       ladder.push({
         rung: attempt.rung,
-        rungLabel: RUNG_LABELS[attempt.rung],
+        rungLabel: rungLabelFor(attempt.rung, config),
         resolved: false,
         reason: attempt.reason,
         missingInput: attempt.missingInput,
@@ -2175,7 +2667,7 @@ export function recommendPrice(input: RecommendationInput): PriceRecommendation 
     ]
     const outcome: ResolvedRungOutcome = {
       rung: attempt.rung,
-      rungLabel: RUNG_LABELS[attempt.rung],
+      rungLabel: rungLabelFor(attempt.rung, config),
       resolved: true,
       recommended: widened.recommended,
       basisUnitPriceUsd: attempt.basisUnitPriceUsd,
@@ -2278,6 +2770,7 @@ export function recommendPrice(input: RecommendationInput): PriceRecommendation 
     atInstantMs: input.atInstantMs,
     rung: winner.outcome.rung,
     rungLabel: winner.outcome.rungLabel,
+    awardMultiple: config.awardMultiple,
     recommended: figure,
     basisUnitPriceUsd: winner.outcome.basisUnitPriceUsd,
     widthRatio: winner.widened.widthRatio,

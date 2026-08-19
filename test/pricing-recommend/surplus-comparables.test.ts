@@ -25,7 +25,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AwardeeVerdict } from '@/lib/intelligence/suppliers/classify'
 import { recommendPrice } from '@/lib/intelligence/pricing/recommend'
-import { PRICING_INSTANT_MS, cleanAward } from './_fixtures'
+import { PRICING_INSTANT_MS, cleanAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 const SURPLUS_AWARD = cleanAward({
   awardDateIso: '2026-01-29',
@@ -47,6 +47,7 @@ function row(stance: 'OFFERING_NEW_MATERIAL' | 'OFFERING_SURPLUS' | 'UNDECLARED'
     awards: [...CLEAN_OLDER_AWARDS, SURPLUS_AWARD],
     requirementQuantity: 4,
     atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     surplusStance: stance,
   })
 }
@@ -132,6 +133,7 @@ describe('surplus comparables are excluded or labelled, never silently averaged 
       ],
       requirementQuantity: 4,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       // Even under the strictest stance, the COMPANY verdict must not drop the comparable.
       surplusStance: 'OFFERING_NEW_MATERIAL',
       classifyAwardee: { classify: (cage) => (cage === 'DLR01' ? measuredDealer : null) },
@@ -166,6 +168,7 @@ describe('surplus comparables are excluded or labelled, never silently averaged 
       ],
       requirementQuantity: 4,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       classifyAwardee: { classify: () => priorOnly },
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')

@@ -25,7 +25,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { recommendPrice } from '@/lib/intelligence/pricing/recommend'
-import { PRICING_INSTANT_MS, contradictingAward } from './_fixtures'
+import { PRICING_INSTANT_MS, contradictingAward, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 /** 100 units at 80.00, stated and extended both correct. The answer is 80.00 a unit. */
 const HUNDRED_UNIT_AWARD = {
@@ -61,6 +61,7 @@ describe('quantity normalisation', () => {
       awards: [HUNDRED_UNIT_AWARD, TWO_UNIT_AWARD],
       requirementQuantity: 2,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
     expect(rec.rung).toBe('R2_LAST_AWARD_MULTIPLE')
@@ -91,6 +92,7 @@ describe('quantity normalisation', () => {
       ],
       requirementQuantity: 2,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
     expect(rec.rung).toBe('R3_RECENT_AWARD_BAND')
@@ -115,6 +117,7 @@ describe('quantity normalisation', () => {
       ],
       requirementQuantity: 2,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     // Nothing else on the row, so the whole recommendation abstains rather than publishing 11.31.
     expect(rec.resolved).toBe(false)
@@ -154,6 +157,7 @@ describe('quantity normalisation', () => {
       ],
       requirementQuantity: 2,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     expect(rec.resolved).toBe(false)
     if (rec.resolved !== false) throw new Error('unreachable')
@@ -171,6 +175,7 @@ describe('quantity normalisation', () => {
       awards: [{ ...HUNDRED_UNIT_AWARD, awardDateIso: '2026-01-29' }],
       requirementQuantity: 2,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
     const caveat = rec.caveats.find((c) => c.code === 'QUANTITY_BREAK_CROSSED')
@@ -191,6 +196,7 @@ describe('quantity normalisation', () => {
       awards: [{ ...TWO_UNIT_AWARD }],
       requirementQuantity: 4,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
     expect(rec.caveats.find((c) => c.code === 'QUANTITY_BREAK_CROSSED')).toBeUndefined()

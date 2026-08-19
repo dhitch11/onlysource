@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { recommendPrice, type ResolvedRungOutcome } from '@/lib/intelligence/pricing/recommend'
-import { REFERENCE_FSC, fullLadderInput, peer, peerLookupFor } from './_fixtures'
+import { REFERENCE_FSC, fullLadderInput, peer, peerLookupFor, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 function resolvedRungs(input: Parameters<typeof recommendPrice>[0]): ResolvedRungOutcome[] {
   const rec = recommendPrice(input)

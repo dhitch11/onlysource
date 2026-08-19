@@ -25,8 +25,7 @@ import {
   contradictingAward,
   fullLadderInput,
   peer,
-  peerLookupFor,
-} from './_fixtures'
+  peerLookupFor, AT_OPERATOR_MULTIPLE } from './_fixtures'
 
 const PEERS = [
   peer({ nsn: '1650-01-000-0001', unitPriceUsd: 100 }),
@@ -126,6 +125,7 @@ describe('the basis ladder descends as evidence is removed', () => {
       ],
       requirementQuantity: 8,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       peerLookup: peerLookupFor(REFERENCE_FSC, PEERS),
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
@@ -146,6 +146,7 @@ describe('the basis ladder descends as evidence is removed', () => {
       awards: [],
       requirementQuantity: 8,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       peerLookup: peerLookupFor(REFERENCE_FSC, PEERS),
     })
     if (rec.resolved !== true) throw new Error('expected a recommendation')
@@ -164,6 +165,7 @@ describe('the basis ladder descends as evidence is removed', () => {
       awards: [],
       requirementQuantity: 8,
       atInstantMs: PRICING_INSTANT_MS,
+    config: AT_OPERATOR_MULTIPLE,
       peerLookup: peerLookupFor(REFERENCE_FSC, PEERS.slice(0, 2)),
     })
     expect(rec.resolved).toBe(false)

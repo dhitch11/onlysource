@@ -1,3 +1,8 @@
+import {
+  OPERATOR_AWARD_MULTIPLE,
+  RECOMMENDATION_CONFIG,
+  type RecommendationConfig,
+} from '@/lib/intelligence/pricing/recommend'
 /**
  * SYNTHETIC INPUTS WHOSE ANSWERS WERE WORKED OUT BY HAND BEFORE THE CODE RAN.
  *
@@ -140,6 +145,11 @@ export function fullLadderInput(
   overrides: Partial<RecommendationInput> = {},
 ): RecommendationInput {
   return {
+    /*
+     * The multiple is PINNED at the operator's 3x for every test built on this fixture. They
+     * assert engine behaviour, not product policy.
+     */
+    config: AT_OPERATOR_MULTIPLE,
     nsn: REFERENCE_NSN,
     awards: [
       cleanAward({
@@ -187,3 +197,22 @@ export const DECLARED_OFFER = {
   offeringUnusedFormerGovernmentSurplus: true,
   esaCoordinationCount: 1,
 } as const
+
+/**
+ * THE OPERATOR'S 3x, PINNED, FOR TESTS THAT ASSERT THE MULTIPLICATION ITSELF.
+ *
+ * ★ WHY THESE TESTS PIN A MULTIPLE INSTEAD OF RIDING THE DEFAULT. On 2026-08-19 the product
+ * default moved from 3 to 1 and twenty assertions across seven files went red, all of them
+ * arithmetic like "expected 1450 to be 4350". NONE of those tests were about the default: they are
+ * about quantity normalisation, band monotonicity, the peer floor, surplus exclusion and the
+ * quoted-versus-evaluated separation. They had baked the multiple of the day into their expected
+ * values, so a ruling about product POLICY broke tests about engine BEHAVIOUR.
+ *
+ * Pinning separates the two for good. These files assert that whatever multiple is in force is
+ * applied correctly to a per-unit price; `default-multiple.test.ts` asserts what the default IS.
+ * A future ruling changes one file rather than twenty numbers scattered through the suite.
+ */
+export const AT_OPERATOR_MULTIPLE: RecommendationConfig = {
+  ...RECOMMENDATION_CONFIG,
+  awardMultiple: OPERATOR_AWARD_MULTIPLE,
+}

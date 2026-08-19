@@ -117,20 +117,35 @@ const RUNG_STRENGTH: Readonly<Record<RecommendationRung, number>> = Object.freez
  * position and outcome agree: a hardcoded list per rung is a defect with a delay on it. What may
  * not be derived from position is a claim about how well the basis WORKS.
  */
-export function confidenceTier(rung: RecommendationRung): string {
+export function confidenceTier(rung: RecommendationRung, multiple: number): string {
   const i = RUNG_STRENGTH[rung]
   const last = RECOMMENDATION_RUNGS.length - 1
   /*
-   * Named explicitly, not by index, because this is an empirical fact about ONE rung rather than
-   * a structural fact about its place. If the ladder is reordered this claim must move with the
-   * rung it describes, and an index would silently reattach it to whatever landed in slot 1.
+   * ★★ RUNG 2 IS JUDGED ON THE MULTIPLE IN FORCE, NOT ON THE RUNG'S IDENTITY, AND THIS ONE FIELD
+   * HAS NOW BEEN WRONG IN BOTH DIRECTIONS INSIDE ONE NIGHT.
+   *
+   * It first read "strong basis", derived from the rung's INDEX in the ladder, beside a 3x figure
+   * our own corpus says clears 0.00% of the time. That was corrected to "your stated rule, not a
+   * measured basis", which was true while the default WAS his rule. The default is now 1, the
+   * measured central estimate of the clearing price, and the correction became false in the other
+   * direction: it called the best-measured basis in the product unmeasured.
+   *
+   * Both mistakes have one cause. A claim about how good a basis is depends on WHAT THE BASIS
+   * ACTUALLY IS on this row. It cannot be derived from position in the ladder, and it cannot be
+   * pinned to a rung name either, because the same rung means different things at different
+   * multiples. So the multiple is an argument.
    */
-  if (rung === 'R2_LAST_AWARD_MULTIPLE') return 'your stated rule, not a measured basis'
+  if (rung === 'R2_LAST_AWARD_MULTIPLE') {
+    return multiple === 1
+      ? 'the measured clearing estimate'
+      : `your own ${multiple}x, not a measured basis`
+  }
   if (i === 0) return 'strongest basis we hold'
   if (i === last) return 'weakest basis we hold'
   if (i === 1) return 'strong basis'
   return 'medium basis'
 }
+
 
 /** A POINT and a BAND share no numeric field name here either. The distinction survives the wire. */
 export type WireFigure =
@@ -280,7 +295,7 @@ export function toPricingWireRow(
     ...base,
     rung: rec.rung,
     rungLabel: rec.rungLabel,
-    confidence: confidenceTier(rec.rung),
+    confidence: confidenceTier(rec.rung, rec.awardMultiple),
     strengthRank: RUNG_STRENGTH[rec.rung],
     figure,
     quotedTotal: quoted,
