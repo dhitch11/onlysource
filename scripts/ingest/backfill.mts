@@ -54,7 +54,9 @@ const {
   newestPossibleFeedDay,
   printResult,
   realClientProvider,
+  reconcileHeld,
 } = shared
+const { reconciliationReport } = await import('../../lib/ingest/archive-reconcile')
 type DayFileResult = import('./capture-shared').DayFileResult
 
 type DailyFileKind = (typeof DAILY_FILES)[number]
@@ -103,6 +105,14 @@ process.stdout.write(
     `kinds [${kinds.join(', ')}]\n` +
     `backfill: archive root ${root.root} (via ${root.basis}, ${root.present ? 'present' : 'ABSENT'})\n`,
 )
+
+/*
+ * RECONCILE FIRST, AND ANNOUNCE IT. The backfill is the run most likely to re-fetch a file
+ * the manifest claims and the disk lost, so the reason has to be on screen before the
+ * requests start rather than inferred afterwards from a bandwidth bill.
+ */
+const reconciliation = await reconcileHeld()
+for (const line of reconciliationReport(reconciliation)) process.stdout.write(`${line}\n`)
 
 const held = await heldFiles()
 const state = { wafStrikes: 0, requestsMade: 0 }

@@ -58,7 +58,9 @@ const {
   newestPossibleFeedDay,
   printResult,
   realClientProvider,
+  reconcileHeld,
 } = shared
+const { reconciliationReport } = await import('../../lib/ingest/archive-reconcile')
 
 type DailyFileKind = (typeof DAILY_FILES)[number]
 
@@ -111,6 +113,15 @@ if (!root.present) {
 
 /** With an explicit date: that day only. Without: newest first, walking back over misses. */
 const candidates = dateArg ? [dateArg] : businessDaysBack(newestPossibleFeedDay(), 5)
+
+/*
+ * RECONCILE BEFORE CAPTURING, AND SAY WHAT THE RECONCILIATION FOUND. A file the manifest
+ * accepted whose bytes are gone stops counting as held, which means this run may fetch
+ * something a reader believed we already had. That must be announced: a run that silently
+ * re-fetches gigabytes is very nearly as surprising as one that silently skips them.
+ */
+const reconciliation = await reconcileHeld()
+for (const line of reconciliationReport(reconciliation)) process.stdout.write(`${line}\n`)
 
 const held = await heldFiles()
 const state = { wafStrikes: 0, requestsMade: 0 }

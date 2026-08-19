@@ -25,7 +25,12 @@ import {
   type DailyFileKind,
   type FetchOutcome,
 } from '../../lib/ingest/sources/dibbs-fetch'
-import { readArchiveManifest, recordRejection } from '../../lib/ingest/archive'
+import { readManifestEntries, recordRejection } from '../../lib/ingest/archive'
+import {
+  reconcileArchive,
+  reconciliationKey,
+  type ArchiveReconciliation,
+} from '../../lib/ingest/archive-reconcile'
 import { ARCHIVE_ROOT, archiveRootResolution } from '../../lib/ingest/db'
 import { systemClock } from '../../lib/time/clock'
 import { civilInZone, addCivilDays } from '../../lib/time/zoned'
@@ -95,17 +100,33 @@ export const MAX_WAF_STRIKES = 3
 /* ------------------------------------------------------------------------------------ */
 
 /**
- * `logical_date/filename` keys of every ACCEPTED capture. The idempotency contract: a file
- * the manifest already holds is skipped without a network request, so a re-run of a whole
- * backfill costs the origin nothing. Content-hash dedupe inside archiveBytes remains the
- * second belt for the fetches that do run.
+ * Reconcile the manifest against the bytes actually on disk.
+ *
+ * WHY THIS IS NOT JUST `readArchiveManifest()`. It used to be, and the manifest's own record
+ * of a capture was taken as proof the file was there. On 2026-08-18 production held a
+ * manifest asserting seven accepted captures whose 1.47 GB of bytes had been removed, and
+ * because the skip-set was built from that record, every subsequent capture and backfill
+ * would have skipped re-fetching them with no request and no report, permanently. The
+ * manifest is what we wrote. The disk is what we have. Ask the disk.
+ */
+export async function reconcileHeld(): Promise<ArchiveReconciliation> {
+  const entries = await readManifestEntries()
+  return reconcileArchive(entries, ARCHIVE_ROOT)
+}
+
+/**
+ * `logical_date/filename` keys of every capture whose bytes are present AND at the recorded
+ * length. The idempotency contract: a file we can prove we hold is skipped without a
+ * network request, so a re-run of a whole backfill costs the origin nothing. A file the
+ * manifest claims but the disk does not hold is NOT held, and is fetched again.
+ * Content-hash dedupe inside archiveBytes remains the second belt for the fetches that run.
  */
 export async function heldFiles(): Promise<Set<string>> {
-  const manifest = await readArchiveManifest()
+  const reconciliation = await reconcileHeld()
   return new Set(
-    manifest
-      .filter((r) => r.source_key === DIBBS_SOURCE_KEY)
-      .map((r) => `${r.logical_date}/${r.storage_key.split('/').pop() ?? ''}`),
+    reconciliation.files
+      .filter((f) => f.sourceKey === DIBBS_SOURCE_KEY && f.state === 'held')
+      .map((f) => reconciliationKey(f.logicalDate, f.filename)),
   )
 }
 
@@ -152,7 +173,7 @@ export async function captureDay(
         kind,
         filename,
         status: 'skipped_already_held',
-        detail: 'the manifest already holds an accepted capture of this file',
+        detail: 'the bytes are on disk at the recorded length, verified against the archive not the manifest',
         byteLen: null,
       })
       continue
