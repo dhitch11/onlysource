@@ -127,6 +127,12 @@ export default async function MonopolyPage() {
         explanation: e.amscEntry?.explanation ?? null,
         /** Why we are abstaining, in words. Rendered instead of a blank, never as "unrestricted". */
         reason: e.reason,
+        /*
+         * CARRIED, NOT RESOLVED. The derivation picks the managing activity's row when an item
+         * appears under several MOE rules, and picking is correct. Presenting the pick as though
+         * the record were unanimous is not, so the disagreement travels with the claim.
+         */
+        contested: e.contested,
       },
     };
   });

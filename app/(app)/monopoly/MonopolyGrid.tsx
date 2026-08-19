@@ -40,6 +40,13 @@ export type RowEligibility = {
   posture: string | null;
   explanation: string | null;
   reason: string;
+  /*
+   * WHERE THE GOVERNMENT DOES NOT AGREE WITH ITSELF ABOUT THIS ITEM. Three booleans, carried on
+   * the slim wire shape because they qualify a claim the operator is about to act on. Measured
+   * on the live catalogue: 116 items where two activities state a different acquisition method,
+   * 319 a different suffix code, and 24 where ONE activity contradicts its own rows.
+   */
+  contested: { amc: boolean; amsc: boolean; selfContradiction: boolean };
 };
 
 /**
@@ -82,14 +89,67 @@ export type CornerRowWithAward = EnrichedCornerRow & {
  * activities that publish it publish on ~100% of their rows and the rest publish none, so an
  * absence is a different PUBLISHER, not a permissive answer.
  */
+/**
+ * THE SENTENCE FOR AN ITEM THE GOVERNMENT DOES NOT AGREE WITH ITSELF ABOUT.
+ *
+ * Two authorities disagreeing and ONE authority contradicting itself are different facts and are
+ * worded differently. A tie between sources is a fact about the catalogue; a source disagreeing
+ * with its own rows is a fact about the quality of that source's record, and it is the one an
+ * operator should weigh hardest before spending money on it.
+ */
+function contestedNote(
+  /*
+   * OPTIONAL ON PURPOSE, AND A TEST FOUND OUT WHY. An eligibility object assembled before this
+   * field existed reaches here as `undefined`, and dereferencing it threw — inside a SERVER
+   * COMPONENT, which means the whole page renders as the error boundary rather than one cell
+   * rendering wrong. A row whose flags are absent is a row nothing contested, which is the same
+   * answer the binary index gives for a file written before byte 7 carried them.
+   */
+  c: { amc: boolean; amsc: boolean; selfContradiction: boolean } | undefined,
+): string | null {
+  if (!c) return null;
+  if (c.selfContradiction) return "one activity contradicts its own rows on this item";
+  if (c.amc && c.amsc) return "two activities disagree on the method and the code";
+  if (c.amsc) return "two activities disagree on the code";
+  if (c.amc) return "two activities disagree on the method";
+  return null;
+}
+
 export function acquisitionCodeCell(r: CornerRowWithAward): Cell {
   const e = r.eligibility;
   if (!e) return { state: "unknown", reason: "the acquisition-code index is not loaded" };
   if (e.state !== "determined" || !e.amsc) return { state: "unknown", reason: e.reason };
+
+  /*
+   * ★ THE CLAIM PLUS THE DISAGREEMENT, NOT A QUIETER CLAIM AND NOT A SEPARATE WARNING.
+   *
+   * The derivation picks the managing activity's row when an item appears under several MOE
+   * rules. Picking is correct; presenting the pick as though the record were unanimous is not.
+   * Measured on the live catalogue: 116 stock numbers where two activities state a different
+   * acquisition method, 319 a different suffix code, and 24 where one activity contradicts
+   * itself.
+   *
+   * So the code still renders, because it is still the managing activity's answer, and the
+   * qualification rides ON the claim rather than as a badge somewhere else competing for
+   * attention. The chip tone moves from verified to active: the same fact, held less firmly.
+   */
+  const note = contestedNote(e.contested);
+  if (note === null) {
+    return {
+      state: "known",
+      provenance: "measured",
+      value: <StatusChip tone="verified">{`AMSC ${e.amsc}`}</StatusChip>,
+    };
+  }
   return {
     state: "known",
     provenance: "measured",
-    value: <StatusChip tone="verified">{`AMSC ${e.amsc}`}</StatusChip>,
+    value: (
+      <span className={styles.contestedCell}>
+        <StatusChip tone="active">{`AMSC ${e.amsc}`}</StatusChip>
+        <span className={styles.contestedNote}>{note}</span>
+      </span>
+    ),
   };
 }
 

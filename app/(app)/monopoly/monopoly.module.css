@@ -507,3 +507,20 @@
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+
+/* THE CONTESTED QUALIFICATION. It rides on the acquisition claim rather than standing apart as a
+   badge, because the code IS still the managing activity's answer; what changed is how firmly the
+   record holds it. Wraps on a phone: a note that explains a caveat must not create a new one. */
+.contestedCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+.contestedNote {
+  font-size: var(--fs-100);
+  line-height: var(--lh-100);
+  color: var(--dim);
+  white-space: normal;
+}

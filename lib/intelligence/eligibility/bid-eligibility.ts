@@ -349,6 +349,23 @@ export type BidEligibility = {
   posture: AmscPosture | null
   /** Table 70 says whether this AMC/AMSC pair is even legal. An impossible pair means a bad row. */
   combination: 'valid' | 'invalid' | 'unknown'
+  /**
+   * ★ WHERE THE GOVERNMENT DOES NOT AGREE WITH ITSELF ABOUT THIS ITEM.
+   *
+   * An item appears under several MOE rules and the derivation picks the managing activity's
+   * row. Picking is correct and it is not the whole truth: on 116 stock numbers two activities
+   * state a DIFFERENT acquisition method, on 319 a different suffix code, and on 24 a single
+   * activity contradicts ITSELF across its own rows.
+   *
+   * These are carried rather than resolved. An arbitrary pick presented as a determination is
+   * the defect this product removed elsewhere, and the honest replacement is the claim plus
+   * "and these two disagree", not a quieter claim.
+   *
+   * `selfContradiction` is deliberately separate from the other two and is the more serious
+   * one: a tie between two sources is a fact about the catalogue, while one source disagreeing
+   * with itself is a fact about the quality of that source's record.
+   */
+  contested: { amc: boolean; amsc: boolean; selfContradiction: boolean }
 }
 
 const ABSENT: Omit<BidEligibility, 'niin' | 'state' | 'reason'> = {
@@ -360,6 +377,9 @@ const ABSENT: Omit<BidEligibility, 'niin' | 'state' | 'reason'> = {
   amcEntry: null,
   posture: null,
   combination: 'unknown',
+  // Absent evidence is not agreement. A row we never found cannot be contested, and it must
+  // not read as "the authorities concur" either: `state` already says we are abstaining.
+  contested: { amc: false, amsc: false, selfContradiction: false },
 }
 
 /**
@@ -462,6 +482,7 @@ export function resolveBidEligibility(
       amcEntry: amcEntry(amcNum),
       posture: null,
       combination: amcAmscCombinationValid(amcNum, amscCell),
+      contested: row.contested ?? { amc: false, amsc: false, selfContradiction: false },
     }
   }
 
@@ -479,6 +500,7 @@ export function resolveBidEligibility(
     amcEntry: amcEntry(amcNum),
     posture: amscPosture(entry.code as AmscCode),
     combination: amcAmscCombinationValid(amcNum, amscCell),
+    contested: row.contested ?? { amc: false, amsc: false, selfContradiction: false },
   }
 }
 
