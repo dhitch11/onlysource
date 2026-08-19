@@ -45,6 +45,44 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# ==========================================================================
+# ★ THE FETCH REPLACES THIS FILE WHILE BASH IS READING IT. RE-EXEC FIRST.
+#
+# `git reset --hard origin/main` rewrites every tracked file, INCLUDING THIS
+# ONE, and bash reads a script incrementally by byte offset rather than
+# loading it whole. So the run that ships a change to this script executes
+# the OLD text, and any run where the file's length shifts under the reader
+# can execute the wrong bytes entirely. It worked by luck, not by design,
+# and it was found by the conductor after a warm step that was on disk
+# demonstrably did not run.
+#
+# So the fetch happens HERE, in the first few lines, and the script then
+# REPLACES ITS OWN PROCESS with a fresh bash reading the new file from byte
+# zero. After the exec, everything below is guaranteed to be the code that
+# was just fetched.
+#
+# It is at the very top on purpose: bash reads ahead in chunks, so the fewer
+# bytes there are between the reset and the exec, the smaller the window in
+# which a buffered read can straddle the rewrite. Here the exec is inside
+# the first chunk bash has already buffered, which closes it in practice.
+#
+# The phase is carried in the ENVIRONMENT rather than in an argument, so it
+# cannot collide with `--no-pull` or with anything a caller passes.
+#
+# ⚠️ A COPY IS NOT A FIX. The conductor tried running a copy from /tmp and
+# got `fatal: not a git repository`, correctly: this script derives its repo
+# root from its own location. The file must stay where it is; what must not
+# happen is reading it while it is being replaced.
+# ==========================================================================
+if [ "${DEPLOY_SWAP_PHASE:-fetch}" = "fetch" ]; then
+  if [ "${1:-}" != "--no-pull" ]; then
+    printf '\n\033[1m==> fetching origin/main, then re-executing the fetched script\033[0m\n'
+    git fetch origin
+    git reset --hard origin/main
+  fi
+  DEPLOY_SWAP_PHASE=run exec "$ROOT/scripts/deploy-swap.sh" "$@"
+fi
+
 STAGING="${NEXT_DIST_DIR_STAGING:-.next-staging}"
 LIVE=".next"
 PREVIOUS=".next-previous"
@@ -54,11 +92,8 @@ ORIGIN="${VERIFY_ORIGIN:-http://127.0.0.1:3000}"
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31mFAILED: %s\033[0m\n' "$*" >&2; exit 1; }
 
-if [ "${1:-}" != "--no-pull" ]; then
-  say "fetching origin/main"
-  git fetch origin
-  git reset --hard origin/main
-fi
+# The fetch already happened in the phase above, before this process existed. Doing it again
+# here would re-introduce exactly the hazard the re-exec closes.
 TARGET_SHA="$(git rev-parse --short=8 HEAD)"
 say "deploying $TARGET_SHA"
 
