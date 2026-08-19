@@ -2,12 +2,20 @@
  * T2 INGESTION. CAPTURE TODAY'S AVAILABLE DIBBS FILES, GATED, PACED, IDEMPOTENT.
  *
  *   npx tsx scripts/ingest/capture-day.mts [YYYY-MM-DD] [--kinds in,bq,ca]
+ *                                          [--window N] [--max-days N]
  *
- * Run from the repo root. With no date it finds the newest published feed day itself:
- * starting at the newest possible business day (Eastern), it walks backwards over business
- * days until one answers with data, stopping after five misses, because a morning run can
- * legitimately precede the day's publication and the previous days are then the newest
- * that exist. Days the manifest already holds are skipped without touching the network.
+ * Run from the repo root. With no date it RECONCILES A WINDOW of business days (Eastern,
+ * federal holidays out) against the bytes on disk and captures every day it does not hold,
+ * newest first. Days whose files are already on disk cost no request, so an ordinary morning
+ * still makes one or two fetches; the difference only appears when there is a gap.
+ *
+ * IT USED TO STOP AT THE FIRST DAY THAT EXISTED, and that is why this changed. Production
+ * captured 2026-08-17 at 06:18 and lost it hours later to a restore. The next morning's run
+ * would have found 08-18, stopped, and never returned for it: a deleted day was permanently
+ * invisible to the only process that could have noticed. A schedule that cannot see a hole
+ * will never fill one.
+ *
+ * An explicit date is the operator's claim: that day only, no walking.
  *
  * EVERY byte passes the content gate (classifyFeedResponse plus the full-file index
  * assertion) before it is archived; every refusal, origin 404 included, becomes a manifest
@@ -53,6 +61,9 @@ const {
   archiveRootResolution,
   businessDaysBack,
   captureDay,
+  captureWindow,
+  DEFAULT_MAX_DAYS_REQUESTED,
+  DEFAULT_WINDOW_DAYS,
   heldFiles,
   isFailure,
   newestPossibleFeedDay,
@@ -111,8 +122,23 @@ if (!root.present) {
   process.stderr.write('capture-day: the archive root does not exist; refusing to invent one silently is wrong here, mkdir happens on first write, continuing\n')
 }
 
-/** With an explicit date: that day only. Without: newest first, walking back over misses. */
-const candidates = dateArg ? [dateArg] : businessDaysBack(newestPossibleFeedDay(), 5)
+/*
+ * THE WINDOW, NOT THE NEWEST DAY. See captureWindow() for why this stopped being a walk that
+ * halts at the first day it finds. `--window` sets how many business days back to reconcile,
+ * `--max-days` how many of the gaps one run may actually ask the origin about.
+ */
+const windowDays = Number(flagValue('--window') ?? DEFAULT_WINDOW_DAYS)
+if (!Number.isInteger(windowDays) || windowDays < 1 || windowDays > 60) {
+  process.stderr.write(`capture-day: --window must be an integer 1 to 60, got ${flagValue('--window')}\n`)
+  process.exit(1)
+}
+const maxDays = Number(flagValue('--max-days') ?? DEFAULT_MAX_DAYS_REQUESTED)
+if (!Number.isInteger(maxDays) || maxDays < 1 || maxDays > 60) {
+  process.stderr.write(`capture-day: --max-days must be an integer 1 to 60, got ${flagValue('--max-days')}\n`)
+  process.exit(1)
+}
+
+const candidates = dateArg ? [dateArg] : businessDaysBack(newestPossibleFeedDay(), windowDays)
 
 /*
  * RECONCILE BEFORE CAPTURING, AND SAY WHAT THE RECONCILIATION FOUND. A file the manifest
@@ -128,43 +154,40 @@ const state = { wafStrikes: 0, requestsMade: 0 }
 let anyFailure = false
 
 try {
-  for (const day of candidates) {
-    process.stdout.write(`feed day ${day}:\n`)
-    const report = await captureDay(realClientProvider, day, kinds, held, state)
+  if (dateArg) {
+    /*
+     * AN EXPLICIT DATE IS THE OPERATOR'S CLAIM. Fetched as asked, judged only by its own
+     * outcomes, no walking in either direction.
+     */
+    process.stdout.write(`feed day ${dateArg}:\n`)
+    const report = await captureDay(realClientProvider, dateArg, kinds, held, state)
     for (const r of report.results) printResult(r)
-    anyFailure = anyFailure || report.results.some(isFailure)
+    anyFailure = report.results.some(isFailure)
+  } else {
+    const window = await captureWindow(realClientProvider, candidates, kinds, held, state, {
+      maxDaysRequested: maxDays,
+    })
+    anyFailure = window.days.some((d) => d.results.some(isFailure))
 
-    // The index-driven walk applies only when this script CHOSE the day. An explicit date
-    // is the operator's claim, fetched as asked, judged only by its own outcomes.
-    if (dateArg) break
-
-    const indexResult = report.results.find((r) => r.kind === 'in')
-    if (!indexResult) {
-      // The walk's evidence is the index fetch. No index result means this day was never
-      // measured, and describing an unmeasured day in either direction would be invented.
-      process.stderr.write(
-        `capture-day: no index outcome came back for ${day}; stopping rather than guessing\n`,
-      )
-      anyFailure = true
-      break
-    }
-    const dayExists = ['archived', 'already_present', 'skipped_already_held'].includes(
-      indexResult.status,
-    )
-    if (dayExists) {
-      // The newest published day is captured (or already held). Older days are the
-      // backfill's job, not this cron's; stop rather than crawl history every morning.
-      break
-    }
-    if (indexResult.status !== 'not_published') {
-      // A refusal that is not "does not exist" (rejected content, consent failure, WAF).
-      // Walking further back would paper over it with an older success.
-      anyFailure = true
-      break
-    }
+    /*
+     * SAY WHAT THE WINDOW DID, INCLUDING THE DAYS IT DID NOT ASK ABOUT. A run that reports
+     * only its fetches reads as though the rest of the window does not exist, and the whole
+     * point of walking a window is that a day nobody mentions is exactly how 08-17 stayed
+     * lost. Silence about a skipped day is the defect, restated.
+     */
     process.stdout.write(
-      `  ${day}: the origin answered HTTP 404 for ${indexResult.filename}; trying the previous business day\n`,
+      `\ncapture window: ${candidates.length} business days ${candidates[candidates.length - 1]} to ` +
+        `${candidates[0]} | already held: ${window.alreadyComplete.length} | requested: ` +
+        `${window.requested.length}${window.requested.length > 0 ? ` (${window.requested.join(', ')})` : ''} | ` +
+        `stopped: ${window.stopReason}\n`,
     )
+    if (window.stopReason === 'request_budget_spent') {
+      process.stdout.write(
+        `capture window: the per-run request budget of ${maxDays} day(s) is spent. Days older than ` +
+          `the ones listed above were NOT measured this run and are not claimed either way; the next ` +
+          `run continues from the same window.\n`,
+      )
+    }
   }
 } catch (error) {
   if (error instanceof WafBudgetExhausted) {

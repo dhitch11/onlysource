@@ -283,6 +283,121 @@ export async function captureDay(
   return { logicalDate, results, wafStrikes: state.wafStrikes }
 }
 
+/* ------------------------------------------------------------------------------------ */
+/* THE WINDOW WALK. A SCHEDULE THAT CANNOT SEE A HOLE WILL NEVER FILL ONE                 */
+/* ------------------------------------------------------------------------------------ */
+
+export type WindowStopReason =
+  | 'window_complete'
+  | 'refusal'
+  | 'no_index_outcome'
+  | 'request_budget_spent'
+
+export type CaptureWindowReport = {
+  days: CaptureDayReport[]
+  /** Days every requested file of which we already hold. No request was made for these. */
+  alreadyComplete: string[]
+  /** Days we actually asked the origin about. */
+  requested: string[]
+  stopReason: WindowStopReason
+}
+
+/** Bound on how many days one run may ask the origin about. Pacing is citizenship. */
+export const DEFAULT_WINDOW_DAYS = 10
+export const DEFAULT_MAX_DAYS_REQUESTED = 6
+
+/**
+ * Walk a window of business days and capture every day we do not hold, instead of stopping
+ * at the first day that exists.
+ *
+ * WHY THIS REPLACED THE OLD WALK. The daily capture used to start at the newest business day,
+ * walk backwards over 404s, and STOP at the first day that answered with data, on the
+ * reasoning that older days are the backfill's job. That is true right up until a day in the
+ * middle of the window goes missing. Production lost 2026-08-17 hours after capturing it, and
+ * because the next morning's run would find 08-18 or 08-19 and stop, the cron would never
+ * have returned for it. A deleted day was permanently invisible to the only process that
+ * could have noticed. The hole did not heal because nothing was looking.
+ *
+ * So the walk asks the DISK which days of the window are missing, and asks the origin for
+ * those. A day whose files we already hold costs no request, so the steady state is one or
+ * two fetches a morning exactly as before; the difference only shows up when there is a gap.
+ *
+ * IT STILL STOPS FOR A REFUSAL THAT IS NOT ABSENCE. A 404 means the origin does not have that
+ * day and the walk continues, because a window legitimately contains days that were never
+ * published. A rejected body, a consent failure or a WAF block means something is wrong
+ * between us and the origin, and walking on would paper over it with an older success.
+ *
+ * AND IT IS BUDGETED. `maxDaysRequested` caps how many days one run may ask about, so a box
+ * restored from an empty archive re-fills over several mornings rather than fetching a month
+ * in one burst and manufacturing the WAF block this pipeline exists to avoid.
+ */
+export async function captureWindow(
+  provider: ConsentedClientProvider,
+  candidates: readonly string[],
+  kinds: readonly DailyFileKind[],
+  held: Set<string>,
+  state: { wafStrikes: number; requestsMade: number },
+  opts: { maxDaysRequested?: number } = {},
+): Promise<CaptureWindowReport> {
+  const maxDaysRequested = opts.maxDaysRequested ?? DEFAULT_MAX_DAYS_REQUESTED
+  const days: CaptureDayReport[] = []
+  const alreadyComplete: string[] = []
+  const requested: string[] = []
+  let stopReason: WindowStopReason = 'window_complete'
+
+  for (const day of candidates) {
+    const wanted = kinds.map((kind) => dailyFilename(kind, day))
+    if (wanted.every((filename) => held.has(`${day}/${filename}`))) {
+      alreadyComplete.push(day)
+      continue
+    }
+
+    if (requested.length >= maxDaysRequested) {
+      stopReason = 'request_budget_spent'
+      break
+    }
+
+    process.stdout.write(`feed day ${day}:\n`)
+    requested.push(day)
+    const report = await captureDay(provider, day, kinds, held, state)
+    for (const r of report.results) printResult(r)
+    days.push(report)
+
+    /*
+     * A file we just captured must count as held for the rest of the walk. Without this the
+     * window would re-request a day it had captured moments earlier if the same file were
+     * reachable twice, and a caller reusing the set across runs would see a stale answer.
+     */
+    for (const r of report.results) {
+      if (r.status === 'archived' || r.status === 'already_present') {
+        held.add(`${day}/${r.filename}`)
+      }
+    }
+
+    const blocking = report.results.find(
+      (r) => !['archived', 'already_present', 'skipped_already_held', 'not_published'].includes(r.status),
+    )
+    if (blocking) {
+      process.stderr.write(
+        `capture: ${day} ${blocking.filename} came back ${blocking.status}, which is not the origin ` +
+          `saying the day does not exist. Stopping rather than walking past it.\n`,
+      )
+      stopReason = 'refusal'
+      break
+    }
+
+    if (kinds.includes('in') && !report.results.some((r) => r.kind === 'in')) {
+      // The walk's evidence for a day is the index fetch. No index outcome means the day was
+      // never measured, and describing an unmeasured day in either direction would be invented.
+      process.stderr.write(`capture: no index outcome came back for ${day}; stopping rather than guessing\n`)
+      stopReason = 'no_index_outcome'
+      break
+    }
+  }
+
+  return { days, alreadyComplete, requested, stopReason }
+}
+
 /** Thrown when the strike budget is spent; carries what WAS captured so nothing is silent. */
 export class WafBudgetExhausted extends Error {
   constructor(readonly partial: CaptureDayReport) {
