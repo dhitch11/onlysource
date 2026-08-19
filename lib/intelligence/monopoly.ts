@@ -320,13 +320,39 @@ export function summarizeMap(rows: MonopolyRow[]): MapSummary {
 /* THE INVERSION. Manufacturer to stock number. The pre-emptive move.                     */
 /* ------------------------------------------------------------------------------------ */
 
+/**
+ * Whether this company is the only approved source for an item.
+ *
+ * ★ THREE-VALUED, AND IT USED TO BE A BOOLEAN. The boolean was computed as
+ * `(approvedSourceCountByNiin.get(niin) ?? 0) === 1`, so a NIIN ABSENT from that map became
+ * `0`, and `0 === 1` is `false`. "We hold no approved-source count for this item" rendered
+ * identically to "we counted, and several companies are approved". `soleSource` is the corner
+ * claim, the assertion this product exists to make, and it was silently denying the claim on
+ * exactly the items it knew nothing about.
+ *
+ * The pattern to copy was already three lines below it in the same loop: a missing demand
+ * reading is pushed to `gaps` and labelled `none_observed` rather than being scored as zero
+ * demand. The same function treated one missing input as a reportable gap and the other as a
+ * measured negative. `cornerscore.ts:319` does it correctly too, establishing an evidence
+ * state before letting a `?? 0` run at all.
+ *
+ * So: not a flag, a state. An unmeasured item ABSTAINS instead of denying.
+ */
+export type SoleSourceState =
+  /** Counted, and this company is the only approved source. */
+  | 'sole'
+  /** Counted, and it is not. */
+  | 'competed'
+  /** No approved-source count is loaded for this item. Not a denial. */
+  | 'not_measured'
+
 export type InversionRow = {
   niin: Niin
   partNumber: string | null
   demandBasis: DemandBasis
   demandObservedAt: string | null
-  /** True when this company is the ONLY approved source for that item. */
-  soleSource: boolean
+  /** Whether this company is the ONLY approved source. Three-valued: see SoleSourceState. */
+  soleSource: SoleSourceState
 }
 
 export type InversionResult = {
@@ -379,12 +405,24 @@ export function invertManufacturer(input: {
     seen.add(row.NIIN)
     const demand = input.demandByNiin.get(row.NIIN)
     if (!demand) gaps.push(`no demand reading loaded for ${row.NIIN}`)
+
+    /*
+     * THE COUNT IS READ ONCE AND ITS ABSENCE IS A STATE, NOT A ZERO. `?? 0` here would make an
+     * item we know nothing about indistinguishable from one we measured and found competed,
+     * on the field that carries the corner claim.
+     */
+    const approvedSourceCount = input.approvedSourceCountByNiin.get(row.NIIN)
+    if (approvedSourceCount === undefined) {
+      gaps.push(`no approved-source count loaded for ${row.NIIN}, so its corner claim abstains`)
+    }
+
     items.push({
       niin: row.NIIN,
       partNumber: row.PART_NUMBER,
       demandBasis: demand?.basis ?? 'none_observed',
       demandObservedAt: demand?.observedAt ?? null,
-      soleSource: (input.approvedSourceCountByNiin.get(row.NIIN) ?? 0) === 1,
+      soleSource:
+        approvedSourceCount === undefined ? 'not_measured' : approvedSourceCount === 1 ? 'sole' : 'competed',
     })
   }
 

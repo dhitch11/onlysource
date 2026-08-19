@@ -515,8 +515,45 @@ describe('the cross, and the inversion', () => {
     })
     expect(result.items).toHaveLength(2)
     expect(result.itemsWithForwardDemand).toHaveLength(1)
-    expect(result.items.find((i) => i.niin === 'N1')?.soleSource).toBe(true)
+    expect(result.items.find((i) => i.niin === 'N1')?.soleSource).toBe('sole')
+    expect(result.items.find((i) => i.niin === 'N2')?.soleSource).toBe('competed')
     expect(result.abstainedOnStatus).toBe(false)
+  })
+
+  it('★ ABSTAINS on the corner claim for an item it holds no approved-source count for', () => {
+    /*
+     * THE DEFECT THIS REPLACED. `soleSource` was `(map.get(niin) ?? 0) === 1`, so an item
+     * MISSING from the count map became 0, and 0 === 1 is false. "We hold no approved-source
+     * count for this item" rendered identically to "we counted, and it is competed" -- a
+     * silent denial of the corner claim on exactly the items we knew nothing about.
+     *
+     * N2 below is deliberately absent from approvedSourceCountByNiin.
+     */
+    const rows: ApprovedSourceRow[] = [
+      { NIIN: 'N1', CAGE_CODE: 'MFG01', PART_NUMBER: 'P1', COMPANY_NAME: 'M', observedAt: AS_OF },
+      { NIIN: 'N2', CAGE_CODE: 'MFG01', PART_NUMBER: 'P2', COMPANY_NAME: 'M', observedAt: AS_OF },
+    ]
+    const result = invertManufacturer({
+      cage: 'MFG01',
+      status: { cage: 'MFG01', status: 'inactive', observedAt: AS_OF, grade: 'recorded_status', evidence: [] },
+      approvedSourceRows: rows,
+      demandByNiin: new Map([['N1', demand], ['N2', demand]]),
+      approvedSourceCountByNiin: new Map([['N1', 1]]), // N2 absent ON PURPOSE
+    })
+
+    const n2 = result.items.find((i) => i.niin === 'N2')
+    expect(n2?.soleSource).toBe('not_measured')
+    // The absence is REPORTED, exactly as a missing demand reading is, rather than silently
+    // becoming an answer. An operator can see why the claim abstained.
+    expect(result.gaps.join(' ')).toContain('no approved-source count loaded for N2')
+
+    // The measured one is unaffected: abstention must not spread.
+    expect(result.items.find((i) => i.niin === 'N1')?.soleSource).toBe('sole')
+
+    // ★ POSITIVE CONTROL: the expression this replaced really does deny the claim on N2.
+    const counts = new Map([['N1', 1]])
+    expect((counts.get('N2') ?? 0) === 1).toBe(false) // <- indistinguishable from 'competed'
+    expect(n2?.soleSource).not.toBe('competed')
   })
 
   it('still lists the mapping but abstains on the corner claim when the status is unknown', () => {
