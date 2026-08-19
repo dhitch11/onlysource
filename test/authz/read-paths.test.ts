@@ -71,4 +71,30 @@ describe('the role name a refusal shows', () => {
   it('a break-glass session says what it is', () => {
     expect(callerRoleName({ kind: 'bootstrap' })).toBe('Break-glass session')
   })
+
+  /*
+   * ★ THE TWO STATES MUST NEVER SHARE A LABEL, AND THEY DID, IN TWO PLACES, ON LIVE PROD.
+   *
+   * `bootstrap` is the break-glass door and is OWNER-EQUIVALENT. `anonymous` holds nothing, for
+   * every permission, in every environment. `callerRoleName` has always told them apart — but
+   * `app/(app)/layout.tsx` hardcoded `role: 'Break-glass session'` for the whole non-account
+   * branch, and `requirePermission`'s 403 BODY hardcoded `'Break-glass'`.
+   *
+   * Measured by clicking through prod with two credentialed accounts present, i.e. break-glass
+   * CLOSED: a token with an unrecognised subject resolved to anonymous, held zero permissions, was
+   * correctly refused by /documents and /api/suppliers/detail — and the shell told it, on every
+   * page, that it held a break-glass session. The 403 body was worse: "Your role, Break-glass,
+   * does not include X" asserts a powerful role in the sentence that refuses the request.
+   *
+   * This asserts the DIFFERENCE rather than either value, so renaming one without the other fails.
+   */
+  it('never gives an anonymous caller the break-glass label', () => {
+    const anon = callerRoleName({ kind: 'anonymous', reason: 'unknown_subject' })
+    const boot = callerRoleName({ kind: 'bootstrap' })
+    expect(anon).not.toBe(boot)
+    expect(anon.toLowerCase()).not.toContain('break-glass')
+    for (const reason of ['no_session', 'unknown_subject', 'deactivated', 'bootstrap_closed'] as const) {
+      expect(callerRoleName({ kind: 'anonymous', reason }).toLowerCase()).not.toContain('break-glass')
+    }
+  })
 })

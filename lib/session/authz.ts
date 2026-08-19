@@ -210,7 +210,21 @@ export function permissionRefusal(caller: Caller, permissionKey: string): Respon
   }
 
   const label = permission(permissionKey)?.label ?? permissionKey
-  const roleName = caller.kind === 'account' ? caller.account.role.name : 'Break-glass'
+  /*
+   * `callerRoleName`, not a local ternary. This string goes into the 403 BODY the caller reads —
+   * "Your role, X, does not include …" — so getting it wrong tells somebody what they are while
+   * refusing them, and the two halves of that sentence then disagree.
+   *
+   * The literal it replaces was `'Break-glass'` for every non-account caller, which names an
+   * OWNER-EQUIVALENT door. The same collapse was live in `app/(app)/layout.tsx`, where a caller
+   * holding nothing was shown "Break-glass session" in the shell on every page. Fixed there too.
+   *
+   * In practice this branch is close to unreachable — the `bootstrap_closed` 401 above catches
+   * anonymous callers, and a real bootstrap caller holds owner-equivalent permissions so it is not
+   * denied here. "Close to unreachable" is not a reason to keep a wrong label: it is a reason
+   * nobody would have caught it.
+   */
+  const roleName = callerRoleName(caller)
   log.warn('authz.denied', {
     outcome: 'denied',
     gate: 'permission',

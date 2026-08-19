@@ -1,4 +1,5 @@
 import { env } from '@/lib/env'
+import { callerRoleName, readCaller } from '@/lib/session/authz'
 import { buildIdentity } from '@/lib/build-identity'
 import { requireGateSession, readGateVerdict } from '@/lib/session/require-gate'
 import { ANONYMOUS_SUBJECT } from '@/lib/session/pre-release-gate'
@@ -245,7 +246,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role: account.role.name,
         title: account.email,
       }
-    : { name: 'No account', role: 'Break-glass session' }
+    : {
+        name: 'No account',
+        /*
+         * ★ TWO DIFFERENT STATES, AND THIS LINE USED TO COLLAPSE THEM INTO THE MORE POWERFUL ONE.
+         *
+         * It read `role: 'Break-glass session'` unconditionally. But there are two ways to arrive
+         * here and they are opposites:
+         *
+         *   bootstrap  the break-glass door, OWNER-EQUIVALENT, open only while no account has a
+         *              credential (`readCaller`: subject === ANONYMOUS_SUBJECT && count === 0)
+         *   anonymous  holds NOTHING, in every environment, for every permission — an unknown
+         *              subject, a revoked account, a session whose person no longer exists
+         *
+         * Measured on live prod with two credentialed accounts present, i.e. break-glass CLOSED:
+         * a gate token carrying an unrecognised subject resolves to `anonymous` with reason
+         * `unknown_subject`, holds zero permissions, and is correctly refused by /documents and
+         * /api/suppliers/detail — while the shell told that caller they held a BREAK-GLASS SESSION.
+         *
+         * That is the exact defect the comment above describes, in the line the comment is
+         * attached to: a label asserting a capability the caller does not have. Everywhere else
+         * tonight this product learned to say "Unread, not no"; here it said "you have the master
+         * key" to somebody holding nothing.
+         *
+         * `callerRoleName` already distinguishes them and has all night. The fix is to CALL IT
+         * rather than to restate one of its answers as a literal — the same reasoning the sibling
+         * branch gives for using `account.role.name` instead of building a string here.
+         */
+        role: callerRoleName(await readCaller()),
+      }
 
   return (
     <AppShell
