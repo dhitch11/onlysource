@@ -50,7 +50,21 @@ export const CPI_SERIES_ID = 'CUUR0000SA0'
  * this is the SAME base the pinned 1.3223 used. Keeping it identical is what makes the new figure
  * comparable to the old one rather than a different calculation wearing the same name.
  */
-export const CPI_BASE_PERIOD = '2017-M13'
+export function basePeriodOf(spec: InflationIndexSpec): string {
+  return `${spec.vintage.baseYear}-M13`
+}
+
+/**
+ * The base period, DERIVED FROM THE SPEC'S OWN `baseYear` rather than written here as a constant.
+ *
+ * ★ ADOPTED FROM @LANE-4's parallel adapter, and it is a better property than the constant it
+ * replaces: a spec carrying a different base year would otherwise have been silently priced off
+ * 2017 while its own vintage said something else. `M13` is the BLS annual average, so 2017 gives
+ * the annual figure the expert's 1.3223 was measured against. Keeping the base identical is what
+ * makes the live figure comparable to the pinned one rather than a different calculation wearing
+ * the same name.
+ */
+export const CPI_BASE_PERIOD = basePeriodOf(CPI_INDEX_1650)
 
 /**
  * The as-of vintage for a pricing instant, AS A UTC DATE.
@@ -131,6 +145,28 @@ export function resolveLiveIndexConfig(
     `Carried on the pinned factor ${CPI_INDEX_1650.factor}, which is a reading of ` +
     `${CPI_SERIES_ID} taken in November 2025 and not a current one. It is shown with its vintage ` +
     'rather than as today\'s figure.'
+
+  /*
+   * ★★ A SPEC THAT NAMES NO PUBLISHED SERIES MAY NEVER BE REFRESHED FROM A LEDGER. Adopted from
+   * @LANE-4's adapter, and it is the sharpest guard either of us wrote.
+   *
+   * The DoD procurement factor is the expert's STATED JUDGEMENT, not a reading of anything. It
+   * carries `publishedSeriesId: null` precisely to say so. Refreshing such a spec against a series
+   * would dress an opinion as a measurement and hand it a citation, which is this module's own
+   * defect pointed the other way. The check is on the SPEC rather than on a caller's good
+   * intentions, so no future call site can bypass it.
+   */
+  if (CPI_INDEX_1650.vintage.publishedSeriesId === null) {
+    return {
+      config: INDEX_CONFIG_1650,
+      cpiIsLive: false,
+      carriedToPeriod: null,
+      abstention: null,
+      note:
+        'This factor names no published series, so it is a stated judgement rather than a ' +
+        'reading and nothing may refresh it. ' + pinnedNote,
+    }
+  }
 
   const toPeriod = newestMonthlyPeriod(observations, CPI_SERIES_ID, asOfVintage)
   if (toPeriod === null) {
