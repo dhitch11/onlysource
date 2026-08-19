@@ -62,6 +62,15 @@ jobs:
       - name: route body sweep self-test (prove the boundary detector fires)
         run: npm run sweep:selftest
 
+      # The DATA half of reachability. The census above asks "does anything reach this module";
+      # this asks "does anything supply what the module reads". On 2026-08-19 production shipped
+      # a stale 1.3223 against a true 1.3623 for hours because an ingest wrote to a laptop path
+      # while the app read another root: every code-only check passed the whole time.
+      # Only the SELF-TEST runs here. A fresh checkout has no data/ (gitignored, 1.4GB), so the
+      # live run belongs to the deploy, as `npm run gate:data:require` on the box.
+      - name: data reachability self-test (prove it can see an absent dataset)
+        run: npm run gate:data:selftest
+
       - name: typecheck
         run: npm run typecheck
 

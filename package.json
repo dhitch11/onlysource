@@ -27,7 +27,10 @@
     "gate:reachability:list": "node scripts/reachability-census.mjs --list",
     "sweep:selftest": "node scripts/route-body-sweep.mjs --selftest",
     "sweep:anon": "node scripts/route-body-sweep.mjs --anon",
-    "sweep": "node scripts/route-body-sweep.mjs"
+    "sweep": "node scripts/route-body-sweep.mjs",
+    "gate:data:selftest": "node scripts/data-reachability.mjs --selftest",
+    "gate:data": "node scripts/data-reachability.mjs",
+    "gate:data:require": "node scripts/data-reachability.mjs --require series,archive,flis"
   },
   "dependencies": {
     "@sentry/nextjs": "10.70.0",
