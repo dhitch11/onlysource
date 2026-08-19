@@ -52,6 +52,21 @@ export async function GET() {
     const sub = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
       headers: { 'xi-api-key': key },
       signal: AbortSignal.timeout(8_000),
+      /*
+       * `redirect: 'manual'` so that reading `sub.ok` MEANS something.
+       *
+       * By default fetch follows redirects, and a followed redirect ending at a 200 makes `.ok`
+       * true for a request that never reached what it asked for. This estate has already shipped
+       * that defect against its own edge proxy, where an unauthenticated POST 307s to /enter,
+       * /enter returns 200 HTML, and a save that never happened rendered a green tick.
+       *
+       * A third-party API is not behind our proxy and should never redirect here, which is
+       * exactly why declaring it costs nothing and settles it: the assumption is now written
+       * down and enforced rather than held in a reviewer's head. If ElevenLabs ever does start
+       * redirecting this endpoint, `.ok` goes false and the probe reports a problem instead of
+       * silently believing an unrelated page.
+       */
+      redirect: 'manual',
     })
     if (sub.ok) {
       const s = (await sub.json()) as { status?: string }
