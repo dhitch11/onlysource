@@ -75,7 +75,41 @@ function resolveRoot() {
 
 const CALL = /\b(dataPath|archivePath|seedPath)\(\s*(['"])([^'"]+)\2/g
 const ANY_CALL = /\b(dataPath|archivePath|seedPath)\(/g
+/** `dataPath()` with no argument is the root itself, which is the most checkable path there is. */
+const ZERO_ARG = /\b(dataPath|archivePath|seedPath)\(\s*\)/g
+/** `dataPath(NAME, ...)` where NAME is a bare identifier, resolvable if it is a same-file literal. */
+const CALL_IDENT = /\b(dataPath|archivePath|seedPath)\(\s*([A-Za-z_$][\w$]*)\s*[,)]/g
 const PREFIX = { dataPath: [], archivePath: ['archive'], seedPath: ['seed'] }
+
+/**
+ * ★ ONE HOP OF INDIRECTION IS RESOLVED, AND THE REASON IS AN ARGUMENT I LOST.
+ *
+ * The first version reported 16 calls it could not check because their first segment was an
+ * identifier rather than a literal, and I suggested to the ingest lane that inlining the
+ * constants would close the gap. **They measured all 16 and pushed back, correctly.**
+ *
+ * Seven are genuinely identifier-first, and every one is a module-level `const` bound to a
+ * string literal in the same file (`const SUPPLIERS_DIR = 'suppliers'`). The rest are
+ * ZERO-ARGUMENT calls: the data root itself, which is the most checkable path of all and was
+ * being counted as a blind spot.
+ *
+ * **Inlining would have made the code worse.** The constant exists so the path is written once,
+ * and duplicating it at each call site is how two copies drift and one becomes wrong. Degrading
+ * real code to satisfy an instrument is the same instinct as silencing a linter instead of
+ * closing the hole, and it points the wrong way.
+ *
+ * So the instrument resolves one hop instead. It is deliberately ONE hop and same-file only: a
+ * general constant-folder would be a small interpreter, and an instrument that can be wrong in
+ * subtle ways is worse than one with a stated boundary. Anything beyond one hop is still
+ * reported as unresolvable, by name.
+ */
+function sameFileLiterals(src) {
+  const out = new Map()
+  for (const m of src.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(['"])([^'"]+)\2/g)) {
+    out.set(m[1], m[3])
+  }
+  return out
+}
 
 /**
  * Discover every statically-resolvable dataset root the code reads, and count what it cannot.
@@ -97,18 +131,28 @@ export function discover(root) {
     let src
     try { src = readFileSync(file, 'utf8') } catch { continue }
     const rel = relative(root, file)
-    let literal = 0
-    for (const m of src.matchAll(CALL)) {
-      literal += 1
-      const seg = [...PREFIX[m[1]], m[3]][0]
-      if (!seg || seg.startsWith('.')) continue
-      const line = src.slice(0, m.index).split('\n').length
-      if (!wanted.has(seg)) wanted.set(seg, new Set())
-      wanted.get(seg).add(`${rel}:${line}`)
+    const consts = sameFileLiterals(src)
+    let resolved = 0
+    const note = (fn, seg, index) => {
+      const first = [...PREFIX[fn], seg][0]
+      if (!first || first.startsWith('.')) return
+      const line = src.slice(0, index).split('\n').length
+      if (!wanted.has(first)) wanted.set(first, new Set())
+      wanted.get(first).add(`${rel}:${line}`)
+    }
+    for (const m of src.matchAll(CALL)) { resolved += 1; note(m[1], m[3], m.index) }
+    // Zero-argument: the root itself. Checkable, and previously counted as a blind spot.
+    for (const m of src.matchAll(ZERO_ARG)) { resolved += 1; note(m[1], PREFIX[m[1]][0] ?? '', m.index) }
+    // One hop: an identifier bound to a string literal in this same file.
+    for (const m of src.matchAll(CALL_IDENT)) {
+      const lit = consts.get(m[2])
+      if (lit === undefined) continue
+      resolved += 1
+      note(m[1], lit, m.index)
     }
     const total = [...src.matchAll(ANY_CALL)].length
-    // A call whose first segment is a variable: real, unresolvable here, and NAMED not dropped.
-    if (total > literal) unresolvable.push({ file: rel, count: total - literal })
+    // Still unresolvable after one hop: real, and NAMED rather than dropped.
+    if (total > resolved) unresolvable.push({ file: rel, count: total - resolved })
   }
   return { wanted, unresolvable }
 }
