@@ -174,6 +174,40 @@
     content: "";
   }
 
+/*
+ * ★ BELOW 420px THE PAIR STACKS, BECAUSE SIDE BY SIDE STOPS BEING POSSIBLE RATHER THAN UGLY.
+ *
+ * Label-left/value-right works while the label is short. It stops working the moment a real
+ * header meets a real phone, and the failure is not gradual.
+ *
+ * Measured on /competitor at 320, on the deployed build, on the cell for "Also an approved
+ * source" whose entire value is a single status chip:
+ *
+ *     cell 218px   label column 155.7px   value column 50.3px
+ *     the chip's own text is 131px and cannot wrap, so it ran to x=321
+ *
+ * A 23-character label had taken 71% of the cell and left the value 50px. Letting the label
+ * wrap (the previous commit) helped the widest table and did NOTHING here: the label was never
+ * the thing overflowing, it was the thing doing the squeezing. Stacked, the value gets the full
+ * 218px and 131px fits with room.
+ *
+ * I am scoping this to 420px rather than to the whole card treatment because the four routes
+ * that already fit - /goldmine, /hubzone, /intelligence and five of /competitor's seven tables -
+ * read well side by side and there is no reason to make their cards taller on a wider phone.
+ */
+@media (max-width: 420px) {
+  .cards tbody td {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-1);
+  }
+
+  /* Both parts now own the single column: the label on its own line, the value under it. */
+  .cards tbody td::before,
+  .cards tbody td > * {
+    grid-column: 1;
+  }
+}
+
   /*
    * ★ AN EMPTY CELL IS INVISIBLE IN A ROW AND BECOMES A LABELLED BLANK IN A CARD.
    *
