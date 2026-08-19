@@ -22,6 +22,13 @@
  */
 import { parseSolicitation } from "@/lib/intelligence/niin";
 import { resolveServedFeedDay, type SkippedFeedDay } from "@/lib/intelligence/feed-day";
+import {
+  lifecycleAsOf,
+  parseIndexReturnDate,
+  type RowLifecycle,
+} from "@/lib/intelligence/feed-window";
+import { measureFeedFreshness } from "@/lib/ingest/feed-days";
+import { systemClock, type Clock } from "@/lib/time/clock";
 
 /*
  * WHICH DAY THE BOARD SHOWS: THE ONE EVERY OTHER SURFACE SHOWS. NOT A CONSTANT HERE.
@@ -70,6 +77,12 @@ export interface BoardRow {
   /** T or U in the ninth position: the buy can be awarded by machine, on price alone. */
   automated: boolean | null;
   standing: SourceStanding;
+  /**
+   * Whether this requirement's own published return date has passed, judged against TODAY.
+   * `last_seen_only` means the line carried no readable return date, which is a third state
+   * and never a quiet "open".
+   */
+  lifecycle: RowLifecycle;
 }
 
 export interface BoardData {
@@ -93,7 +106,20 @@ export interface BoardData {
     /** Sole-sourced AND machine-awarded: the shape a corner takes. */
     corners: number;
     unjoined: number;
+    /** Return date still ahead of `asOf`. The only rows an operator can actually still bid. */
+    open: number;
+    /** Return date already passed on `asOf`. Kept and labelled, never dropped. */
+    closed: number;
+    /** No readable return date in the published line. Not open, not closed: unanswerable. */
+    undated: number;
   };
+  /**
+   * THE DAY THE BOARD WAS JUDGED AGAINST, and what that day is, in the operator's words.
+   * It is TODAY on the publisher's calendar, not the feed day, and the two are different
+   * claims. Rendered, never implied.
+   */
+  asOf: string;
+  asOfBasis: string;
   /** Reported, never hidden: lines the parsers could not read. */
   drift: { offWidthRows: number; unparsedNsn: number; unparsedSourceLines: number };
 }
@@ -113,7 +139,11 @@ export interface BoardUnavailable {
  */
 const cache = new Map<string, BoardData>();
 
-export function buildBoard(): BoardData | BoardUnavailable {
+/**
+ * `clock` is a parameter so a suite can pin the day this is judged against, exactly as
+ * `buildDatasets` does. It defaults to the system clock; no module here reads a clock directly.
+ */
+export function buildBoard(clock: Clock = systemClock): BoardData | BoardUnavailable {
   const resolution = resolveServedFeedDay();
 
   if (!resolution.ok) {
@@ -136,7 +166,37 @@ export function buildBoard(): BoardData | BoardUnavailable {
   }
 
   const served = resolution.served;
-  const key = `${served.feedDay}|${served.indexStorageKey}|${served.archive.storageKey}`;
+
+  /*
+   * THE BOARD IS JUDGED AGAINST TODAY, NOT AGAINST THE FEED DAY IT IS BUILT FROM.
+   *
+   * DLA publishes a return date per requirement and that date passes whether or not our capture
+   * ran. A board that judges "open" against its own feed day therefore keeps presenting expired
+   * solicitations for exactly as long as the capture has been missed, and says "open" the whole
+   * time. Measured on the windowed surface on 2026-08-18 against an archive whose newest day was
+   * 2026-08-14: 5,122 of 10,488 rows, 48.8%, had already closed while the header read open.
+   *
+   * This is a single-day board, so on the morning a capture lands almost every row is genuinely
+   * open and the count is near zero. That is exactly why it has to be computed rather than
+   * assumed: the error is invisible when it is small and it grows silently with staleness.
+   *
+   * `measureFeedFreshness(...).measuredOn` is this estate's ONE definition of "the Eastern civil
+   * date now", and it is the same call the freshness pill in the chrome makes. Reusing it means
+   * the pill and this table can never name two different todays. A second clock here would be a
+   * second answer.
+   */
+  const freshness = measureFeedFreshness(served.feedDay, clock.now());
+  const asOf = freshness.measuredOn;
+  const behind = `${freshness.businessDaysBehind} US federal business day${freshness.businessDaysBehind === 1 ? "" : "s"}`;
+  const asOfBasis =
+    asOf === served.feedDay
+      ? "the day this was computed, which is also the feed day shown"
+      : asOf > served.feedDay
+        ? `the day this was computed, ${behind} after the feed day ${served.feedDay}`
+        : `the day this was computed, which is earlier than the feed day ${served.feedDay}`;
+
+  // The reference day is part of the key: a board judged yesterday must not be served today.
+  const key = `${served.feedDay}|${served.indexStorageKey}|${served.archive.storageKey}|${asOf}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
@@ -184,6 +244,16 @@ export function buildBoard(): BoardData | BoardUnavailable {
       purchaseRequest: r.purchaseRequest,
       automated: form?.automated ?? null,
       standing,
+      /*
+       * `onNewestDay` is true by construction: every row here comes from the served day's index,
+       * which IS the newest servable day. It is passed explicitly rather than hardcoded inside
+       * the judgement so the sentence this feeds stays correct if the board ever widens.
+       */
+      lifecycle: lifecycleAsOf({
+        closeDate: parseIndexReturnDate(r.returnDate, served.feedDay).iso,
+        onNewestDay: true,
+        asOf,
+      }),
     };
   });
 
@@ -201,6 +271,9 @@ export function buildBoard(): BoardData | BoardUnavailable {
     soleSourced: rows.filter((r) => r.standing.kind === "sole").length,
     corners: rows.filter((r) => r.standing.kind === "sole" && r.automated === true).length,
     unjoined: rows.filter((r) => r.standing.kind === "unjoined").length,
+    open: rows.filter((r) => r.lifecycle.status === "open").length,
+    closed: rows.filter((r) => r.lifecycle.status === "closed").length,
+    undated: rows.filter((r) => r.lifecycle.status === "last_seen_only").length,
   };
 
   const built: BoardData = {
@@ -210,6 +283,8 @@ export function buildBoard(): BoardData | BoardUnavailable {
     daysHeld: served.daysHeld,
     rows,
     counts,
+    asOf,
+    asOfBasis,
     drift: {
       offWidthRows: index.offWidthRows,
       unparsedNsn: index.unparsedNsn,

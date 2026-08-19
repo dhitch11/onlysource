@@ -17,7 +17,10 @@ export default async function BoardPage() {
       <main className={styles.page}>
         <header className={styles.head}>
           <h1 className={styles.h1}>The Board</h1>
-          <p className={styles.sub}>Every open requirement DLA published, ranked by measured signal.</p>
+          <p className={styles.sub}>
+            Every requirement DLA published on the served feed day, ranked by measured signal
+            and judged open or closed against today.
+          </p>
         </header>
         <div className={styles.unavailable}>
           <h2 className={styles.unavailableTitle}>The feed for this day is not readable</h2>
@@ -36,7 +39,7 @@ export default async function BoardPage() {
     );
   }
 
-  const { counts, drift, feedDay, rows } = data;
+  const { counts, drift, feedDay, rows, asOf, asOfBasis } = data;
 
   return (
     <main className={styles.page}>
@@ -45,7 +48,7 @@ export default async function BoardPage() {
           <h1 className={styles.h1}>The Board</h1>
           <p className={styles.sub}>
             Feed day <b>{feedDay}</b> · <b>{counts.published.toLocaleString()}</b> requirements as
-            published by DLA
+            published by DLA · <b>{counts.open.toLocaleString()}</b> still open on {asOf}
           </p>
         </div>
       </header>
@@ -96,7 +99,19 @@ export default async function BoardPage() {
               Price, availability and modeled lift are absent from this page because those files do
               not contain them
             </b>
-            , and they are not estimated here.
+            , and they are not estimated here. Open and closed are judged against <b>{asOf}</b>,{" "}
+            {asOfBasis}: a requirement&rsquo;s published return date passes whether or not our capture
+            ran, so a board that judged itself against its own feed day would keep calling expired
+            solicitations open for as long as the capture had been missed.
+            {counts.closed > 0 || counts.undated > 0 ? (
+              <>
+                {" "}
+                Of the {counts.published.toLocaleString()} published here,{" "}
+                <b>{counts.closed.toLocaleString()}</b> had already closed by {asOf} and{" "}
+                <b>{counts.undated.toLocaleString()}</b> carried no readable return date. Both are
+                kept and labelled rather than dropped.
+              </>
+            ) : null}
             {drift.unparsedNsn > 0 || drift.unparsedSourceLines > 0 ? (
               <>
                 {" "}

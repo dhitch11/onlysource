@@ -6,7 +6,7 @@ import { StatusChip } from "@/components/ui/StatusChip";
 import type { BoardRow } from "@/lib/board/build";
 import styles from "./board.module.css";
 
-type Filter = "all" | "corner" | "automated" | "unjoined";
+type Filter = "all" | "open" | "corner" | "automated" | "unjoined";
 
 /** Every cell is one of three states. There is no path here that renders a blank or a zero
  *  for something we did not measure, which is the whole point of the grid's Cell type. */
@@ -131,6 +131,8 @@ export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: numb
 
   const shown = useMemo(() => {
     switch (filter) {
+      case "open":
+        return rows.filter((r) => r.lifecycle.status === "open");
       case "corner":
         return rows.filter((r) => r.standing.kind === "sole" && r.automated === true);
       case "automated":
@@ -144,6 +146,7 @@ export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: numb
 
   const tabs: Array<{ id: Filter; label: string; n: number }> = [
     { id: "corner", label: "Sole source + machine award", n: rows.filter((r) => r.standing.kind === "sole" && r.automated === true).length },
+    { id: "open", label: "Still open today", n: rows.filter((r) => r.lifecycle.status === "open").length },
     { id: "automated", label: "Machine award", n: rows.filter((r) => r.automated === true).length },
     { id: "all", label: "Everything published", n: rows.length },
     { id: "unjoined", label: "Source unknown", n: unjoined },
@@ -170,7 +173,7 @@ export function BoardGrid({ rows, unjoined }: { rows: BoardRow[]; unjoined: numb
         rows={shown}
         columns={columns}
         rowKey={(r) => `${r.solicitation}:${r.nsn}:${r.purchaseRequest}`}
-        label="Open DLA requirements, ranked by measured sourcing signal"
+        label="DLA requirements from the served feed day, ranked by measured sourcing signal, each judged open or closed against today"
         density="compact"
         empty={{
           cause: "filtered",
