@@ -274,3 +274,23 @@
     font-size: var(--fs-600, 1.5rem);
   }
 }
+
+/*
+ * A BAND AND A POINT MUST READ AS DIFFERENT SHAPES BEFORE THE TEXT IS READ.
+ *
+ * MEASURED by @PRICE-SURFACE: zero of the served rows currently produce a POINT, because every
+ * basis award is at least some days old and the age widening turns each figure into a band. The
+ * point arm therefore has no live example, and an arm with no live example rots unnoticed. Making
+ * the two shapes visibly distinct is what stops the first real point from looking like a band
+ * that lost an endpoint.
+ *
+ * The distinction is WEIGHT and a rule, never hue alone: hue is not load-bearing anywhere here.
+ */
+.figure[data-kind='POINT'] .figureNum {
+  color: var(--accent);
+}
+.figure[data-kind='BAND'] .figureNum {
+  font-weight: 650;
+  /* The connective "to" is what makes it a range; keep it from being crushed out on a phone. */
+  white-space: normal;
+}

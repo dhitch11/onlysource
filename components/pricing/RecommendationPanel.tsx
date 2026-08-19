@@ -93,13 +93,21 @@ export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
       </div>
 
       {/* ---------------------------------------------------------------- the figure */}
+      {/*
+        `data-kind` carries the shape to CSS so a band and a point read differently AT A GLANCE,
+        before the text is read. @PRICE-SURFACE measured why this is load-bearing rather than
+        cosmetic: ZERO of the served rows currently produce a POINT, because every basis award is
+        at least some days old and the age widening turns each figure into a band. An arm with no
+        live example is held honest only by a fixture, so the two shapes must stay visibly
+        distinct or the day a point appears it will look like a band that lost an endpoint.
+      */}
       {fig.kind === 'POINT' ? (
-        <p className={styles.figure}>
+        <p className={styles.figure} data-kind="POINT">
           <span className={styles.figureNum}>{usd(fig.unitPriceUsd)}</span>
           <span className={styles.figureUnit}>per unit</span>
         </p>
       ) : (
-        <p className={styles.figure}>
+        <p className={styles.figure} data-kind="BAND">
           <span className={styles.figureNum}>
             {usd(fig.lowUnitPriceUsd)} to {usd(fig.highUnitPriceUsd)}
           </span>
