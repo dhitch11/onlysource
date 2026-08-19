@@ -1,6 +1,22 @@
 import { readDealerEligibility } from '../codebook'
 import type { AwardHistoryState } from '../awards/nsn-now'
 import { measured, unavailable, type Leg } from './evidence-state'
+
+/**
+ * A CLAUSE SPLICED AFTER A FULL STOP HAS TO BECOME A SENTENCE.
+ *
+ * `eligibility.basis` is a semicolon-joined list of clauses, so its second element opens
+ * lowercase: it was written as "…with suffix P; suffix P: Rights to the data are not owned…".
+ * Concatenated after "…stands on its own." it rendered on the dossier as
+ * "…stands on its own. suffix P: Rights to the data…" — a sentence beginning in lower case, on
+ * the card an operator reads to decide whether they can bid at all.
+ *
+ * Found by reading the page at 320, not by any check: nothing overflowed and nothing was missing.
+ */
+function openSentence(clause: string | undefined): string {
+  const t = (clause ?? '').trim()
+  return t.length === 0 ? '' : t[0]!.toUpperCase() + t.slice(1)
+}
 import type { FeedWindow, NsnAwardSummary } from '../awards/nsn-now'
 
 /**
@@ -199,7 +215,7 @@ export function readQuoteSignals(
         `acquisition method ${summary.amc} with suffix ${summary.amsc}`,
       ),
       reading: competitive
-        ? `Open buy. Method ${summary.amc} names dealers and distributors among potential sources, so a quote stands on its own. ${eligibility.basis.split('; ')[1] ?? ''}`.trim()
+        ? `Open buy. Method ${summary.amc} names dealers and distributors among potential sources, so a quote stands on its own. ${openSentence(eligibility.basis.split('; ')[1])}`.trim()
         : eligibility.surplusSupplyOpen
           ? `Closed to new manufacture, open to the approved article. Method ${summary.amc} directs the buy to the manufacturer or prime, and suffix ${summary.amsc} means no new source can be qualified to make it. That is what makes surplus of the approved article the only way in, and why holding it is worth something.`
           : `Restricted. Method ${summary.amc} with suffix ${summary.amsc} closes this to anyone outside the named source.`,
