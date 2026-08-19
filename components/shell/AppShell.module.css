@@ -369,43 +369,8 @@
    * than deleted: the day a second organization exists the plate becomes load-bearing
    * again, and this rule is the one line to revisit.
    * --------------------------------------------------------------------------------- */
-  .sideFoot {
-    order: 2;
-    margin-block-start: 0;
-    margin-inline-start: auto;
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    padding-block-start: 0;
-  }
-
   .org {
     display: none;
-  }
-
-  /* No top border and no top padding: both existed to separate the account from the org
-   * plate above it in the column, and there is nothing above it here. A divider with
-   * nothing on the other side is a line the eye has to resolve for no information. */
-  .acct {
-    padding-block-start: 0;
-    border-block-start: none;
-    gap: var(--sp-2);
-  }
-
-  /*
-   * THE SCROLL HINT WAS A BORDERED, SHADOWED PILL SITTING ON TOP OF THE NAV ROW, so at 320
-   * it read as a thirteenth destination competing with "Dashboard" rather than as a hint
-   * about the twelve behind it. The information is right and the affordance is right; the
-   * chrome was wrong. It keeps its words and its position and loses the bubble: the fade
-   * beneath it is already the visual container, and a pill on top of a gradient is two
-   * containers doing one job.
-   */
-  .navHint {
-    background: none;
-    border: none;
-    box-shadow: none;
-    padding-inline: 0;
-    padding-inline-start: var(--sp-4);
   }
 
   .topMeta {
@@ -414,26 +379,12 @@
   }
 
   /*
-   * TIGHTER GUTTERS, AND ROOM FOR THE ASSISTANT LAUNCHER THAT WAS COVERING LIVE CONTENT.
-   *
-   * `components/thomas/thomas.module.css` fixes the launcher at `bottom: var(--sp-4)`. On a
-   * phone that put it ON TOP of whatever the page ended with: measured on /corner it covered
-   * a sentence mid-word, and on /pricing it sat over the "Dismiss" button of the award-cutoff
-   * card — a floating control obscuring a real one the operator is meant to press.
-   *
-   * A fixed element cannot be pushed by content, so the content has to yield to it. The
-   * reserve is the launcher's own height plus its offset plus a breathing gap, and it lives
-   * on the scrolling content rather than on the launcher so the launcher's own placement
-   * stays that component's business.
-   *
-   * One rule, not two. A second `.content` block further down the same media query would
-   * win on order and leave the first one's shorthand looking authoritative while doing
-   * nothing to the bottom edge — the exact cascade trap this estate has already shipped once,
-   * where a rule was present in the file, greppable, and changed no computed value.
+   * ⚠️ `.sideFoot`, `.acct` and `.content` ARE NOT SET HERE ON PURPOSE. This media query
+   * already declares all three near its end, and a duplicate placed at this point loses to
+   * them on source order at equal specificity. My first attempt put them here, shipped, and
+   * changed nothing at all: the rules were in the file, greppable, and the computed style
+   * still came from the later block. Their mobile treatment lives with the originals below.
    */
-  .content {
-    padding: var(--sp-4) var(--sp-3) calc(var(--sp-4) + 52px + var(--sp-5));
-  }
 
   /* The frame takes the strip's place in the top-bar flex; the nav scrolls inside it, so
    * the fade and hint can anchor to the frame's (non-scrolling) edges. */
@@ -488,12 +439,27 @@
     font-size: var(--fs-100);
     font-weight: var(--fw-semibold);
     color: var(--dim);
-    background: var(--panel-2);
-    border: 1px solid var(--line-control);
-    border-radius: var(--radius-pill);
-    padding: 2px var(--sp-2);
     white-space: nowrap;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    /*
+     * NO PILL. This carried `background: var(--panel-2)`, a 1px border, a pill radius and a
+     * drop shadow, which made a hint about the nav look like an item IN the nav: at 320 it
+     * sat beside "Dashboard" as an equal-weight bordered chip and read as a thirteenth
+     * destination. The owner's words were "weird bubbles and boxes around things", and this
+     * was one of them.
+     *
+     * The words and the position are right and both stay. What goes is the container: the
+     * `.navFade` gradient immediately beneath is already the visual ground this text sits on,
+     * and a bordered pill on top of a gradient is two containers doing one job. Padding is
+     * kept on the inline-start only, so the fade has room to do its work before the words
+     * begin.
+     *
+     * ⚠️ EDITED HERE RATHER THAN OVERRIDDEN ABOVE. My first attempt added a `.navHint` block
+     * earlier in this same media query. Same specificity, earlier position, so THIS rule won
+     * and the computed style still carried the border and the shadow. The fix shipped, greped
+     * as present, and changed nothing — the exact defect this estate has logged before. It was
+     * caught only by reading `getComputedStyle` on the deployed page.
+     */
+    padding: 2px 0 2px var(--sp-4);
   }
 
   /* The groups lay out in a row; each group is its own row of items and the divider
@@ -574,21 +540,45 @@
     inline-size: max-content;
   }
 
+  /*
+   * The account block rides up beside the brand instead of sitting under it. `order: 2`
+   * places it before the nav frame (`order: 3`) so the first row reads wordmark ... account,
+   * and the nav gets the full width of the second row rather than sharing one.
+   */
   .sideFoot {
+    order: 2;
     margin-block-start: 0;
     margin-inline-start: auto;
     grid-auto-flow: column;
     align-items: center;
+    gap: var(--sp-2);
     padding-block-start: 0;
   }
 
+  /* No top border and no top padding. Both existed to separate the account from the
+   * organization plate above it in the column, and the plate is hidden here, so the divider
+   * had nothing on the other side: a line the eye resolves for no information. */
   .acct {
     padding-block-start: 0;
     border-block-start: none;
+    gap: var(--sp-2);
   }
 
+  /*
+   * TIGHTER GUTTERS, AND ROOM FOR THE ASSISTANT LAUNCHER THAT WAS COVERING LIVE CONTENT.
+   *
+   * `components/thomas/thomas.module.css` fixes the launcher at `bottom: var(--sp-4)`. On a
+   * phone that put it ON TOP of whatever the page ended with: on /corner it covered a
+   * sentence mid-word, and on /pricing it sat over the "Dismiss" button of the award-cutoff
+   * card — a floating control obscuring a real one the operator is meant to press.
+   *
+   * A fixed element cannot be pushed by content, so the content yields to it. The reserve is
+   * the launcher's own height plus its offset plus a breathing gap, and it lives on the
+   * scrolling content rather than on the launcher, so the launcher's placement stays that
+   * component's business.
+   */
   .content {
-    padding: var(--sp-4) var(--sp-3);
+    padding: var(--sp-4) var(--sp-3) calc(var(--sp-4) + 52px + var(--sp-5));
   }
 }
 
