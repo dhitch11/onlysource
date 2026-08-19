@@ -5,133 +5,165 @@
   "anon": {
     "/": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 6
     },
     "/admin": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 20
     },
     "/board": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 20
     },
     "/competitor": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 25
     },
     "/corner/[nsn]": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 37
     },
     "/design": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 21
     },
     "/documents": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 24
     },
     "/enter": {
       "status": 200,
-      "heading": "ONLYSOURCE"
+      "heading": "ONLYSOURCE",
+      "bytes": 12962
     },
     "/goldmine": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 23
     },
     "/groups": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 21
     },
     "/hubzone": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 22
     },
     "/intelligence": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 27
     },
     "/monopoly": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 23
     },
     "/sales": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 20
     },
     "/settings": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 23
     },
     "/suppliers": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 24
     }
   },
   "signedIn": {
     "/": {
       "status": 200,
-      "heading": "The market, mapped and ranked by money."
+      "heading": "The market, mapped and ranked by money.",
+      "bytes": 95399
     },
     "/admin": {
       "status": 200,
-      "heading": "Admin & Users"
+      "heading": "Admin & Users",
+      "bytes": 77029
     },
     "/board": {
       "status": 200,
-      "heading": "The Board"
+      "heading": "The Board",
+      "bytes": 4638607
     },
     "/competitor": {
       "status": 200,
-      "heading": null
+      "heading": null,
+      "bytes": 518639
     },
     "/corner/[nsn]": {
       "status": 200,
-      "heading": null
+      "heading": null,
+      "bytes": 72605
     },
     "/design": {
       "status": 200,
-      "heading": "Design system"
+      "heading": "Design system",
+      "bytes": 92899
     },
     "/documents": {
       "status": 200,
-      "heading": "Documents and POs"
+      "heading": "Documents and POs",
+      "bytes": 93613
     },
     "/enter": {
       "status": 307,
-      "heading": null
+      "heading": null,
+      "bytes": 6732
     },
     "/goldmine": {
       "status": 200,
-      "heading": "No-Quote Goldmine"
+      "heading": "No-Quote Goldmine",
+      "bytes": 381835
     },
     "/groups": {
       "status": 200,
-      "heading": "Supply Groups"
+      "heading": "Supply Groups",
+      "bytes": 868500
     },
     "/hubzone": {
       "status": 200,
-      "heading": "HUBZone set-asides"
+      "heading": "HUBZone set-asides",
+      "bytes": 107993
     },
     "/intelligence": {
       "status": 200,
-      "heading": "Where the money is"
+      "heading": "Where the money is",
+      "bytes": 128215
     },
     "/monopoly": {
       "status": 200,
-      "heading": "Monopoly Map"
+      "heading": "Monopoly Map",
+      "bytes": 3820687
     },
     "/sales": {
       "status": 200,
-      "heading": "Pipeline"
+      "heading": "Pipeline",
+      "bytes": 61188
     },
     "/settings": {
       "status": 200,
-      "heading": "Alerts & notifications"
+      "heading": "Alerts & notifications",
+      "bytes": 53520
     },
     "/suppliers": {
       "status": 200,
-      "heading": "Distressed Suppliers"
+      "heading": "Distressed Suppliers",
+      "bytes": 8026315
     }
   },
   "notes": {

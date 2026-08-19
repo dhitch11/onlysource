@@ -132,6 +132,28 @@ const text = (html) =>
     .trim()
 
 /** Pure, so the selftest can drive every arm without a network. */
+/**
+ * How far a route may grow before growth is a defect rather than data.
+ *
+ * 1.5x is a REGRESSION guard and needs no policy: a page that half again its recorded size
+ * between two deploys did not gain that from one more row. It is objective, so it can ship
+ * without anyone deciding a budget.
+ *
+ * An absolute `maxBytes` is a POLICY and is therefore optional and per-route, set by whoever
+ * owns the surface. Absent means no ceiling. It is not defaulted here, because a number this
+ * file invented would either be ignored or enforced by accident, and both are worse than the
+ * conductor choosing one.
+ *
+ * MEASURED 2026-08-19, which is the reason this arm exists at all: /monopoly serves 371
+ * corners at 10,298 bytes each, and its row count IS the catalogue. At the 191,667 sole-source
+ * positions the catalogue publishes, that page is ~1.97 GB of HTML on a 2 GB box. No server
+ * size repairs it and no browser renders it. A payload gate is how that is discovered by a
+ * failing promote rather than by a customer.
+ */
+const GROWTH_MULTIPLE = 1.5
+/** Below this, a percentage swing is noise: a changed timestamp can move a small page 20%. */
+const GROWTH_FLOOR_BYTES = 50_000
+
 export function judge({ route, status, body, expected }) {
   const problems = []
   if (!expected) {
@@ -146,6 +168,23 @@ export function judge({ route, status, body, expected }) {
   }
   // A redirect has no page to read; status is the whole assertion for it.
   if (status >= 300 && status < 400) return problems
+
+  const bytes = body.length
+  if (expected.maxBytes !== undefined && expected.maxBytes !== null && bytes > expected.maxBytes) {
+    problems.push(
+      `${bytes.toLocaleString()} bytes exceeds the ceiling set for this route, ${Number(expected.maxBytes).toLocaleString()}`,
+    )
+  }
+  if (
+    typeof expected.bytes === 'number' &&
+    expected.bytes >= GROWTH_FLOOR_BYTES &&
+    bytes > expected.bytes * GROWTH_MULTIPLE
+  ) {
+    problems.push(
+      `${bytes.toLocaleString()} bytes is ${(bytes / expected.bytes).toFixed(1)}x the recorded ` +
+        `${expected.bytes.toLocaleString()}. A page does not grow by half from one more row.`,
+    )
+  }
   const heading = headingOf(body)
   if (heading === null) {
     problems.push('no heading of any kind in the body')
@@ -167,6 +206,13 @@ const FIXTURE_WRONG = '<html><body><main><h1>The board</h1></main></body></html>
 function selftest() {
   const failures = []
   const expect = { status: 200, heading: 'The monopoly map' }
+  /** A body of exactly n bytes that still carries the expected heading. */
+  const big = (n) => {
+    const head = '<html><body><h1>The monopoly map</h1>'
+    const tail = '</body></html>'
+    return head + 'x'.repeat(Math.max(0, n - head.length - tail.length)) + tail
+  }
+  const expect200k = { status: 200, heading: 'The monopoly map', bytes: 200_000 }
   const cases = [
     ['a healthy page passes', { route: '/monopoly', status: 200, body: FIXTURE_OK, expected: expect }, 0],
     ['★ a 200 carrying the error boundary FAILS', { route: '/monopoly', status: 200, body: FIXTURE_BOUNDARY, expected: expect }, 2],
@@ -175,6 +221,12 @@ function selftest() {
     ['an unexpected status FAILS', { route: '/monopoly', status: 307, body: '', expected: expect }, 1],
     ['a route with no baseline FAILS', { route: '/new', status: 200, body: FIXTURE_OK, expected: undefined }, 1],
     ['an expected redirect passes', { route: '/board', status: 307, body: '', expected: { status: 307, heading: null } }, 0],
+    // The payload arms. Both need a control or they are decoration.
+    ['★ a page over its stated ceiling FAILS', { route: '/monopoly', status: 200, body: big(200_000), expected: { ...expect200k, maxBytes: 150_000 } }, 1],
+    ['a page under its stated ceiling passes', { route: '/monopoly', status: 200, body: big(100_000), expected: { ...expect200k, maxBytes: 150_000 } }, 0],
+    ['★ a page 2x its recorded size FAILS even with no ceiling set', { route: '/monopoly', status: 200, body: big(400_000), expected: expect200k }, 1],
+    ['ordinary growth does NOT fail, or the gate cries wolf', { route: '/monopoly', status: 200, body: big(240_000), expected: expect200k }, 0],
+    ['a SMALL page may swing freely: a timestamp must not fail a promote', { route: '/', status: 200, body: big(40_000), expected: { status: 200, heading: 'The monopoly map', bytes: 10_000 } }, 0],
   ]
   for (const [name, input, wantCount] of cases) {
     const got = judge(input).length
@@ -222,14 +274,19 @@ const COOKIE = argOf('--cookie', process.env.ONLYSOURCE_SWEEP_COOKIE ?? '')
 const ANON = argv.includes('--anon') || COOKIE === ''
 
 /**
- * `rejectUnauthorized: false`, scoped to this one request and nowhere else.
+ * ★ TLS VERIFICATION IS ON, AND THIS COMMENT IS THE RECORD OF WHY IT WAS EVER OFF.
  *
- * Production is served from a bare IP on a self-signed certificate because the product has
- * no registered domain (measured 2026-08-18: `onlysource.ai` returns NXDOMAIN and the .ai
- * registry says "Domain not found"). This is the honest, narrow accommodation of that fact.
- * It is NOT NODE_TLS_REJECT_UNAUTHORIZED, which would disable verification for the whole
- * process including anything this script ever imports. Delete this option the day a real
- * certificate exists.
+ * The first version of this file passed `rejectUnauthorized: false`, on the belief that
+ * production was a bare IP on a self-signed certificate. **It is not, and had not been for
+ * four days.** Measured 2026-08-19: the host presents a Let's Encrypt certificate for
+ * `CN=206.189.230.237.nip.io`, valid 15 Aug to 13 Nov, and `curl` without `-k` returns 200.
+ * The `-k` in every runbook on this estate is a habit left over from a setup that no longer
+ * exists, and it had already outlived its reason by the time it was written down here.
+ *
+ * A verification bypass that is no longer needed is worse than one that is, because nobody
+ * re-examines it: it silently converts "we trust this host" into "we would not notice if we
+ * were talking to something else". Restored deliberately. If a future host genuinely cannot
+ * present a certificate, fix the host.
  *
  * Redirects are never followed. `fetch` follows by default, which is exactly how a 307 to
  * /enter reads as a 200 and a gated route reports healthy. See the `followed-redirect-read-as-ok`
@@ -239,7 +296,7 @@ function fetchRaw(url) {
   return new Promise((resolve, reject) => {
     const req = request(
       url,
-      { method: 'GET', rejectUnauthorized: false, headers: COOKIE ? { cookie: COOKIE } : {} },
+      { method: 'GET', headers: COOKIE ? { cookie: COOKIE } : {} },
       (res) => {
         const chunks = []
         res.on('data', (c) => chunks.push(c))
@@ -290,7 +347,14 @@ if (argv.includes('--update-baseline')) {
   const next = { ...baseline, samples, [mode]: {} }
   for (const r of results) {
     if (r.status == null) continue
-    next[mode][r.route] = { status: r.status, heading: r.heading }
+    // maxBytes is preserved if an owner set one; this writer never invents a ceiling.
+    const prior = (baseline[mode] ?? {})[r.route] ?? {}
+    next[mode][r.route] = {
+      status: r.status,
+      heading: r.heading,
+      bytes: r.bytes ?? null,
+      ...(prior.maxBytes === undefined ? {} : { maxBytes: prior.maxBytes }),
+    }
   }
   writeFileSync(BASELINE, JSON.stringify(next, null, 2) + '\n')
   console.log(`route body baseline updated for mode "${mode}": ${Object.keys(next[mode]).length} route(s) recorded.`)
