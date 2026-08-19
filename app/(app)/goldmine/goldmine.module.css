@@ -146,8 +146,18 @@
 .table tbody tr:last-child td {
   border-bottom: none;
 }
-.table tbody tr:hover td {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+/*
+ * Guarded, because a row highlight is a POINTER affordance and a phone has no pointer.
+ *
+ * Unguarded it does two unwanted things on touch. A tap leaves the tint stuck on the row the
+ * finger last touched, with nothing to move it off; and once the row is a card, the tint paints
+ * the CELLS, which sit inside the card's padding, so it draws a lighter box inset from the card's
+ * own border rather than lighting the card. A box inside a box.
+ */
+@media (hover: hover) {
+  .table tbody tr:hover td {
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
 }
 .numCol {
   text-align: right;
