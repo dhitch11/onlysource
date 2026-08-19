@@ -88,6 +88,10 @@ const EXPECTED_HREFS = [
   '/groups',
   '/goldmine',
   '/hubzone',
+  // Added to the nav by the pricing desk. Listed here in the order the nav ships it, because
+  // this constant exists so that a row appearing WITHOUT a description, or a row appearing that
+  // nobody asserted anything about, is a failing test rather than a silent addition.
+  '/pricing',
   '/intelligence',
   '/board',
   '/competitor',
