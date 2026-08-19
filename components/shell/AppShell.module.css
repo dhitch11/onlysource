@@ -432,6 +432,21 @@
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-width: none;
+    /*
+     * AND THE BOX ITSELF MUST BE BOUND, NOT ONLY ITS CONTENT.
+     *
+     * `overflow-x: auto` alone did not fix it, measured: /competitor still reported
+     * documentElement.scrollWidth 677 against a 390 viewport, steady at 4 seconds, with ZERO
+     * overflowing elements outside a scroller. That combination is the signature of the flex
+     * trap: a flex item's automatic minimum size is its CONTENT size, so this element sized its
+     * own box to 677 and then obligingly scrolled inside a box that was already too wide. The
+     * scroller cannot clip what it is itself made of.
+     *
+     * `min-inline-size: 0` releases the automatic minimum so the box may be narrower than its
+     * content; `max-inline-size: 100%` stops it exceeding its parent. Both are needed.
+     */
+    min-inline-size: 0;
+    max-inline-size: 100%;
   }
 
   /* The scrollbar would sit across the nav's own hairline; the strip is swiped, not dragged. */
