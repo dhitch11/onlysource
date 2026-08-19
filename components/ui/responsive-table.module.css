@@ -119,13 +119,32 @@
   }
 
   /*
-   * Label left, value right. `auto` on the label column lets a long label take the width it needs
-   * rather than truncating, and `minmax(0, 1fr)` on the value is what allows a long value to wrap
+   * Label left, value right. `minmax(0, 1fr)` on the value is what allows a long value to wrap
    * instead of forcing the row wider — a `1fr` alone refuses to shrink below its content.
+   *
+   * ★ THE LABEL COLUMN IS `minmax(0, auto)` AND NOT `auto`, AND ::before WRAPS.
+   *
+   * The first version said `auto` so that "a long label can take the width it needs rather than
+   * truncating". Those are not the only two options, and the third one is what a phone needs:
+   * a long label can WRAP. `auto` sizes to max-content, and the ::before was `white-space: nowrap`,
+   * so the label column could not be smaller than the longest header in the table however narrow
+   * the screen got.
+   *
+   * Measured on /competitor at 320, which owns the longest headers in the app: the header
+   * "Shared with other approved sources" is 34 characters, and a cell holding the four words
+   * "maker bidding direct" measured 321px wide — the VALUE was never the problem. Two tables sat
+   * 369px and 334px inside a 320px viewport for that reason alone.
+   *
+   *      /competitor  worst table 1152px -> 369px with the cards treatment
+   *                                      -> 263px once the label was allowed to wrap
+   *
+   * Verified not to move /goldmine, /hubzone or /intelligence, whose headers are short enough that
+   * they never reach the wrap: all three measured 263px or less before and after. A short label
+   * does not wrap because it does not need to.
    */
   .cards tbody td {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
     gap: var(--sp-2) var(--sp-3);
     align-items: baseline;
     padding: var(--sp-1) 0;
@@ -141,7 +160,6 @@
     font-size: var(--fs-100);
     font-weight: var(--fw-semibold);
     color: var(--dim);
-    white-space: nowrap;
   }
 
   /* Every element child pinned to the value column. See the note above: this is the /corner
