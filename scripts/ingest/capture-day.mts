@@ -71,9 +71,8 @@ const {
   realClientProvider,
   reconcileHeld,
 } = shared
-const { reconciliationReport, provenanceReport, findOrphans, listArchiveFiles } = await import(
-  '../../lib/ingest/archive-reconcile'
-)
+const { reconciliationReport, provenanceReport, findOrphans, listArchiveFiles, unreadableArchives } =
+  await import('../../lib/ingest/archive-reconcile')
 const { readManifestEntries: readEntriesForOrphans } = await import('../../lib/ingest/archive')
 
 type DailyFileKind = (typeof DAILY_FILES)[number]
@@ -160,6 +159,22 @@ for (const line of reconciliationReport(reconciliation)) process.stdout.write(`$
  */
 const orphans = findOrphans(await readEntriesForOrphans(root.root), listArchiveFiles(root.root))
 for (const line of provenanceReport(reconciliation, orphans)) process.stdout.write(`${line}\n`)
+
+/*
+ * AND THE THIRD THING A FILE CAN BE WRONG ABOUT. `ca260811.zip` matched its recorded length,
+ * began with a valid local file header, and had no central directory: a truncated transfer keeps
+ * a perfect beginning and loses the end. PRESENT is not WHOLE, and WHOLE is not READABLE.
+ */
+const unreadable = unreadableArchives(reconciliation)
+if (unreadable.length > 0) {
+  process.stderr.write(
+    `archive readability: ${unreadable.length} archive(s) are present at the recorded length and ` +
+      `CANNOT BE OPENED (no end-of-central-directory record, the signature of a truncated transfer):\n`,
+  )
+  for (const f of unreadable) {
+    process.stderr.write(`  UNREADABLE ${f.logicalDate} ${f.filename} - ${(f.actualBytes ?? 0).toLocaleString('en-US')} bytes on disk\n`)
+  }
+}
 
 const held = await heldFiles()
 const state = { wafStrikes: 0, requestsMade: 0 }

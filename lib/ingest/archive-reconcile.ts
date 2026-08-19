@@ -35,7 +35,7 @@
  * line that a reader can check by eye.
  */
 
-import { readdirSync, statSync, type Dirent } from 'node:fs'
+import { closeSync, fstatSync, openSync, readSync, readdirSync, statSync, type Dirent } from 'node:fs'
 import { join } from 'node:path'
 
 import type { ArchiveRecord, ManifestEntry, RejectionRecord } from './archive'
@@ -478,4 +478,85 @@ export function provenanceReport(
     for (const o of orphans) lines.push(`  ORPHAN ${o.storageKey} (${o.bytes.toLocaleString('en-US')} bytes)`)
   }
   return lines
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* READABILITY. A FILE CAN BE THE RIGHT LENGTH, START LIKE A ZIP, AND STILL BE UNOPENABLE */
+/* ------------------------------------------------------------------------------------ */
+
+/**
+ * ★ THE THIRD THING A FILE CAN BE WRONG ABOUT, AFTER "ABSENT" AND "SHORT".
+ *
+ * `ca260811.zip` sat on disk at 56,826,248 bytes, matched its manifest row exactly, passed the
+ * zip-magic check because it BEGAN with a local file header, and could not be opened: it had no
+ * central directory. A truncated transfer produces precisely that shape -- a valid beginning and
+ * a missing end -- and every check we had inspected the beginning.
+ *
+ *     PRESENT is not WHOLE, and WHOLE is not READABLE.
+ *
+ * `hasZipMagic` in feed-days.ts reads the first four bytes and answers "does this start like a
+ * zip". That is a real check and it catches a consent banner saved under a .zip name. It cannot
+ * catch a truncation, because a truncated zip starts perfectly.
+ *
+ * So this reads the END. A zip's End Of Central Directory record is the last structure in the
+ * file, so a stream cut short loses it first. Finding it costs one small read of the tail
+ * regardless of whether the archive is 13 KB or 700 MB -- the check does not scale with the
+ * file, which is why it is affordable on every reconcile rather than only in an audit.
+ *
+ * The EOCD may be followed by a comment of up to 65,535 bytes, so the search window is that plus
+ * the 22-byte record itself. A file shorter than the record cannot contain one.
+ */
+const EOCD_SIGNATURE = 0x06054b50 // 'PK\x05\x06', little-endian
+const EOCD_MIN_BYTES = 22
+const ZIP_MAX_COMMENT = 0xffff
+
+export function zipHasEndOfCentralDirectory(path: string): boolean {
+  let fd: number
+  try {
+    fd = openSync(path, 'r')
+  } catch {
+    return false
+  }
+  try {
+    const size = fstatSync(fd).size
+    if (size < EOCD_MIN_BYTES) return false
+    const window = Math.min(size, EOCD_MIN_BYTES + ZIP_MAX_COMMENT)
+    const buf = Buffer.alloc(window)
+    readSync(fd, buf, 0, window, size - window)
+    // Scan backwards: the LAST signature is the real record when a comment happens to contain
+    // the same four bytes, which is rare and would otherwise pick a false one.
+    for (let i = buf.length - EOCD_MIN_BYTES; i >= 0; i -= 1) {
+      if (buf.readUInt32LE(i) === EOCD_SIGNATURE) return true
+    }
+    return false
+  } catch {
+    return false
+  } finally {
+    closeSync(fd)
+  }
+}
+
+/**
+ * Files the reconciliation calls `held` that cannot actually be opened.
+ *
+ * Deliberately separate from `reconcileArchive` rather than folded into it: that function is
+ * pure and injectable so a test can drive every state without touching a disk, and readability
+ * is inherently a real-file question. Keeping them apart means the state machine stays testable
+ * and the readability check stays honest.
+ *
+ * Only archives are checked. A `.txt` index has its own content gate in the fetch path, and
+ * inventing a readability rule for it here would be a second opinion on a question that is
+ * already answered better upstream.
+ */
+export function unreadableArchives(
+  reconciliation: ArchiveReconciliation,
+  isReadable: (path: string) => boolean = zipHasEndOfCentralDirectory,
+): FileReconciliation[] {
+  return reconciliation.files.filter(
+    (f) =>
+      f.state === 'held' &&
+      f.storageKey !== null &&
+      f.filename.toLowerCase().endsWith('.zip') &&
+      !isReadable(join(reconciliation.root, f.storageKey)),
+  )
 }

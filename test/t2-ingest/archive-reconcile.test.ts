@@ -28,6 +28,8 @@ import {
   listArchiveFiles,
   reconcileArchive,
   reconciliationKey,
+  unreadableArchives,
+  zipHasEndOfCentralDirectory,
   reconciliationReport,
   stateFor,
   type StatFile,
@@ -426,5 +428,89 @@ describe('orphans: bytes on disk that no manifest row claims', () => {
 
   it('returns no files rather than throwing on an unreadable root', () => {
     expect(listArchiveFiles(join(freshRoot(), 'does-not-exist'))).toEqual([])
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ PRESENT IS NOT WHOLE, AND WHOLE IS NOT READABLE                                   */
+/* ---------------------------------------------------------------------------------- */
+
+describe('a file that is the right length, starts like a zip, and cannot be opened', () => {
+  /** A minimal but genuinely valid zip: local header, then the central directory and EOCD. */
+  function validZip(): Buffer {
+    const name = Buffer.from('a.txt')
+    const body = Buffer.from('hello')
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(name.length, 26)
+    const localRec = Buffer.concat([local, name, body])
+    const central = Buffer.alloc(46)
+    central.writeUInt32LE(0x02014b50, 0)
+    central.writeUInt16LE(name.length, 28)
+    const centralRec = Buffer.concat([central, name])
+    const eocd = Buffer.alloc(22)
+    eocd.writeUInt32LE(0x06054b50, 0)
+    eocd.writeUInt16LE(1, 8)
+    eocd.writeUInt16LE(1, 10)
+    eocd.writeUInt32LE(centralRec.length, 12)
+    eocd.writeUInt32LE(localRec.length, 16)
+    return Buffer.concat([localRec, centralRec, eocd])
+  }
+
+  it('★ is caught, where a length check and a magic check both pass it', () => {
+    const root = freshRoot()
+    const whole = validZip()
+    // The production shape: a transfer cut short. It keeps a perfect beginning and loses the
+    // end, which is the only place the central directory lives.
+    const truncated = whole.subarray(0, whole.length - 25)
+
+    const goodRow = acceptedRow('2026-08-12', 'ca260812.zip', whole.length)
+    const badRow = acceptedRow('2026-08-11', 'ca260811.zip', truncated.length)
+    const write = (row: ManifestEntry, bytes: Buffer): string => {
+      const path = join(root, (row as unknown as { storage_key: string }).storage_key)
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, bytes)
+      return path
+    }
+    const goodPath = write(goodRow, whole)
+    const badPath = write(badRow, truncated)
+
+    const r = reconcileArchive([goodRow, badRow], root)
+
+    // ★ POSITIVE CONTROL: every existing check passes the broken file.
+    expect(r.counts.held).toBe(2)          // the state machine says both are held
+    expect(r.counts.truncated).toBe(0)     // the LENGTH matches its manifest row exactly
+    expect(reconciliationReport(r)).toEqual([]) // and the work list is empty
+    // The first four bytes are a valid local file header, so a magic check passes it too.
+    expect(truncated.readUInt32LE(0)).toBe(0x04034b50)
+
+    // Only reading the END separates them.
+    const bad = unreadableArchives(r)
+    expect(bad.map((f) => f.filename)).toEqual(['ca260811.zip'])
+    expect(zipHasEndOfCentralDirectory(goodPath)).toBe(true)
+    expect(zipHasEndOfCentralDirectory(badPath)).toBe(false)
+  })
+
+  it('does not accuse a whole archive, and does not scale with its size', () => {
+    const root = freshRoot()
+    // A large comment region between the payload and the EOCD: the record is still found by a
+    // bounded tail read, so the check costs the same on a 13 KB file and a 700 MB one.
+    const whole = validZip()
+    const padded = Buffer.concat([whole.subarray(0, whole.length - 22), Buffer.alloc(4096, 0x41), whole.subarray(whole.length - 22)])
+    const row = acceptedRow('2026-08-14', 'ca260814.zip', padded.length)
+    mkdirSync(dirname(join(root, (row as unknown as { storage_key: string }).storage_key)), { recursive: true })
+    writeFileSync(join(root, (row as unknown as { storage_key: string }).storage_key), padded)
+    expect(unreadableArchives(reconcileArchive([row], root))).toEqual([])
+  })
+
+  it('never accuses a .txt index — that question is answered upstream by the content gate', () => {
+    const root = freshRoot()
+    const row = acceptedRow('2026-08-14', 'in260814.txt', 5)
+    stage(root, row)
+    expect(unreadableArchives(reconcileArchive([row], root))).toEqual([])
+  })
+
+  it('reports an unopenable file as unreadable rather than throwing', () => {
+    expect(zipHasEndOfCentralDirectory('/definitely/not/here.zip')).toBe(false)
   })
 })
