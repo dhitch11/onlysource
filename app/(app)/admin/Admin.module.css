@@ -35,12 +35,18 @@
   gap: 0.2rem;
 }
 
-.title {
-  font-size: 1.25rem;
-  font-weight: 700;
+/* The row is the flex container so the HEADING can hold nothing but its own text.
+   See the comment beside the markup in page.tsx: an ExplainButton inside a heading puts a
+   <div popover> into the heading's text content, and a screen reader reads all of it. */
+.titleRow {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .meta {
@@ -164,15 +170,18 @@
   padding: 1rem 1.1rem;
 }
 
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .cardTitle {
   font-size: 0.72rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--dim);
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .cardSub {

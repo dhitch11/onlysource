@@ -155,10 +155,25 @@ export default async function AdminPage() {
     <div className={styles.page}>
       <header className={styles.top}>
         <div className={styles.heading}>
-          <h1 className={styles.title}>
-            Admin &amp; Users
+          {/*
+           * THE EXPLAINER IS A SIBLING OF THE HEADING, NEVER A CHILD OF IT.
+           *
+           * <ExplainButton> renders its panel as a sibling <div popover>, and <div> is flow
+           * content, so putting the pair inside a heading makes the heading's TEXT CONTENT the
+           * title plus the whole explainer. Measured on production 2026-08-18: this h1 announced
+           * 764 characters and the three h2s below announced 596, 651 and 652, where the page
+           * reads "Admin & Users". Heading navigation is how a screen-reader user moves around a
+           * console, and it was destroyed on the one screen that governs who can sign in.
+           *
+           * The <p> form of this mistake announces itself as a React #418 flood, because the
+           * parser force-closes a <p> before a <div>. A HEADING IS NOT IN THAT AUTO-CLOSE SET,
+           * so this variant throws nothing, logs nothing, breaks no test and moves no pixel.
+           * It is invisible to every instrument here except a screen reader and the body sweep.
+           */}
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>Admin &amp; Users</h1>
             <ExplainButton helpId="admin.roster" size="sm" />
-          </h1>
+          </div>
           <p className={styles.meta}>
             Organization <b>{org.name}</b> · multi-user, tenant-ready
           </p>
@@ -177,10 +192,10 @@ export default async function AdminPage() {
 
         <div className={styles.cards}>
           <section className={styles.card} aria-label="Roles and permissions">
-            <h2 className={styles.cardTitle}>
-              Roles &amp; permissions
+            <div className={styles.cardTitleRow}>
+              <h2 className={styles.cardTitle}>Roles &amp; permissions</h2>
               <ExplainButton helpId="admin.role" size="sm" />
-            </h2>
+            </div>
             <p className={styles.cardSub}>Server-enforced, editable as data</p>
             <dl className={styles.pairs}>
               {roles.map((r) => (
@@ -195,10 +210,10 @@ export default async function AdminPage() {
           </section>
 
           <section className={styles.card} aria-label="Organization">
-            <h2 className={styles.cardTitle}>
-              Organization
+            <div className={styles.cardTitleRow}>
+              <h2 className={styles.cardTitle}>Organization</h2>
               <ExplainButton helpId="admin.plane" size="sm" />
-            </h2>
+            </div>
             <p className={styles.cardSub}>Single-org deployment, tenant-ready</p>
             <dl className={styles.pairs}>
               <div className={styles.pair}>
@@ -221,10 +236,10 @@ export default async function AdminPage() {
           </section>
 
           <section className={styles.card} aria-label="Connections vault">
-            <h2 className={styles.cardTitle}>
-              Connections vault
+            <div className={styles.cardTitleRow}>
+              <h2 className={styles.cardTitle}>Connections vault</h2>
               <ExplainButton helpId="admin.connection_state" size="sm" />
-            </h2>
+            </div>
             <p className={styles.cardSub}>Encrypted credentials for the data sources</p>
             <div className={styles.connections}>
               {connectors.map((c) => (

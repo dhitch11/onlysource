@@ -1,5 +1,10 @@
 {
   "accepted": {
+    "explainbutton-inside-a-heading|app/(app)/documents/page.tsx": {
+      "count": 1,
+      "kind": "DEBT",
+      "reason": "One <legend> enclosing an ExplainButton. Real, same class as the four /admin headings fixed in this commit, and NOT fixed here because a <legend> cannot be wrapped: the HTML parser requires it to be the fieldset's first child, so the wrapper-row remedy used on the headings does not apply. The correct fix is at the component: render the ExplainButton panel through a portal so no container can ever absorb its text, which closes the <p> hydration case, this heading case, the legend case and the invalid <span> nesting in one change. That touches ~50 call sites and every popover position in the product, so it is T8's call with a real visual pass behind it, not a same-night edit. DEBT, not EXCEPTION: this is owed and the count only goes down."
+    },
     "followed-redirect-read-as-ok|app/(app)/intelligence/PortfolioBrief.tsx": 1,
     "followed-redirect-read-as-ok|app/api/thomas/voice/route.ts": 1,
     "followed-redirect-read-as-ok|components/shell/NotificationCenter.tsx": 1,

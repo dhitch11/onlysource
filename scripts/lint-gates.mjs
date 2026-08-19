@@ -357,6 +357,65 @@ const RULES = [
     ],
   },
   {
+    /*
+     * The SECOND form of the ExplainButton nesting defect, and it needed its own rule rather
+     * than an extra element in the one above, because THE FAILURE MODE IS DIFFERENT and a
+     * shared message would send the next reader hunting a console error that does not exist.
+     *
+     * The <p> case is loud: the parser force-closes a <p> before a <div>, the trees diverge and
+     * React throws #418. A HEADING IS NOT IN THE AUTO-CLOSE SET. So this variant produces no
+     * hydration error, no console output, no failing test, no wrong pixel and no typecheck
+     * complaint. What it produces is a heading whose TEXT CONTENT is the title plus the entire
+     * explainer panel.
+     *
+     * MEASURED ON PRODUCTION 2026-08-18, /admin at 3021f81a, owner session: the h1 announced
+     * 764 characters and the three h2s announced 596, 651 and 652, where the page reads
+     * "Admin & Users". A screen-reader user navigating by heading, which is how that user moves
+     * around a console at all, got the whole explainer read out as the page title, on the one
+     * screen that governs who can sign in.
+     *
+     * Three separate lanes had already paid for the <p> form and each wrote the lesson in a
+     * comment next to their own fix (board/page.tsx:84, groups/GroupsBoard.tsx:92,
+     * admin/AdminConsole.tsx:237). The knowledge stayed local to the file that learned it and
+     * the fourth instance shipped one directory away from the third. A COMMENT IS NOT A CONTROL.
+     *
+     * Scoped to h1-h6 and <legend> deliberately. <th>, <td> and <li> take flow content, so a
+     * <div> in them is valid and flagging them would be crying wolf; the rule above already
+     * blesses <span> in its knownGood. A lint with false positives gets switched off, and a
+     * switched-off lint is worse than none.
+     */
+    id: 'explainbutton-inside-a-heading',
+    spec: 'R0.1 (accessible name integrity)',
+    why:
+      'ExplainButton renders its panel as a SIBLING <div popover>. Inside a heading, that panel ' +
+      'becomes part of the heading\'s text content, so assistive technology announces the whole ' +
+      'explainer as the page or section title. Unlike the <p> form this throws no hydration ' +
+      'error and is invisible to every other instrument in this repo. The explainer is a SIBLING ' +
+      'of the heading, never a child: put the flex row on a wrapper and leave the heading holding ' +
+      'nothing but its own words.',
+    reads: 'code',
+    applies: (f) => f.startsWith('app/') || f.startsWith('components/'),
+    test: (t) => {
+      const out = []
+      const re = /<(h[1-6]|legend)\b[^>]*>((?:(?!<\/\1>)[\s\S])*?)<\/\1>/g
+      let m
+      while ((m = re.exec(t))) {
+        if (!/ExplainButton/.test(m[2])) continue
+        out.push({
+          line: t.slice(0, m.index).split('\n').length,
+          text: `<${m[1]}> encloses an ExplainButton, so its accessible name includes the panel`,
+        })
+      }
+      return out
+    },
+    knownBad: '<h1 className={s.title}>Admin &amp; Users<ExplainButton helpId="x" /></h1>',
+    knownGood: [
+      '<div className={s.titleRow}><h1 className={s.title}>Admin &amp; Users</h1><ExplainButton helpId="x" /></div>',
+      '<h1 className={s.title}>A heading with no explainer at all.</h1>',
+      '<th scope="col">Class<ExplainButton helpId="x" /></th>',
+    ],
+  },
+  {
     id: 'design-gallery-linked-from-an-operator-surface',
     spec: 'R0.1 (nothing pretends) — the precondition of the /design lint EXCEPTION',
     why:
