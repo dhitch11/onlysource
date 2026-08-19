@@ -59,6 +59,28 @@ export function buildFscPeerPool(byNsn: ReadonlyMap<string, NsnAwardSummary>): M
   for (const [, summary] of byNsn) {
     const fsc = fscOf(summary.nsn)
     if (!fsc) continue
+    /*
+     * ★ A STOCK NUMBER WHOSE OWN SERIES CONTAINS A DECIMAL SHIFT CONTRIBUTES NO PEERS AT ALL.
+     *
+     * Not its high rows, not its low rows, NONE of them — because the whole point of the flag is
+     * that we cannot tell which side of the shift is real. Dropping only the expensive half would
+     * be deciding that, which is the repair this fix deliberately refuses to make.
+     *
+     * MEASURED, and this is why it is here rather than only on the subject's own page. The engine
+     * already excludes a stock number from its OWN peer band, so `/corner/5305016205067` was clean
+     * the moment its awards were withheld. Every OTHER part in supply class 5305 was not:
+     *
+     *     FSC 5305 pool     996 priced peers, of which 104 sit above the shift
+     *     104 of the 119 rows over $1,000 in the entire class are that ONE stock number
+     *     a different 5305 part was quoted  $4.63 to $53.99
+     *     with the suspect withheld         $4.05 to $19.50   (p75 inflated 2.6x)
+     *
+     * One corrupted series was setting the ceiling for a whole supply class. The three other
+     * five-figure-ish parts in 5305 were checked by hand and kept: their histories are $2,729-$8,318,
+     * $180-$1,013 and $789-$1,796, expensive all the way through with no cheap side to contradict,
+     * which is an expensive fastener rather than a misplaced decimal point.
+     */
+    if (summary.priceScaleSuspect) continue
     for (const a of summary.awards) {
       const unit = a.effectiveUnitPrice
       if (unit == null || !Number.isFinite(unit) || unit <= 0) continue
@@ -164,9 +186,37 @@ export type CornerRecommendationArgs = {
  * recommendation" would move a pricing judgement into an adapter.
  */
 export function recommendForCorner(args: CornerRecommendationArgs): PriceRecommendation {
-  return recommendPrice({
+  /*
+   * ==========================================================================================
+   * AN AWARD SERIES WITH A DECIMAL SHIFT IN IT DOES NOT PRICE ANYTHING.
+   * ==========================================================================================
+   * `priceScaleSuspect` is set when the unit price moves by an exact power of ten INSIDE ONE
+   * CONTRACT (see `detectPriceScaleShift`). Measured live before this guard existed, on NSN
+   * 5305016205067:
+   *
+   *     recommended   $1,822.98 to $1,829.14 PER UNIT
+   *     what we send  $236,987 to $237,788 for 130 units
+   *     the truth     the part ran $6.98-$13.73 for eight years at quantities up to 7,911
+   *
+   * The engine was not wrong. It carried "1826.06 x 1 = 1826.06" faithfully, printed its evidence
+   * rung, and labelled the confidence honestly. It was handed a corrupted anchor and had no way to
+   * know. THAT is why this belongs in the adapter and not in the engine: the engine's job is to
+   * reason about prices it is given, and this is a question about whether the prices are real.
+   *
+   * ★ THE AWARDS ARE WITHHELD, NOT REPAIRED. We do not know which side of the shift is true, so
+   * nothing is rescaled and no row is deleted from the dossier's own award table — an operator can
+   * still see every award. What is withheld is the ENGINE'S use of them as a basis.
+   *
+   * ★★ AND IT DOES NOT ABSTAIN WHOLESALE. The FSC peer band never reads this stock number's own
+   * prices, so it is untouched by the shift and can still answer. Abstaining on the whole
+   * recommendation would throw away a good rung to avoid a bad one. If nothing else resolves, the
+   * engine abstains on its own and the sentence below says why.
+   */
+  const scaleShift = args.award?.priceScaleSuspect ?? null
+
+  const recommendation = recommendPrice({
     nsn: args.nsn,
-    awards: args.award ? args.award.awards.map(toDossierAward) : [],
+    awards: args.award && !scaleShift ? args.award.awards.map(toDossierAward) : [],
     approvedSourceCages: args.approvedSourceCages,
     requirementQuantity: args.requirementQuantity,
     atInstantMs: args.atInstantMs,
@@ -185,4 +235,25 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
     awardHistoryState: args.awardHistoryState,
     declarations: args.declarations,
   })
+
+  if (!scaleShift) return recommendation
+
+  const caveat = {
+    code: 'AWARD_SERIES_HAS_A_DECIMAL_SHIFT_AND_WAS_SET_ASIDE' as const,
+    sentence: scaleShift.sentence,
+    measured: { label: 'observed jump', value: scaleShift.factor, unit: 'RATIO' as const },
+  }
+
+  return recommendation.resolved
+    ? { ...recommendation, caveats: [caveat, ...recommendation.caveats] }
+    : {
+        ...recommendation,
+        /*
+         * The engine's own abstention sentence says there was no award history, which is not what
+         * happened here: there is history and it cannot be trusted. Absence and unreliability are
+         * different states and this product does not let them share a sentence.
+         */
+        sentence: `${scaleShift.sentence} ${recommendation.sentence}`,
+        missingInput: `an award series free of the decimal shift on contract ${scaleShift.contractNo}`,
+      }
 }

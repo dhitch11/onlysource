@@ -299,6 +299,24 @@ describe('C. every path that carries a long digit run is named, and says what ki
     '$.dossier.pricing.escalationPct',
     '$.dossier.pricing.firstUnitPrice',
     '$.dossier.pricing.lastUnitPrice',
+    /*
+     * PROSE, DELIBERATELY ADMITTED, AND THE REASONING IS THE POINT.
+     *
+     * `priceScaleNote` is the sentence a surface prints when a stock number's award series jumps by
+     * an exact power of ten inside one contract. It names the contract and BOTH prices — "moves
+     * from $13.73 to $1373, exactly 100x, with no change of contract or vendor" — so it carries a
+     * contract identifier and two figures into the allow-set.
+     *
+     * The estate's standing rule is to build the sentence WITHOUT the protected clause rather than
+     * strip it afterwards, and that rule was weighed here and deliberately not applied: a warning
+     * that says "some price in this history is wrong" without saying WHICH one is not auditable,
+     * and an operator cannot act on it. The figures are real rows this product read, and every use
+     * of the sentence is an instruction NOT to rely on them.
+     *
+     * `lib/thomas/tools.ts` pairs it with an explicit instruction not to narrate the item as rising
+     * or escalating, because admitting the figures without that is admitting the trend.
+     */
+    '$.dossier.pricing.priceScaleNote',
     '$.dossier.score.legs[].value',
     '$.dossier.score.reasons[].plain',
     '$.economics.basis',

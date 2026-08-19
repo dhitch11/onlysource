@@ -173,7 +173,24 @@ export function scoreCorner(
     const last = award.latest.effectiveUnitPrice;
     const first = award.firstUnitPrice;
     priceAnchor = measured(last, 0.8, `last award ${fmt(last)}`);
-    if (first != null && last > first) {
+    if (award.priceScaleSuspect) {
+      /*
+       * NO TREND POINTS FROM A SERIES WITH A DECIMAL SHIFT IN IT. Unbounded by the cap: the raw
+       * ramp here was 18,271%, so `min(15, pct/10)` awarded the FULL 15 points and the reason line
+       * read "unit price rose 18,271% over the award history". That is the score's strongest single
+       * trend contribution, handed to the one stock number whose trend is an artifact.
+       *
+       * The reason is still pushed, at zero points, because a leg that silently contributes nothing
+       * is indistinguishable from a leg that was never evaluated.
+       */
+      reasons.push({
+        leg: "priceAnchor",
+        facet: "trend",
+        plain: `price trend not scored: ${award.priceScaleSuspect.sentence}`,
+        points: 0,
+        calibration: "measured",
+      });
+    } else if (first != null && last > first) {
       const pct = Math.round(((last - first) / first) * 100);
       // Escalation to a single source is the rent signal Wayne prices off. Bounded contribution.
       const pts = Math.min(15, Math.round(pct / 10));

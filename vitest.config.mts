@@ -65,6 +65,20 @@ const HEAVY_INTELLIGENCE_TESTS = [
   // belongs rather than to grant it a private timeout in place. A per-test timeout would have made
   // this one green and left the next real-data test to rediscover the whole thing.
   'test/eligibility/bid-eligibility.test.ts',
+  // THE SAME SCARCE RESOURCE, added 2026-08-19 with the decimal-shift guard. This file calls
+  // buildNsnAwardIndex() AND buildFscPeerPool() over the whole corpus — the same ~15MB xlsx parse
+  // the files above share, plus a full pass to build the FSC peer pool.
+  //
+  // ★ IT WAS PUT HERE BECAUSE OF WHAT IT DID TO A FILE IT DOES NOT TOUCH. Left in the default
+  // project it forked its own worker and paid that parse concurrently with the others, and the
+  // visible symptom was `test/thomas/engine-authz.test.ts` timing out at 5,000ms — a file with no
+  // connection to awards, pricing or xlsx, which passes 15/15 in 288ms alone. A new test can turn
+  // an unrelated test red purely by competing for the same disk, so "my change did not touch that
+  // file" is not evidence that my change did not break it.
+  //
+  // Its sibling `scale-suspect-consumers.test.ts` stays in the default project on purpose: it only
+  // shells out to `git grep` and reads no corpus at all.
+  'test/pricing-scale/decimal-shift.test.ts',
 ]
 
 // The known-bad lint fixtures are deliberately broken source. They are input to the

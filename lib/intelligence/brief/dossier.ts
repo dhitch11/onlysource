@@ -65,6 +65,14 @@ export type CornerDossier = {
     firstUnitPrice: number | null
     lastUnitPrice: number | null
     escalationPct: number | null
+    /**
+     * Why the first-to-last figures above must not be read as a trend, or null when they may be.
+     *
+     * A SENTENCE rather than a boolean, because every surface that renders this has to SAY it, and
+     * a boolean makes each of them invent its own wording. Set when the award series contains an
+     * exact power-of-ten jump inside one contract.
+     */
+    priceScaleNote: string | null
     distinctAwardees: number | null
     awardCount: number
     /**
@@ -168,8 +176,19 @@ export function buildCornerDossier(
 ): CornerDossier {
   const first = award?.firstUnitPrice ?? null
   const last = award?.lastUnitPrice ?? null
+  /*
+   * ★ THE SECOND IMPLEMENTATION OF THIS ARITHMETIC. `lib/intelligence/portfolio.ts` holds the other
+   * one, and it abstains on the same condition. Fixing one and not the other is how the dashboard
+   * and the dossier come to disagree about the same stock number, each of them internally correct.
+   *
+   * A series carrying a decimal shift has no meaningful first-to-last ratio: on 5305016205067 it
+   * produced "+18,271% — a cornered part whose price only goes up", promoted as the book's headline
+   * signal, when the part had cleared $6.98-$13.73 for eight years and one row had gained a zero.
+   */
   const escalationPct =
-    first != null && last != null && first > 0 ? Math.round(((last - first) / first) * 100) : null
+    award?.priceScaleSuspect == null && first != null && last != null && first > 0
+      ? Math.round(((last - first) / first) * 100)
+      : null
 
   return {
     nsn: row.nsn,
@@ -193,6 +212,7 @@ export function buildCornerDossier(
       firstUnitPrice: first,
       lastUnitPrice: last,
       escalationPct,
+      priceScaleNote: award?.priceScaleSuspect?.sentence ?? null,
       distinctAwardees: award?.distinctAwardees ?? null,
       awardCount: award?.awards.length ?? 0,
       awardHistoryState: awardHistory ?? null,

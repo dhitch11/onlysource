@@ -76,6 +76,7 @@ const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
   distinctAwardees: 1,
   firstUnitPrice: 1.48,
   lastUnitPrice: 2.54,
+  priceScaleSuspect: null,
   holders: [{ nsn: "5325015619853", company: "HOLDER", cage: "0AMA0", quantity: 3333 }],
   amc: null,
   amsc: null,

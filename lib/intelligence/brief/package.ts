@@ -486,6 +486,12 @@ export function packageMarkdown(pkg: PursuitPackage, memo: string, servedModel: 
             (p.escalationPct != null ? ` (${p.escalationPct > 0 ? '+' : ''}${p.escalationPct}%)` : '')
           : ''),
     )
+    /*
+     * The shift is stated on its own line rather than folded into the sentence above, because this
+     * text goes into an exhibit a buyer reads. A qualifier inside a clause is skimmed past; a line
+     * that starts "Price scale:" is not.
+     */
+    if (p.priceScaleNote) lines.push(`- Price scale: ${p.priceScaleNote}`)
   } else {
     lines.push('- Award history: none ingested for this stock number. Nothing is estimated in its place.')
   }

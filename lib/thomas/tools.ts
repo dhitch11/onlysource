@@ -269,6 +269,18 @@ function lookupStockNumber(raw: string): ToolOutcome {
     `On the DLA forecast: ${d.forecast.onForecast ? 'yes' : 'no'}${d.forecast.totalForecastQty != null ? `, forecast quantity ${d.forecast.totalForecastQty}` : ''}${d.forecast.supplyChains.length ? `, supply chain ${d.forecast.supplyChains.join(', ')}` : ''}.`,
     `CornerScore ${d.score.scoreV0}, grade ${d.score.grade}, disposition ${d.score.disposition}. Award path: ${d.awardPath}.`,
   ]
+  /*
+   * ★ TOLD TO THOMAS EXPLICITLY, above the quote-exactly reminder. The concierge is a SECOND read
+   * path over the same dossier, and it will happily narrate "first $9.94, last $1,826.06" as a
+   * price trend unless the record it is handed says not to. Nulling escalationPct silences the
+   * percentage and does nothing about the sentence a model builds from the two endpoints.
+   */
+  if (p.priceScaleNote) {
+    lines.push(
+      `PRICE SCALE WARNING, state this whenever the price history is discussed: ${p.priceScaleNote} ` +
+        'Do not describe this item as rising, escalating, or cornered on price.',
+    )
+  }
   if (d.source.crossReference?.note) lines.push(`Approved-source reconciliation: ${d.source.crossReference.note}`)
   lines.push(
     'REMINDER: quote these figures exactly as given. Do not compute totals, contract values, or any figure not listed here.',

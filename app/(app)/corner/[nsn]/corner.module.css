@@ -166,6 +166,23 @@
   color: var(--ink);
 }
 
+/* Why the Change cell above reads as a dash. Without it the dash is the same dash the product
+   uses for "not measured", and an operator reads "no change" off a series that jumped 100x. */
+.scaleNote {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--warn, var(--dim));
+  border-radius: var(--r-2, 6px);
+  font-size: var(--fs-200);
+  line-height: 1.5;
+  color: var(--dim);
+}
+.scaleNote strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .factRows {
   display: flex;
   flex-direction: column;

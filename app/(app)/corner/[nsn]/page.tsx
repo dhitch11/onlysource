@@ -495,6 +495,12 @@ export default async function CornerPage({
                   <dd className="mono">{dossier.pricing.distinctAwardees ?? '—'}</dd>
                 </div>
               </dl>
+              {dossier.pricing.priceScaleNote ? (
+                <p className={styles.scaleNote}>
+                  <strong>Change is not stated for this item.</strong>{' '}
+                  {dossier.pricing.priceScaleNote}
+                </p>
+              ) : null}
             </>
           ) : (
             <p className={styles.empty}>

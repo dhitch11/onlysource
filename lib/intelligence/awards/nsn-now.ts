@@ -126,6 +126,58 @@ export type McrlRecord = {
 }
 
 /** Per-NSN rollup the surfaces consume. Every field is measured from the rows, never estimated. */
+/**
+ * A same-contract power-of-ten move in the unit price. See `priceScaleSuspect` on the summary.
+ */
+export type PriceScaleSuspicion = {
+  /** The contract both awards sit on. Same contract is what makes this a data shift, not a market. */
+  readonly contractNo: string
+  readonly fromUsd: number
+  readonly toUsd: number
+  /** 10, 100 or 1000 — the observed ratio, rounded to the power of ten it sits on. */
+  readonly factor: number
+  readonly fromDateIso: string | null
+  readonly toDateIso: string | null
+  /** Plain words, for a surface that has to explain why it is abstaining. */
+  readonly sentence: string
+}
+
+/**
+ * Detect a decimal shift. Chronological awards in, the first same-contract power-of-ten jump out.
+ *
+ * The 2% tolerance is deliberately tight: a genuine escalation that lands within 2% of exactly
+ * 100.00x is possible and would be a false positive, and the measured corpus contains none. A
+ * looser band would start catching the 9.81x and 9.99x cross-contract moves, which are the two
+ * cases this must NOT fire on.
+ */
+export function detectPriceScaleShift(awards: readonly AwardRecord[]): PriceScaleSuspicion | null {
+  const priced = awards.filter((a) => typeof a.effectiveUnitPrice === 'number' && a.effectiveUnitPrice > 0)
+  for (let i = 1; i < priced.length; i += 1) {
+    const prev = priced[i - 1] as AwardRecord
+    const cur = priced[i] as AwardRecord
+    if (!prev.contractNo || prev.contractNo !== cur.contractNo) continue
+    const ratio = (cur.effectiveUnitPrice as number) / (prev.effectiveUnitPrice as number)
+    for (const factor of [10, 100, 1000]) {
+      if (Math.abs(ratio - factor) / factor < 0.02) {
+        return {
+          contractNo: prev.contractNo,
+          fromUsd: prev.effectiveUnitPrice as number,
+          toUsd: cur.effectiveUnitPrice as number,
+          factor,
+          fromDateIso: prev.awardDateIso ?? null,
+          toDateIso: cur.awardDateIso ?? null,
+          sentence:
+            `The unit price on contract ${prev.contractNo} moves from ` +
+            `$${prev.effectiveUnitPrice} to $${cur.effectiveUnitPrice}, exactly ${factor}x, with no ` +
+            `change of contract or vendor. That is a decimal shift in the source record rather than ` +
+            `a change in what the part costs, so no figure here is built on the later prices.`,
+        }
+      }
+    }
+  }
+  return null
+}
+
 export type NsnAwardSummary = {
   nsn: string
   awards: AwardRecord[]
@@ -136,6 +188,37 @@ export type NsnAwardSummary = {
   /** Oldest and newest unit price, so the surface can show the escalation without recomputing. */
   firstUnitPrice: number | null
   lastUnitPrice: number | null
+  /**
+   * A UNIT PRICE THAT MOVED BY AN EXACT POWER OF TEN INSIDE ONE CONTRACT — a decimal shift in the
+   * source, not a price change in the world.
+   *
+   * Measured on the deployed corpus: NSN 5305016205067, contract SPE4AX23D9408, same vendor and
+   * same CAGE either side of it:
+   *
+   *     2023-09-12  qty   5  unit 13.73    final     68.65     (5 x 13.73 checks out)
+   *     2024-06-03  qty 100  unit 1373     final 137,300       (100 x 1373 also checks out)
+   *
+   * Both rows are INTERNALLY CONSISTENT, so `checkPriceColumns` passes on each of them and no
+   * arithmetic check can see it. The only tell is the ratio: exactly 100.00x, inside one contract.
+   * A screw assembly that ran 6.98 to 13.73 for eight years at quantities up to 7,911 does not
+   * become an 1,826 part; the decimal point moved.
+   *
+   * What it cost: the dashboard promoted "+18,271% — a cornered part whose price only goes up" as
+   * its headline finding, and the pricing desk recommended 1,822.98 to 1,829.14 PER UNIT with
+   * "WHAT WE SEND $236,987" for 130 units of a part worth about 1,785 in total.
+   *
+   * ★ NARROW BY MEASUREMENT, NOT BY CAUTION. Across all 2,074 stock numbers with two or more
+   * priced awards, a power-of-ten jump appears on 3 (0.14%) and only ONE of those is inside a
+   * single contract. The other two are 9.99x and 9.81x across DIFFERENT contracts — plausibly real
+   * escalation, and deliberately not flagged. A flag that fires on rows nobody should worry about
+   * is worth less than nothing, because an operator learns to ignore it.
+   *
+   * ★★ IT IS A FLAG, NOT A REPAIR. We do not know which side of the shift is true, so nothing is
+   * rescaled and no row is deleted. The surfaces that would otherwise state a number built on it
+   * abstain and say why. Correcting data we cannot verify would be the same defect wearing a
+   * helpful face.
+   */
+  priceScaleSuspect: PriceScaleSuspicion | null
   /** Availability rows for this NSN, from the same export. Listed, not confirmed. */
   holders: AvailabilityRecord[]
 
@@ -610,6 +693,7 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       distinctAwardees,
       firstUnitPrice: priced.length ? (priced[0] as AwardRecord).effectiveUnitPrice : null,
       lastUnitPrice: priced.length ? (priced[priced.length - 1] as AwardRecord).effectiveUnitPrice : null,
+      priceScaleSuspect: detectPriceScaleShift(sorted),
       holders: holdersByNsn.get(nsn) ?? [],
       amc,
       amsc,
@@ -636,6 +720,7 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       distinctAwardees: 0,
       firstUnitPrice: null,
       lastUnitPrice: null,
+      priceScaleSuspect: null,
       holders: holdersByNsn.get(nsn) ?? [],
       amc: sources.find((s) => s.amc)?.amc ?? null,
       amsc: sources.find((s) => s.amsc)?.amsc ?? null,

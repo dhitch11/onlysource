@@ -953,6 +953,16 @@ export type RecommendationCaveatCode =
   | 'INFLATION_FACTORS_ARE_STATED_JUDGEMENTS'
   | 'PEER_BASIS_IS_A_DIFFERENT_ITEM'
   | 'ROW_CONTRADICTS_ITSELF_ON_PRICE_AND_WAS_SET_ASIDE'
+  /**
+   * THE WHOLE AWARD SERIES WAS SET ASIDE because its unit price moves by an exact power of ten
+   * inside a single contract — a decimal shift in the source record, not a change in the world.
+   *
+   * A DIFFERENT CODE from the row-level one above, and not a rewording of it. That one sets aside
+   * ONE row whose own columns disagree; this one sets aside the ENTIRE history because the rows are
+   * each internally consistent and disagree only with each other. No arithmetic check can see it:
+   * 5 x 13.73 = 68.65 and 100 x 1373 = 137,300 both check out.
+   */
+  | 'AWARD_SERIES_HAS_A_DECIMAL_SHIFT_AND_WAS_SET_ASIDE'
   | 'RECOMMENDATION_CROSSES_THE_DLAD_PRICE_INCREASE_BAND'
 
 export type RecommendationCaveat = {

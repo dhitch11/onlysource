@@ -84,8 +84,28 @@ function enrich(
 ): EnrichedCorner {
   const first = award?.firstUnitPrice ?? null
   const last = award?.lastUnitPrice ?? null
+  /*
+   * NO ESCALATION FIGURE OFF A DECIMAL SHIFT.
+   *
+   * `escalationPct` is (last - first) / first on raw unit prices, which is the right arithmetic on
+   * a series that means what it says. It is meaningless on a series where the decimal point moved,
+   * and the dashboard promotes the largest one it can find — so the single most corrupted series in
+   * the corpus is exactly the one it reaches for.
+   *
+   * Measured before this: NSN 5305016205067 produced "+18,271%" and the dashboard headline "a
+   * cornered part whose price only goes up", off a jump from $13.73 to $1373 inside ONE contract.
+   * The part had in fact fallen from $9.94 to $6.98 over eight years at quantities up to 7,911.
+   *
+   * Null rather than zero, and null rather than a rescaled guess. Zero would assert the price did
+   * not move; rescaling would assert we know which side of the shift is true. Neither is known. The
+   * signal that consumes this already requires a non-null escalation, so the effect is that the
+   * dashboard promotes its next genuine finding instead of its most corrupted one.
+   */
+  const scaleSuspect = award?.priceScaleSuspect ?? null
   const escalationPct =
-    first != null && last != null && first > 0 ? Math.round(((last - first) / first) * 100) : null
+    scaleSuspect == null && first != null && last != null && first > 0
+      ? Math.round(((last - first) / first) * 100)
+      : null
   return {
     nsn: row.nsn,
     item: row.nomenclature.trim() || 'unnamed on this line',

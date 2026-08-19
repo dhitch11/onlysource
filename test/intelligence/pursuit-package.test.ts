@@ -87,6 +87,7 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
     distinctAwardees: 1,
     firstUnitPrice: 41.1,
     lastUnitPrice: 65.55,
+    priceScaleSuspect: null,
     holders: [{ nsn: '5325017053574', company: 'DMS AIRCRAFT SERVICES', cage: '1YYB4', quantity: 400 }],
     amc: null,
     amsc: null,

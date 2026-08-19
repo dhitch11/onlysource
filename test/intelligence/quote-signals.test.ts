@@ -54,6 +54,7 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
     distinctAwardees: 1,
     firstUnitPrice: 10,
     lastUnitPrice: 20,
+    priceScaleSuspect: null,
     holders: [],
     amc: null,
     amsc: null,
