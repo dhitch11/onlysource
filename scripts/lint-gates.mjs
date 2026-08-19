@@ -183,6 +183,105 @@ function hits(stripped, re) {
 /* ==================================================================================== */
 
 const RULES = [
+  /*
+   * ==================================================================================
+   * THE ABSENCE RULES. ONE DEFECT CLASS, TEN INSTANCES IN A SINGLE NIGHT.
+   * ==================================================================================
+   * Every one of these was found the expensive way on 2026-08-18/19, by four lanes, and
+   * every one is the same sentence:
+   *
+   *   THE PRODUCT CANNOT TELL THE DIFFERENCE BETWEEN "WE MEASURED, AND THE ANSWER IS NO"
+   *   AND "WE HAVE NOTHING."
+   *
+   * A manifest trusted over the disk, so a missing file read as HELD. A dedupe on the
+   * record, so missing bytes read as ALREADY PRESENT. A capture that stopped at the first
+   * day it found, so a deleted day read as NOT THERE TO FIND. `(map.get(k) ?? 0) === 1`,
+   * so no data read as NOT A CORNER. `Number('')` on the publisher's "-", so an
+   * unpublished month read as A PRICE INDEX OF ZERO. A `REQUEST_SUCCEEDED` carrying an
+   * unread warning, so a truncated answer read as THE WHOLE ANSWER. A ledger written to a
+   * path that does not exist on the server, so writing nowhere read as EXIT 0.
+   *
+   * THE REASON IT KEEPS HAPPENING IS MECHANICAL, NOT HUMAN. The language hands you a
+   * plausible default for free: `undefined ?? 0`, `Number('')` is 0, `.get()` returning
+   * nothing, `.slice()` always succeeding, `.ok` true on a followed redirect, and a
+   * non-empty string being truthy even when the string is the government's own code for
+   * "not assigned". THE WRONG THING IS SHORTER THAN THE RIGHT THING. Care produced ten
+   * catches. Only a gate produces zero instances.
+   */
+  {
+    id: 'absence-read-as-answer',
+    spec: 'R0.1 (an absence is not a measurement)',
+    why:
+      'MEASURED LIVE DEFECT. `soleSource: (approvedSourceCountByNiin.get(niin) ?? 0) === 1` ' +
+      'made a NIIN we hold NO count for indistinguishable from one we counted and found ' +
+      'competed — on the field carrying the corner claim, the assertion the product exists ' +
+      'to make. The repair is already house style in two places: `demandBasis` three lines ' +
+      'away pushes the absence to `gaps` and labels it `none_observed`, and ' +
+      'cornerscore.ts establishes `evidenceState === "measured"` BEFORE letting a `?? 0` ' +
+      'run at all. Read the value once, branch on undefined, and let the surface abstain.',
+    /*
+     * SCOPED TO EQUALITY AND ORDERING AGAINST A SPECIFIC VALUE, DELIBERATELY, and this is
+     * the line that keeps the rule usable. `(x ?? 0) > 0` asks "is there ANY", where an
+     * absence and a zero genuinely mean the same thing to the caller. `(x ?? 0) === 1`
+     * asks "is it EXACTLY one", where they emphatically do not. Flagging the first would
+     * make this rule noisy, and a noisy lint gets disabled, and a disabled lint is worse
+     * than no lint at all.
+     */
+    reads: 'bare',
+    applies: (f) => f.startsWith('lib/') || f.startsWith('app/') || f.startsWith('components/'),
+    test: (t) => hits(t, /\?\?\s*(?:0|''|""|false)\s*\)?\s*(?:===|!==|==(?!=)|>=|<=)/),
+    knownBad: "soleSource: (input.approvedSourceCountByNiin.get(row.NIIN) ?? 0) === 1,",
+    knownGood: [
+      "const count = map.get(niin)\nif (count === undefined) gaps.push('no count for ' + niin)\nconst state = count === undefined ? 'not_measured' : count === 1 ? 'sole' : 'competed'",
+      // "is there ANY" is a different question and stays legal.
+      'if ((award?.holders.length ?? 0) > 0) availCount += 1',
+    ],
+  },
+  {
+    id: 'stated-absence-tested-for-truthiness',
+    spec: 'R0.1 (a publisher’s sentinel is not a value)',
+    why:
+      'MEASURED LIVE DEFECT, and the most expensive of the class. FLIS writes "0" for a ' +
+      'code that has NOT BEEN ASSIGNED (DoD 4100.39-M Vol 10 Ch 4 Table 71: `0 = Not ' +
+      'established.`). `if (amsc)` cannot tell "G" from "0" because a non-empty string is ' +
+      'truthy, so the government’s own way of saying "we have nothing here" was recorded ' +
+      'as a determination: the headline overstated by 19.3% (5,479,581 vs 4,421,718), 25 ' +
+      'data sources qualified as authoritative on nothing but the sentinel, and 150 real ' +
+      'AMC-5 determinations — the highest-margin class in the product — were silently ' +
+      'discarded in a rank tie-break. Test a domain code for what it MEANS, never for ' +
+      'whether the string is empty.',
+    reads: 'bare',
+    applies: (f) => f.startsWith('lib/ingest/') || f.startsWith('scripts/flis/'),
+    test: (t) => hits(t, /\b(?:if\s*\(|\?\s*1\s*:|\?\?)\s*\(?\s*(?:amsc|amc|aac|pica|code)\b\s*\)?\s*(?:\?|\))/i),
+    knownBad: 'if (amsc) stat.withAmsc += 1',
+    knownGood: [
+      "const NOT_ASSIGNED = '0'\nconst isDetermined = (code) => code !== '' && code !== NOT_ASSIGNED\nif (isDetermined(amsc)) stat.withAmsc += 1",
+    ],
+  },
+  {
+    id: 'status-read-without-its-warnings',
+    spec: 'R0.1 (a success carrying an unread warning is not a success)',
+    why:
+      'MEASURED LIVE DEFECT. The BLS API answers `status: "REQUEST_SUCCEEDED"` together ' +
+      'with `message: ["Year range has been reduced to the system-allowed limit of 10 ' +
+      'years."]`, having silently dropped a year. A parser that checked `status` and ' +
+      'discarded `message` reported "129 observations, 129 appended" while missing the ' +
+      'only year that made the figure current. Any code that judges an upstream response ' +
+      'by a status field must also read that response’s warning channel, or state that ' +
+      'it has none.',
+    reads: 'bare',
+    applies: (f) => f.startsWith('lib/') || f.startsWith('scripts/'),
+    test: (t) => {
+      if (!/status\s*(?:===|!==)\s*['"][A-Z][A-Z_]+['"]/.test(t)) return []
+      // Reading the warning channel in any form is the proof. Naming it is enough.
+      if (/\bmessage\b|\bwarnings?\b|\bnotices?\b/i.test(t)) return []
+      return hits(t, /status\s*(?:===|!==)\s*['"][A-Z][A-Z_]+['"]/)
+    },
+    knownBad: "if (payload.status !== 'REQUEST_SUCCEEDED') throw new Error('refused')\nreturn payload.Results.series",
+    knownGood: [
+      "if (payload.status !== 'REQUEST_SUCCEEDED') throw new Error('refused')\nconst warnings = Array.isArray(payload.message) ? payload.message.map(String) : []\nreturn { series: payload.Results.series, warnings }",
+    ],
+  },
   {
     id: 'raw-clock-in-domain',
     spec: 'R0.3',

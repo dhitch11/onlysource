@@ -26,6 +26,11 @@
     "title-attribute-as-information|app/(app)/intelligence/page.tsx": 2,
     "title-attribute-as-information|app/(app)/monopoly/MonopolyGrid.tsx": 2,
     "title-attribute-as-information|app/(app)/sales/PipelineBoard.tsx": 1,
-    "title-attribute-as-information|components/ui/HBars.tsx": 1
+    "title-attribute-as-information|components/ui/HBars.tsx": 1,
+    "absence-read-as-answer|lib/intelligence/pricing/quote-view.ts": {
+      "count": 1,
+      "kind": "EXCEPTION",
+      "reason": "The rule is right in general and wrong here, and the direction is the whole reason. `(earliestSetAside.award.awardDateIso ?? '') <= awardDateIso` defaults an UNDATED set-aside row to sort earliest, which makes `retractsTheEarliestClaim` TRUE and emits the HEDGED sentence ('not necessarily the earliest approved-source award on file') rather than the plain claim. So the absence produces an abstention, not an assertion: fail-safe, and the same instinct the rule exists to enforce. KEPT AS AN EXCEPTION RATHER THAN DELETED BECAUSE THE SAFETY DEPENDS ENTIRELY ON THE COMPARISON DIRECTION. An edit flipping `<=` to `>=` would silently turn a hedge into a false 'this IS the earliest' claim, with no other signal. If that line changes, this exception must be re-argued, not carried."
+    }
   }
 }
