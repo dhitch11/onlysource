@@ -24,6 +24,12 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import { RecommendationPanel } from '@/components/pricing/RecommendationPanel'
 import { QuoteAuditTrail } from '@/components/pricing/QuoteAuditTrail'
 import { ClearingCurve } from '@/components/pricing/ClearingCurve'
+import { MultiplePresets } from '@/components/pricing/MultiplePresets'
+import {
+  AWARD_MULTIPLE_PRESETS,
+  RECOMMENDATION_CONFIG,
+  presetForMultiple,
+} from '@/lib/intelligence/pricing/recommend'
 import { buildPerNsnClearing, clearingCurve } from '@/lib/intelligence/pricing/clearing-curve'
 import { fscOf } from '@/lib/intelligence/pricing/recommend'
 import { buildQuoteView, toDossierAward } from '@/lib/intelligence/pricing'
@@ -79,7 +85,13 @@ const REASON_HELP: Record<string, string> = {
  * top of that sits the AI opportunity brief, which is written only from the same measured dossier
  * this page renders. Nothing here is estimated to fill a gap; an unread leg says it is unread.
  */
-export default async function CornerPage({ params }: { params: Promise<{ nsn: string }> }) {
+export default async function CornerPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ nsn: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   await requireGateSession('/monopoly')
   const { nsn: nsnParam } = await params
   const key = decodeURIComponent(nsnParam).replace(/[^0-9]/g, '')
@@ -190,6 +202,24 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
    */
   const mayReadMargin = callerCan(await readCaller(), 'margin.view')
 
+  /*
+   * ★ THE CHOSEN MULTIPLE IS VALIDATED AGAINST THE PRESET LIST, NEVER TAKEN FROM THE URL.
+   *
+   * This is a security boundary and not only hygiene. A multiple outside the preset list routes
+   * through `measuredRecordSentence`, which is the one place this engine can emit margin-shaped
+   * prose, and margin is gated by `margin.view`. Accepting an arbitrary URL value would let a
+   * caller choose which code path runs. `presetForMultiple` matches BY VALUE, so an unknown
+   * number falls back to the product default rather than reaching the engine.
+   */
+  const rawMultiple = (await searchParams).m
+  const askedFor = Number(Array.isArray(rawMultiple) ? rawMultiple[0] : rawMultiple)
+  const chosenPreset = Number.isFinite(askedFor) ? presetForMultiple(askedFor) : null
+  const activeMultiple = chosenPreset?.value ?? RECOMMENDATION_CONFIG.awardMultiple
+  const pricingConfigForRow =
+    chosenPreset === null
+      ? RECOMMENDATION_CONFIG
+      : { ...RECOMMENDATION_CONFIG, awardMultiple: chosenPreset.value }
+
   const seriesLedger = await readSeriesLedger()
   const liveIndices = resolveLiveIndexConfig(seriesLedger, seriesVintageAsOf(nowMs))
 
@@ -215,6 +245,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
     classifier: liveClassifierOrNull(),
     indices: liveIndices.config,
     mayReadMargin,
+    config: pricingConfigForRow,
   })
 
   /*
@@ -398,6 +429,12 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
         The product deliberately stops short of naming the best bid, because that depends on the
         operator's cost and nothing here holds one.
       */}
+      <MultiplePresets
+        presets={AWARD_MULTIPLE_PRESETS}
+        active={activeMultiple}
+        basePath={`/corner/${encodeURIComponent(key)}`}
+      />
+
       {clearing !== null && recommendation.resolved ? (
         <ClearingCurve curve={clearing} recommendedMultiple={recommendation.awardMultiple} />
       ) : null}

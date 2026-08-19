@@ -23,6 +23,7 @@ import {
   type PeerLookup,
   type PriceRecommendation,
   type PricedPeer,
+  type RecommendationConfig,
   type SurplusStance,
 } from './recommend'
 
@@ -141,6 +142,8 @@ export type CornerRecommendationArgs = {
    * forgets to resolve the permission must not be the one that leaks.
    */
   readonly mayReadMargin?: boolean
+  /** The operator's chosen multiple, already validated against the preset list by the caller. */
+  readonly config?: RecommendationConfig
 }
 
 /**
@@ -169,6 +172,7 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
     peerLookup: args.peerLookup ? excludeSubject(args.peerLookup, args.nsn) : null,
     indices: args.indices,
     mayReadMargin: args.mayReadMargin ?? false,
+    config: args.config,
     declarations: args.declarations,
   })
 }
