@@ -344,11 +344,27 @@ export default function Thomas({ operator }: { operator?: string }) {
     const sync = () => {
       frame = 0
       const r = el.getBoundingClientRect()
-      const current = Number(el.dataset.dy || '0')
-      // Always reason about the UNLIFTED box, so the state is a pure function of the scroll
-      // offset. Measuring where it currently sits would unlift the moment the lift worked,
-      // collide again, and oscillate forever.
-      const base = { left: r.left, width: r.width, top: r.top + current, bottom: r.bottom + current }
+      /*
+       * ★ THE BASE BOX COMES FROM THE APPLIED TRANSFORM, NOT FROM THE TARGET OFFSET.
+       *
+       * `transform` is transitioned, so `getBoundingClientRect()` returns the INTERPOLATED
+       * position mid-animation while `dataset.dy` already holds the final one. Adding the target
+       * to an in-flight rect puts the base box wherever the animation happens to have got to, so
+       * the same scroll offset gave different answers depending on which direction the launcher
+       * was travelling from - a history dependence in something documented as a pure function of
+       * scroll offset. @GAP-AUDIT reproduced it: arriving at 3074 from 0 left it unlifted and
+       * arriving from 1000 lifted it, five runs, same offset.
+       *
+       * Reading the matrix gives the translation ACTUALLY applied at this instant, whatever the
+       * transition is doing, so subtracting it always recovers the true layout box.
+       */
+      const applied = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+      const base = {
+        left: r.left - applied.m41,
+        width: r.width,
+        top: r.top - applied.m42,
+        bottom: r.bottom - applied.m42,
+      }
       const step = r.height + 12
       let best = 0
       let bestCost = Infinity
