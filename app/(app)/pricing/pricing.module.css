@@ -1,0 +1,301 @@
+/* ---------------------------------------------------------------------------------------
+ * /pricing. Owner: @PRICE-SURFACE.
+ *
+ * The one rule that is structural rather than decorative: a BAND and a POINT must be
+ * distinguishable at a glance, from across a desk, without reading either number. So a band
+ * is drawn as a SPAN (two endpoints with a rule between them) and a point is drawn as a
+ * single figure. The shape carries the meaning before any text does.
+ * ------------------------------------------------------------------------------------- */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-bottom: var(--sp-7);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-100);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.h1 {
+  font-size: var(--fs-700);
+  font-weight: 700;
+  line-height: var(--lh-700);
+  color: var(--ink);
+}
+.lede {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  max-width: 78ch;
+}
+
+/* ------------------------------------------------------------------- the register */
+.register {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.registerTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.bound {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  color: var(--ink);
+}
+.boundNum {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+}
+.registerNote {
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  max-width: 82ch;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--sp-4);
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  min-width: 0;
+}
+.tileValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-600);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.tileLabel {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+}
+
+/* ------------------------------------------------------------------ the ladder key */
+.ladder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.ladderTitle {
+  font-size: var(--fs-200);
+  font-family: var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.rungRow {
+  display: grid;
+  grid-template-columns: 7ch minmax(0, 1fr) 9ch 8ch;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-block-start: 1px solid var(--line);
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+}
+.rungId {
+  font-family: var(--font-mono);
+  color: var(--faint);
+}
+.rungLabel {
+  color: var(--ink);
+  min-width: 0;
+}
+.rungCount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  color: var(--ink);
+}
+.rungPct {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  color: var(--dim);
+}
+/* The bar is a width, so a reader sees the shape of the ladder without reading five numbers. */
+.rungBarWrap {
+  grid-column: 1 / -1;
+  block-size: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.rungBar {
+  block-size: 100%;
+  background: var(--accent-2);
+  border-radius: 2px;
+}
+.rungBar[data-weakest='true'] {
+  background: var(--faint);
+}
+
+/* -------------------------------------------------------------------- figure cells */
+.figCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.fig {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* A POINT: one figure, brass, nothing beside it. */
+.figPoint {
+  font-family: var(--font-mono);
+  font-size: var(--fs-500);
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+/* A BAND: two endpoints and a drawn rule. Never a midpoint, never rounded into one number. */
+.figBand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.figEnd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-400);
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.figRule {
+  flex: 1 1 1.5rem;
+  min-inline-size: 1.5rem;
+  block-size: 2px;
+  background: var(--accent-2);
+  border-radius: 1px;
+}
+.figJoin {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+.figUnit {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  line-height: var(--lh-100);
+}
+.arith {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: var(--lh-100);
+  overflow-wrap: anywhere;
+}
+
+.basisCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  align-items: flex-start;
+  min-width: 0;
+}
+.basisLabel {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  line-height: var(--lh-100);
+}
+
+.evidenceCell,
+.flagCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.faint {
+  font-size: var(--fs-100);
+  color: var(--faint);
+}
+
+.nsnLink {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--line-2);
+}
+.nsnLink:hover {
+  color: var(--accent);
+}
+.nsnLink:focus-visible {
+  outline: var(--focus, 2px solid var(--accent));
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------- unavailable */
+.unavailable {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.unavailableTitle {
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+}
+.unavailable p {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  max-width: 78ch;
+}
+
+@media (max-width: 40rem) {
+  .register {
+    padding: var(--sp-4);
+  }
+  /* At 320px a four-column key wraps into unreadable slivers, so the label takes its own line. */
+  .rungRow {
+    grid-template-columns: 7ch 1fr 8ch;
+  }
+  .rungLabel {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .rungPct {
+    display: none;
+  }
+}

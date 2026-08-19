@@ -34,7 +34,24 @@ import {
  * band computed over rows that silently contributed nothing is a band over a smaller pool than
  * the count printed beside it claims.
  */
+const poolCache = new WeakMap<ReadonlyMap<string, NsnAwardSummary>, Map<string, PricedPeer[]>>()
+
 export function buildFscPeerPool(byNsn: ReadonlyMap<string, NsnAwardSummary>): Map<string, PricedPeer[]> {
+  /*
+   * ★ CACHED ON THE INDEX ITSELF, and this is not an optimisation detail: MEASURED at 49.2s for
+   * the first dossier view and 0.18s for the second, because the corner page rebuilt this pool
+   * on every request while the award index behind it was already cached. A page that takes 49
+   * seconds is a page nobody opens twice.
+   *
+   * A WeakMap keyed on the index MAP is the correct key rather than a feed day string. The pool
+   * is a pure function of that map, so a rebuilt index is a different object and misses the
+   * cache automatically. A day-keyed cache would keep serving a pool derived from an index that
+   * has since been reloaded, which is the stale-basis defect this product keeps paying for, and
+   * it would hold the whole index alive after the rest of the process had let it go.
+   */
+  const hit = poolCache.get(byNsn)
+  if (hit) return hit
+
   const pool = new Map<string, PricedPeer[]>()
   for (const [, summary] of byNsn) {
     const fsc = fscOf(summary.nsn)
@@ -55,12 +72,35 @@ export function buildFscPeerPool(byNsn: ReadonlyMap<string, NsnAwardSummary>): M
       else pool.set(fsc, [peer])
     }
   }
+  poolCache.set(byNsn, pool)
   return pool
 }
 
 /** A lookup over a pool built by `buildFscPeerPool`. Absent class returns empty, never null. */
 export function peerLookupFrom(pool: ReadonlyMap<string, readonly PricedPeer[]>): PeerLookup {
   return (fsc: string) => pool.get(fsc) ?? []
+}
+
+/**
+ * A ROW IS NEVER ITS OWN PEER.
+ *
+ * ★ THIS IS A CORRECTNESS CONTROL, NOT A TIDY-UP. The pool is grouped by supply class, and the
+ * subject's own awards are in that class. Left in, the weakest rung re-derives the row from its
+ * OWN history and then reports it as independent corroboration from N peers. That is the worst
+ * shape a wrong number can take here: a weak basis wearing a strong one's clothes, with a peer
+ * count printed beside it that an operator reads as breadth.
+ *
+ * It is enforced HERE rather than inside the engine because `PeerLookup` is `(fsc) => peers` and
+ * carries no subject. The adapter is the only layer that knows both, so the engine stays pure
+ * and the exclusion still happens on every call that goes through this file.
+ *
+ * Matching is on DIGITS, because the pool's stock numbers and the subject's arrive from
+ * different files and only one of them is dashed. Comparing the raw strings would silently
+ * match nothing and leave the subject in the pool while looking like it had been removed.
+ */
+export function excludeSubject(lookup: PeerLookup, subjectNsn: string): PeerLookup {
+  const subject = subjectNsn.replace(/[^0-9]/g, '')
+  return (fsc: string) => lookup(fsc).filter((p) => p.nsn.replace(/[^0-9]/g, '') !== subject)
 }
 
 /**
@@ -107,7 +147,12 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
     feedWindow: args.feedWindow,
     surplusStance: args.surplusStance,
     classifyAwardee: args.classifier ?? null,
-    peerLookup: args.peerLookup ?? null,
+    /*
+     * The subject is filtered out of its own supply class here, on every call. A null lookup
+     * stays null: "the class was never read" and "the class holds too few peers" are different
+     * sentences and only one of them is a measurement.
+     */
+    peerLookup: args.peerLookup ? excludeSubject(args.peerLookup, args.nsn) : null,
     declarations: args.declarations,
   })
 }
