@@ -46,8 +46,19 @@ export default async function WorkspacePage() {
   const fire = nextDailyFireFrom(systemClock)
   const disclosure = deadlineDisclosure(fire.instantMs)
 
-  // Live command-center metrics. Computed from the real data on disk; when the data directory is
-  // absent every figure abstains rather than showing a fabricated zero.
+  /*
+   * Live command-center metrics. Computed from the real data on disk.
+   *
+   * ★ THIS COMMENT USED TO CLAIM MORE THAN THE CODE DID. It said "when the data directory is
+   * absent every figure abstains rather than showing a fabricated zero", and that was true only
+   * for `present === false`. A MOUNTED data root holding a missing or truncated NSN-Now export
+   * left each index returning {ok:false, reason} while three tiles rendered `0` — "NSNs on the
+   * DLA Forecast", "NSNs with award history", "Tier A distressed suppliers" — as measured facts,
+   * beside a sourceDetail naming real workbooks. The reason string was available at every one of
+   * those render sites and was discarded.
+   *
+   * Now the absent DIRECTORY and the failed INDEX abstain alike, and each says which it was.
+   */
   const present = resolveDataRoot().present
   const cm = present ? buildAllDatasets().cornerMap.summary : null
   // The NEWEST archived capture. It is a claim about CURRENCY (how fresh the data is) and it
@@ -219,29 +230,43 @@ export default async function WorkspacePage() {
           sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · ${feedNote}`,
         },
         {
-          n: (fcIx?.ok ? fcIx.counts.onForecastNsns : 0).toLocaleString(),
+          /*
+           * ★ A FAILED INDEX IS NOT A MEASURED ZERO. `fcIx` returns {ok:false, reason} — "No
+           * NSN-Now export directory on disk", "the directory holds no .xlsx export yet" — and
+           * this tile printed `0` for it, beside a sourceDetail naming real workbooks. A mounted
+           * data root with a missing or truncated export rendered "0 NSNs on the DLA Forecast" as
+           * a fact about the government. The reason string existed the whole time and was thrown
+           * away at the render site.
+           */
+          n: fcIx?.ok ? fcIx.counts.onForecastNsns.toLocaleString() : '—',
           label: 'NSNs on the DLA Forecast',
           hint: 'the government will buy these again',
           href: '/monopoly',
           helpId: 'monopoly.forecast_nsns',
-          sourceDetail: `Counted from the DLA Forecast sheets of ${nsnNowNote} · ${feedNote}`,
+          sourceDetail: fcIx?.ok
+            ? `Counted from the DLA Forecast sheets of ${nsnNowNote} · ${feedNote}`
+            : `Not counted: ${fcIx?.reason ?? 'the forecast index did not load'}`,
         },
         {
-          n: (awardIx?.ok ? awardIx.counts.nsnsWithAwards : 0).toLocaleString(),
+          n: awardIx?.ok ? awardIx.counts.nsnsWithAwards.toLocaleString() : '—',
           label: 'NSNs with award history',
           hint: 'real prices and ten-year trends',
           href: '/monopoly',
           helpId: 'monopoly.award_history_nsns',
-          sourceDetail: `Counted from the procurement history sheets of ${nsnNowNote} · ${feedNote}`,
+          sourceDetail: awardIx?.ok
+            ? `Counted from the procurement history sheets of ${nsnNowNote} · ${feedNote}`
+            : `Not counted: ${awardIx?.reason ?? 'the award index did not load'}`,
         },
         {
-          n: (supIx?.ok ? supIx.counts.tierA : 0).toLocaleString(),
+          n: supIx?.ok ? supIx.counts.tierA.toLocaleString() : '—',
           label: 'Tier A distressed suppliers',
           hint: 'dead inventory, verified contacts',
           href: '/suppliers',
           hot: true,
           helpId: 'monopoly.distressed_tier_a',
-          sourceDetail: `Counted from ${supIx?.ok ? supIx.provenance.map((p) => base(p.path)).join(' + ') : 'the researched workbook'} · ${feedNote}`,
+          sourceDetail: supIx?.ok
+            ? `Counted from ${supIx.provenance.map((p) => base(p.path)).join(' + ')} · ${feedNote}`
+            : `Not counted: ${supIx?.reason ?? 'the supplier index did not load'}`,
         },
       ]
     : []

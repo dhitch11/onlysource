@@ -165,6 +165,22 @@ export type MonopolyView = {
   forecastCount: number
   /** Candidate corners with at least one self-reported holder listing stock. */
   availCount: number
+  /**
+   * ★ THE TWO SILENCES, SPLIT, BECAUSE THE TRUTH STRIP WAS MERGING THEM.
+   *
+   * `availCount` counts candidates with at least one listing. Everything else was described as
+   * "marked absent", which claims we looked. Measured on the live workspace: of 243 candidate
+   * corners, 19 show a listing, 49 have an award row and zero holders — a real checked absence —
+   * and 175 have NO award row at all, so nothing was ever read for them. 175 of the 224 "absent"
+   * were never asked about.
+   *
+   * `MonopolyGrid` already draws this distinction per row, returning `unknown / not read: no
+   * availability feed connected` when there is no award row. The strip above it was contradicting
+   * the grid below it on the same data.
+   */
+  availAbsentCount: number
+  /** Candidates with no award row at all: availability was never read for them. */
+  availUnreadCount: number
 }
 
 const viewCache = new Map<string, MonopolyView>()
@@ -198,6 +214,8 @@ export function buildMonopolyView(): MonopolyView {
   let candidatePricedCount = 0
   let forecastCount = 0
   let availCount = 0
+  let availAbsentCount = 0
+  let availUnreadCount = 0
 
   /*
    * WAYNE'S LEAD SIGNAL, ACTUALLY FED.
@@ -226,7 +244,13 @@ export function buildMonopolyView(): MonopolyView {
     if (isCandidate) {
       if (priced) candidatePricedCount += 1
       if (forecast?.onForecast) forecastCount += 1
-      if ((award?.holders.length ?? 0) > 0) availCount += 1
+      /*
+        * Three outcomes, never two. `award == null` means no row was ever read for this stock
+        * number; an award row with no holders means the feed was read and listed nobody.
+        */
+      if (award == null) availUnreadCount += 1
+      else if (award.holders.length > 0) availCount += 1
+      else availAbsentCount += 1
     }
     /*
      * The LAST supplier is the one Wayne's rubric asks about, so the verdict is looked up on the
@@ -269,6 +293,8 @@ export function buildMonopolyView(): MonopolyView {
     candidatePricedCount,
     forecastCount,
     availCount,
+    availAbsentCount,
+    availUnreadCount,
   }
 
   // One view per archive state, not one per day the process has been up: the key ends in the

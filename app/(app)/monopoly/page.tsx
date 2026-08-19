@@ -145,7 +145,7 @@ export default async function MonopolyPage() {
   // counted in monopoly-view over every served row; `enriched` is now the bounded slice that
   // crosses the wire, so printing its length beside that count would have divided a whole-map
   // numerator by a page-sized denominator and overstated coverage roughly tenfold.
-  const { pricedCount, candidatePricedCount, forecastCount, availCount } = view;
+  const { pricedCount, candidatePricedCount, forecastCount, availCount, availAbsentCount, availUnreadCount } = view;
   const servedRowCount = view.rows.length;
   const awardsJoined = view.awardsJoined;
   const forecastJoined = view.forecastJoined;
@@ -307,8 +307,10 @@ export default async function MonopolyPage() {
             files here. For the third, the NSN-Now export lists who <b>self-reports</b> stock:{" "}
             {awardsJoined ? (
               <>
-                <b>{availCount.toLocaleString()}</b> of these candidate corners show a listing and
-                the rest are marked absent.
+                <b>{availCount.toLocaleString()}</b> of these candidate corners show a listing,{" "}
+                <b>{availAbsentCount.toLocaleString()}</b> were read and list nobody, and{" "}
+                <b>{availUnreadCount.toLocaleString()}</b> have no availability row at all, so
+                nothing has been read for them.
               </>
             ) : (
               "no listing is loaded yet."
