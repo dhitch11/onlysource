@@ -68,6 +68,11 @@
       "heading": null,
       "bytes": 23
     },
+    "/pricing": {
+      "status": 307,
+      "heading": null,
+      "bytes": 22
+    },
     "/sales": {
       "status": 307,
       "heading": null,
@@ -88,37 +93,37 @@
     "/": {
       "status": 200,
       "heading": "The market, mapped and ranked by money.",
-      "bytes": 95399
+      "bytes": 96689
     },
     "/admin": {
       "status": 200,
       "heading": "Admin & Users",
-      "bytes": 77029
+      "bytes": 78651
     },
     "/board": {
       "status": 200,
       "heading": "The Board",
-      "bytes": 4638607
+      "bytes": 4639897
     },
     "/competitor": {
       "status": 200,
-      "heading": null,
-      "bytes": 518639
+      "heading": "RURAL ROUTE 2, LLC",
+      "bytes": 519929
     },
     "/corner/[nsn]": {
       "status": 200,
-      "heading": null,
-      "bytes": 72605
+      "heading": "1005-01-731-7348",
+      "bytes": 93045
     },
     "/design": {
       "status": 200,
       "heading": "Design system",
-      "bytes": 92899
+      "bytes": 94521
     },
     "/documents": {
       "status": 200,
       "heading": "Documents and POs",
-      "bytes": 93613
+      "bytes": 94395
     },
     "/enter": {
       "status": 307,
@@ -128,42 +133,47 @@
     "/goldmine": {
       "status": 200,
       "heading": "No-Quote Goldmine",
-      "bytes": 381835
+      "bytes": 383457
     },
     "/groups": {
       "status": 200,
       "heading": "Supply Groups",
-      "bytes": 868500
+      "bytes": 869790
     },
     "/hubzone": {
       "status": 200,
       "heading": "HUBZone set-asides",
-      "bytes": 107993
+      "bytes": 109615
     },
     "/intelligence": {
       "status": 200,
       "heading": "Where the money is",
-      "bytes": 128215
+      "bytes": 129505
     },
     "/monopoly": {
       "status": 200,
       "heading": "Monopoly Map",
-      "bytes": 3820687
+      "bytes": 3821977
+    },
+    "/pricing": {
+      "status": 200,
+      "heading": "Recommended quotes",
+      "bytes": 5453717
     },
     "/sales": {
       "status": 200,
       "heading": "Pipeline",
-      "bytes": 61188
+      "bytes": 62478
     },
     "/settings": {
       "status": 200,
       "heading": "Alerts & notifications",
-      "bytes": 53520
+      "bytes": 54810
     },
     "/suppliers": {
       "status": 200,
       "heading": "Distressed Suppliers",
-      "bytes": 8026315
+      "bytes": 8027605
     }
   },
   "notes": {
