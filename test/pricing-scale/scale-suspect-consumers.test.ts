@@ -32,6 +32,47 @@ const REVIEWED: Record<string, string> = {
   'app/(app)/monopoly/MonopolyGrid.tsx': 'renders via isRisingPrice on a view that excludes suspects',
 }
 
+/*
+ * ★ THE SECOND FIELD FAMILY, ADDED AFTER THE FIRST GATE SHIPPED AND WAS NOT ENOUGH.
+ *
+ * The first version of this gate covered `firstUnitPrice`/`lastUnitPrice` and went to production
+ * green. Reading the live page afterwards: the ramp headline was gone, the recommendation had
+ * dropped from $1,832 to a peer band, and the page still said "Modeled buy value $237,387.80"
+ * because THAT figure is 130 x `latest.effectiveUnitPrice`, a different field the gate never
+ * looked at. Same wrong number, different road, past a gate written to stop exactly it.
+ *
+ * A gate is only as wide as the field list somebody thought of, so the list is now two families
+ * and the lesson is recorded here rather than in a commit message nobody re-reads.
+ */
+const LATEST_PRICE_REVIEWED: Record<string, string> = {
+  'lib/intelligence/awards/nsn-now.ts': 'the source: builds `latest` and the suspicion itself',
+  'lib/intelligence/brief/package.ts': 'modeledBuyValue abstains with its own sentence, not the absent one',
+  'lib/intelligence/scoring/cornerscore.ts': 'the whole pricing leg is unavailable(), anchor and trend',
+  'lib/intelligence/monopoly-view.ts': 'latestPrice withheld; the priced filter excludes suspects',
+  'lib/intelligence/suppliers/outreach-dossier.ts': 'no price quoted to a supplier off a suspect series',
+  'app/(app)/documents/prefill-source.ts': 'unit_price withheld from the deliverable, award identity kept',
+  'app/(app)/corner/[nsn]/page.tsx': 'the deal is created honestly valueless',
+  'lib/compliance/deliverables/prefill.ts': 'carries price_withheld_reason so the abstention says which state it is',
+}
+
+describe('every reader of the LATEST award price has been reviewed', () => {
+  it('has no unreviewed consumer', () => {
+    const out = execFileSync(
+      'git',
+      ['grep', '-l', '-E', 'latest\\??\\.effectiveUnitPrice|price_withheld_reason', '--', 'lib', 'app', 'components'],
+      { encoding: 'utf8' },
+    )
+    const found = out.split('\n').map((l) => l.trim()).filter(Boolean)
+    expect(found.length, 'the grep found nothing, so this gate is not gating').toBeGreaterThan(3)
+    const unreviewed = found.filter((f) => !(f in LATEST_PRICE_REVIEWED))
+    expect(
+      unreviewed,
+      'a new reader of the latest award price appeared. This is the family that reached production ' +
+        'once already. Decide what it does when the series carries a decimal shift, then list it.',
+    ).toEqual([])
+  })
+})
+
 describe('every reader of the price endpoints has been reviewed against the decimal shift', () => {
   it('has no unreviewed consumer', () => {
     const out = execFileSync(

@@ -229,7 +229,16 @@ export function resolvePrefill(request: PrefillRequest): PrefillResolution {
       if (summary !== null) {
         if (summary.latest !== null) {
           latestAward = {
-            unit_price: summary.latest.effectiveUnitPrice,
+            /*
+             * ★ NO PRICE ANCHOR OUT OF A SERIES WITH A DECIMAL SHIFT. This one carries the price
+             * into a DELIVERABLE the operator sends, labelled "the LAST PRICE THE GOVERNMENT PAID",
+             * which is the highest-consequence read of this field anywhere in the product.
+             *
+             * The award's identity is kept - who won it and when are facts, and suppressing them
+             * would hide the award that needs looking at. Only the number is withheld.
+             */
+            unit_price: summary.priceScaleSuspect ? null : summary.latest.effectiveUnitPrice,
+            price_withheld_reason: summary.priceScaleSuspect?.sentence ?? null,
             award_date_iso: summary.latest.awardDateIso,
             company: summary.latest.company,
             cage: summary.latest.cage,

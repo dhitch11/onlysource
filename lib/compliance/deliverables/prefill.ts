@@ -116,6 +116,14 @@ export type PrefillEvidence = {
   } | null
   readonly latest_award: {
     readonly unit_price: number | null
+    /**
+     * Why `unit_price` is null even though an award exists, or null when it is not withheld.
+     *
+     * SEPARATE FROM `unit_price: null` because the two states are different and the abstention
+     * the operator reads has to say which one it is: "we have no award price" sends them looking
+     * for data, "we have one and measured a problem in it" tells them to look at the award.
+     */
+    readonly price_withheld_reason?: string | null
     readonly award_date_iso: string | null
     readonly company: string | null
     readonly cage: string | null
@@ -368,8 +376,10 @@ export function buildPrefill(e: PrefillEvidence): Prefill {
     abstentions.push({
       field: 'unit_price',
       reason:
-        'No award with a usable unit price is on record for this stock number, so the price field was ' +
-        'left empty. There is no anchor to carry and none was invented.',
+        award?.price_withheld_reason
+          ? `The price field was left empty and no anchor was carried. ${award.price_withheld_reason}`
+          : 'No award with a usable unit price is on record for this stock number, so the price field was ' +
+            'left empty. There is no anchor to carry and none was invented.',
     })
   }
 

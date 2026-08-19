@@ -140,7 +140,8 @@ export function buildOutreachDossier(nsnRaw: string): OutreachDossierResult {
       lastAward: latest
         ? {
             dateIso: latest.awardDateIso,
-            unitPriceUsd: latest.effectiveUnitPrice,
+            // never quote a price out of a series with a decimal shift, least of all to a supplier
+            unitPriceUsd: summary?.priceScaleSuspect ? null : latest.effectiveUnitPrice,
             company: latest.company,
             cage: latest.cage,
           }

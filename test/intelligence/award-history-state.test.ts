@@ -32,7 +32,17 @@ describe.skipIf(!haveExport)('award history state, on the real export', () => {
     const built = buildNsnAwardIndex()
     if (!built.ok) throw new Error(`the export did not load: ${built.reason}`)
     ix = built
-  }, 60_000)
+    /*
+     * 180s, raised from 60s on 2026-08-19 after this hook timed out in the full suite while the
+     * same build costs ~5s alone.
+     *
+     * ★ IT IS A HANG GUARD, NOT A PERFORMANCE BUDGET, which is the reasoning vitest.config.mts
+     * already records for the heavy project's 30s. This file cannot JOIN that project: it calls
+     * `resetNsnAwardIndexCache()`, and that project runs `isolate: false` specifically so its
+     * files SHARE one parsed index. Moving it there would have it throw away the shared parse the
+     * other files depend on, converting a slow test into several slow tests.
+     */
+  }, 180_000)
 
   it('★ separates the two silences, and they reconcile to the whole index', () => {
     const tally: Record<string, number> = {}

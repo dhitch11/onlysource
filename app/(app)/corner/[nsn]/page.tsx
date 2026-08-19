@@ -154,7 +154,14 @@ export default async function CornerPage({
   // THE PURSUIT WIRE: the dossier's primary action. The modeled buy value is quantity x the
   // latest measured award unit price, only when both are on record; otherwise the deal is
   // created honestly valueless. Pursued state reads from the real store on every visit.
-  const latestUnit = award?.latest?.effectiveUnitPrice ?? null
+  /*
+   * ★ A SERIES WITH A DECIMAL SHIFT VALUES NOTHING. `latest.effectiveUnitPrice` is a different
+   * field from the first/last endpoints and survived the first pass of this fix: this line was
+   * still valuing the deal at 130 x $1,826.06 after the ramp headline and the recommendation had
+   * both been corrected. The deal is created honestly valueless instead, which is the state this
+   * page already has a design for.
+   */
+  const latestUnit = award?.priceScaleSuspect ? null : (award?.latest?.effectiveUnitPrice ?? null)
   const modeledBuyValue =
     row.quantity != null && latestUnit != null && latestUnit > 0 ? row.quantity * latestUnit : null
   const alreadyPursued = findDealByRef(row.nsn) != null

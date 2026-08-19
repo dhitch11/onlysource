@@ -169,28 +169,34 @@ export function scoreCorner(
 
   // ---- PRICE ANCHOR (m): MEASURED where we have award history; the rent signal is escalation. ----
   let priceAnchor: Leg<number>;
-  if (award?.latest?.effectiveUnitPrice != null) {
+  if (award?.priceScaleSuspect) {
+    /*
+     * THE WHOLE PRICING LEG ABSTAINS ON A SERIES WITH A DECIMAL SHIFT, ANCHOR AND TREND BOTH.
+     *
+     * The trend was the loud half: an 18,271% ramp cleared `min(15, pct / 10)` outright, so the
+     * one stock number whose trend is an artifact collected the maximum trend contribution the
+     * score can award. The anchor is the quiet half and matters just as much, because
+     * `measured(last, 0.8, ...)` would have anchored the leg to $1,826.06 and printed it as the
+     * last award, which is a measured-looking number sitting on the wrong side of the shift.
+     *
+     * `unavailable` and not a zero: a zero is a score, and this is a refusal to score.
+     */
+    priceAnchor = unavailable("the award series carries a decimal shift, so no price could be trusted");
+    reasons.push({
+      leg: "priceAnchor",
+      facet: "trend",
+      plain: `price trend not scored: ${award.priceScaleSuspect.sentence}`,
+      points: 0,
+      calibration: "measured",
+    });
+    dataGaps.push(
+      "the award series for this stock number changes scale by a factor of ten inside one contract, so the pricing leg abstains",
+    );
+  } else if (award?.latest?.effectiveUnitPrice != null) {
     const last = award.latest.effectiveUnitPrice;
     const first = award.firstUnitPrice;
     priceAnchor = measured(last, 0.8, `last award ${fmt(last)}`);
-    if (award.priceScaleSuspect) {
-      /*
-       * NO TREND POINTS FROM A SERIES WITH A DECIMAL SHIFT IN IT. Unbounded by the cap: the raw
-       * ramp here was 18,271%, so `min(15, pct/10)` awarded the FULL 15 points and the reason line
-       * read "unit price rose 18,271% over the award history". That is the score's strongest single
-       * trend contribution, handed to the one stock number whose trend is an artifact.
-       *
-       * The reason is still pushed, at zero points, because a leg that silently contributes nothing
-       * is indistinguishable from a leg that was never evaluated.
-       */
-      reasons.push({
-        leg: "priceAnchor",
-        facet: "trend",
-        plain: `price trend not scored: ${award.priceScaleSuspect.sentence}`,
-        points: 0,
-        calibration: "measured",
-      });
-    } else if (first != null && last > first) {
+    if (first != null && last > first) {
       const pct = Math.round(((last - first) / first) * 100);
       // Escalation to a single source is the rent signal Wayne prices off. Bounded contribution.
       const pts = Math.min(15, Math.round(pct / 10));

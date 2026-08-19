@@ -241,14 +241,36 @@ export function buildPursuitPackage(args: {
 
   // ---- economics: quantity x the last recorded award unit price, or an honest null ----
   const quantity = row.quantity
-  const lastUnit = award?.latest?.effectiveUnitPrice ?? null
-  const lastDate = award?.latest?.awardDateIso ?? null
+  /*
+   * ★ THE LAST AWARD PRICE IS NOT A BASIS WHEN THE SERIES CONTAINS A DECIMAL SHIFT.
+   *
+   * `latest.effectiveUnitPrice` is a DIFFERENT FIELD from the first/last endpoints, which is
+   * exactly why it survived the first pass of this fix and reached production. Measured on the
+   * live page after that deploy: the ramp headline was gone, the recommendation had dropped from
+   * $1,832 to a peer band, and this line was still multiplying 130 units by $1,826.06 and printing
+   * "Modeled buy value $237,387.80" - the same wrong number, arrived at down a different road.
+   *
+   * It abstains rather than substituting an earlier award, because choosing the pre-shift price
+   * would be deciding which side of the shift is real.
+   */
+  const scaleSuspect = award?.priceScaleSuspect ?? null
+  const lastUnit = scaleSuspect ? null : (award?.latest?.effectiveUnitPrice ?? null)
+  const lastDate = scaleSuspect ? null : (award?.latest?.awardDateIso ?? null)
   const modeled =
     quantity != null && lastUnit != null && lastUnit > 0
       ? Math.round(quantity * lastUnit * 100) / 100
       : null
-  const basis =
-    modeled != null
+  const basis = scaleSuspect
+    ? /*
+       * ITS OWN SENTENCE, NOT THE "no award unit price is on record" ONE BELOW. There IS a price
+       * on record; it cannot be trusted. Letting those two share a sentence is the defect this
+       * product has paid for repeatedly: an operator reading "nothing on record" goes looking for
+       * data, while the truth is that we have it and measured a problem in it.
+       */
+      `No modeled value: ${scaleSuspect.sentence} The requirement quantity is ` +
+      `${quantity != null ? quantity.toLocaleString('en-US') : 'not on record'}, and no unit price ` +
+      'from this series is multiplied by it.'
+    : modeled != null
       ? `Modeled buy value $${usd(modeled)} = ${quantity?.toLocaleString('en-US')} units x $${usd(lastUnit as number)}, ` +
         `the last recorded award unit price${lastDate ? ` (${lastDate})` : ''}. ` +
         'A model of the size of the buy, not a quote and not a promise.'

@@ -81,7 +81,19 @@ describe('the memoized monopoly view over the real files', () => {
       const award = awardBy?.get(digits) ?? null
       const forecast = fcBy?.get(digits) ?? null
       const isCandidate = r.soleSource && r.silentSourceCount > 0
-      if (award?.latest?.effectiveUnitPrice != null) {
+      /*
+       * `!priceScaleSuspect` matches the view, deliberately and not to make this pass.
+       *
+       * "Priced" here is a COVERAGE claim - how many corners we hold a usable price for - and a
+       * series whose unit price jumps by an exact power of ten inside one contract is not one we
+       * hold a usable price for. The view withholds `latestPrice` on those rows, so counting them
+       * as priced would claim coverage for a cell the grid renders empty.
+       *
+       * It moves the count by exactly 1 of 1,050 today. The reason to keep the two sides in step
+       * is not the magnitude, it is that this assertion exists to catch the view drifting from the
+       * builders, and a recompute that quietly uses a different rule cannot do that.
+       */
+      if (award?.latest?.effectiveUnitPrice != null && !award.priceScaleSuspect) {
         priced += 1
         if (isCandidate) candidatePriced += 1
       }

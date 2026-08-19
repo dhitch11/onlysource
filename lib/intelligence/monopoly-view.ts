@@ -93,7 +93,8 @@ function slimAward(a: NsnAwardSummary | null): GridAward | null {
     distinctAwardees: a.distinctAwardees,
     firstUnitPrice: a.firstUnitPrice,
     lastUnitPrice: a.lastUnitPrice,
-    latestPrice: a.latest?.effectiveUnitPrice ?? null,
+    // withheld, not absent, when the series carries a decimal shift: see detectPriceScaleShift
+    latestPrice: a.priceScaleSuspect ? null : (a.latest?.effectiveUnitPrice ?? null),
     holders: a.holders.map((h) => ({ company: h.company, cage: h.cage, quantity: h.quantity })),
     priceSeries: a.awards
       .map((x) => x.effectiveUnitPrice)
@@ -239,7 +240,7 @@ export function buildMonopolyView(): MonopolyView {
     const award = awardByNsn?.get(digits) ?? null
     const forecast = forecastByNsn?.get(digits) ?? null
     const isCandidate = r.soleSource && r.silentSourceCount > 0
-    const priced = award?.latest?.effectiveUnitPrice != null
+    const priced = !award?.priceScaleSuspect && award?.latest?.effectiveUnitPrice != null
     if (priced) pricedCount += 1
     if (isCandidate) {
       if (priced) candidatePricedCount += 1
