@@ -83,6 +83,78 @@ if [ "${DEPLOY_SWAP_PHASE:-fetch}" = "fetch" ]; then
   DEPLOY_SWAP_PHASE=run exec "$ROOT/scripts/deploy-swap.sh" "$@"
 fi
 
+# ==========================================================================
+# ONE DEPLOY AT A TIME. THIS SCRIPT HAD NO LOCK AND FOUR LANES RUN IT.
+#
+# Everything below operates on ONE shared `.next-staging`: it `rm -rf`s the
+# directory, builds into it, asserts four artifacts, and renames it over the
+# live build. Two concurrent runs share every one of those steps.
+#
+# MEASURED, 2026-08-19: a deploy died with
+#   ENOENT: no such file or directory,
+#   open '/opt/onlysource/.next-staging/server/pages-manifest.json'
+# while another lane's deploy of the same commit succeeded moments later. The
+# second run's `rm -rf "$STAGING"` deleted the first run's build out from under
+# it. That is the BENIGN outcome: it failed loudly and the swap never happened.
+#
+# THE OUTCOME WORTH FEARING IS THE QUIET ONE. If run A finishes its build while
+# run B is midway through writing the same directory, run A's artifact gate
+# checks FOUR named files and then renames a directory that is a mixture of two
+# builds into place. Four files existing is not four files agreeing, and a
+# half-swapped `.next` serves a chunk graph that no single commit ever produced.
+#
+# So the whole run takes an exclusive lock and a second caller is TOLD, not
+# queued. Queueing would be worse here: a lane that waits ten minutes and then
+# deploys is deploying a tree it read ten minutes ago, and the operator has
+# usually moved on. Failing immediately with the holder's pid keeps the
+# who-is-deploying question answerable.
+#
+# The lock is taken AFTER the re-exec, deliberately: the fetch phase replaces
+# this file on disk, and a lock held across an `exec` of a rewritten script is
+# a lock whose holder no longer exists in the form that took it.
+#
+# `9` is an arbitrary free descriptor; the lock file lives beside the build it
+# guards so it cannot outlive a rebuilt box.
+# ==========================================================================
+LOCKFILE="${DEPLOY_SWAP_LOCK:-/tmp/onlysource-deploy-swap.lock}"
+
+# ⚠️ `flock` IS LINUX. macOS DOES NOT SHIP IT, AND `! flock` SUCCEEDS WHEN THE COMMAND IS ABSENT.
+#
+# Written without this check, the guard read `if ! flock -n 9; then refuse`. On the droplet, which
+# has util-linux flock, that is correct. On a Mac it means EVERY deploy is refused with "another
+# deploy is already running" — a false statement about the state of the world, produced by a
+# missing binary, in the exact words of the real condition.
+#
+# My own positive control caught it and I nearly misread the result: the test refused a second
+# caller, which is what I was hoping to see, and it also refused the FIRST caller and the one after
+# the lock released. Three refusals is not a working lock, it is a missing command. A guard that
+# fails closed is the right direction to fail in and still has to fail for the stated reason.
+if ! command -v flock >/dev/null 2>&1; then
+  printf '\n\033[31mFAILED: flock is not installed, so concurrent deploys cannot be prevented.\033[0m\n' >&2
+  printf 'This script is meant to run on the droplet, which has it. Refusing rather than\n' >&2
+  printf 'deploying unguarded: two lanes sharing one .next-staging is how a half-built tree\n' >&2
+  printf 'gets renamed over a working one. Override only if you are certain you are alone:\n' >&2
+  printf '  DEPLOY_SWAP_NO_LOCK=1 %s\n' "$0" >&2
+  [ "${DEPLOY_SWAP_NO_LOCK:-0}" = "1" ] || exit 1
+  printf '\033[33mproceeding without a lock because DEPLOY_SWAP_NO_LOCK=1\033[0m\n' >&2
+else
+  # ⚠️ `>>` AND NOT `>`. Opening with `>` TRUNCATES BEFORE flock IS EVEN CONSULTED, so the second
+  # caller wipes the holder's pid on its way to discovering that it is the second caller, and then
+  # reads back the empty file it just created. My own control caught this: the refusal fired
+  # correctly and printed no pid, because the pid had been erased a microsecond earlier by the
+  # process complaining about its absence. Append-open takes the descriptor without touching the
+  # contents; the pid is written after the lock is held, when truncating is safe.
+  exec 9>>"$LOCKFILE" || { printf '\n\033[31mFAILED: cannot open %s\033[0m\n' "$LOCKFILE" >&2; exit 1; }
+  if ! flock -n 9; then
+    holder="$(cat "$LOCKFILE" 2>/dev/null | tr -d '[:space:]')"
+    printf '\n\033[31mFAILED: another deploy is already running%s\033[0m\n' \
+      "${holder:+ (pid $holder)}" >&2
+    printf 'Nothing was changed. Wait for it to finish, then check /api/health for the commit it lands.\n' >&2
+    exit 1
+  fi
+  printf '%s\n' "$$" > "$LOCKFILE"
+fi
+
 STAGING="${NEXT_DIST_DIR_STAGING:-.next-staging}"
 LIVE=".next"
 PREVIOUS=".next-previous"
