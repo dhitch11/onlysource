@@ -652,3 +652,29 @@
     height: 28px;
   }
 }
+
+/*
+ * THE "/" HINT IS ADVICE FOR A KEYBOARD, SO IT GOES WHERE THERE IS NO KEYBOARD.
+ *
+ * Caught by looking at a screenshot at 390 rather than by any assertion: the badge rendered
+ * perfectly, in the right place, at the right size, telling a phone user to press a key their
+ * device does not have. Every geometry check passed.
+ *
+ * `pointer: coarse`, not a width query — a narrow desktop window still has a keyboard, and a
+ * large tablet still does not. The clear button keeps the same slot, so nothing moves.
+ */
+@media (pointer: coarse) {
+  .searchKbd {
+    display: none;
+  }
+  /*
+   * The right padding STAYS. It is reserved for the clear button, which still appears the moment
+   * there is a query, and reclaiming it while the box is empty would move the placeholder every
+   * time the operator types the first character.
+   *
+   * The first attempt here tried `.searchClear ~ .search` to widen it only when the button is
+   * present. That selector can never match: the input precedes the button in the DOM and `~`
+   * only looks forward. It would have shipped as a rule that silently does nothing, which is the
+   * exact failure this file's other comments keep warning about.
+   */
+}
