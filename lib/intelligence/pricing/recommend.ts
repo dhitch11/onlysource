@@ -183,18 +183,40 @@ export function rungLabelFor(rung: RecommendationRung, config: RecommendationCon
       ? 'carried across unchanged'
       : m === OPERATOR_AWARD_MULTIPLE
         ? 'three times over, the rule you gave us'
-        : `at ${m}x`
+        : `at ${multipleText(m)}x, ${stanceSuffix(m)}`
   if (rung === 'R2_LAST_AWARD_MULTIPLE') {
     return m === 1
       ? 'the last award price, carried across unchanged'
       : m === OPERATOR_AWARD_MULTIPLE
         ? 'three times the last award price, the rule you gave us'
-        : `${m} times the last award price`
+        : `${multipleText(m)} times the last award price, ${stanceSuffix(m)}`
   }
   if (rung === 'R3_RECENT_AWARD_BAND') {
     return `the band of this stock number\u2019s own recent awards, ${at}`
   }
   return `the trend across this stock number\u2019s whole award history, ${at}`
+}
+
+/**
+ * WHERE THE MULTIPLE IN A LABEL CAME FROM, said in one clause.
+ *
+ * ★ A LABEL THAT GIVES ONLY THE DIGITS LEAVES THE READER TO ASSUME, and the assumption anybody
+ * makes about a headline number is that somebody measured it. "0.98 times the last award price"
+ * and "3 times the last award price" read as equally authoritative and one of them was measured.
+ * The two multiples the product has words of its own for, 1 and his 3x, keep those words; every
+ * other multiple is named together with its standing.
+ */
+function stanceSuffix(multiple: number): string {
+  switch (classifyAwardMultiple(multiple)) {
+    case 'MEASURED_OPTIMUM':
+      return 'the measured margin optimum'
+    case 'INSIDE_THE_MEASURED_BAND':
+      return 'inside the measured working band'
+    case 'ABOVE_THE_BAND_WITHIN_THE_ADVISORY_CEILING':
+      return 'above the measured band and under the advisory ceiling'
+    case 'OUTSIDE_THE_MEASURED_BAND':
+      return 'the multiple you set, outside the measured band'
+  }
 }
 
 /** The operator's language for each rung. Rendered as-is; no surface rewrites these. */
@@ -570,10 +592,14 @@ export const AWARD_MULTIPLE_PRESETS: readonly AwardMultiplePreset[] = [
     label: 'three times the last award price, the rule you gave us',
     record:
       `Your own rule, stated once about one item you won: "I quoted $3,565, three times the unit ` +
-      `price of the previous award." ${measuredRecordSentence(OPERATOR_AWARD_MULTIPLE)} It fails ` +
-      'no harder on sole-source items than competed ones, so keeping it for sole-source was ' +
-      'measured too and was refuted. It is here, unchanged, because it is yours and because you ' +
-      'may know something about a row that the corpus does not.',
+      `price of the previous award." ${measuredRecordSentence(OPERATOR_AWARD_MULTIPLE)} Keeping ` +
+      'it for sole-source items only was measured too and refuted, and the result is the ' +
+      'opposite of the intuition: it cleared 0.00% of 633,342 quantity-fixed sole-source pairs, ' +
+      'so it fails HARDEST in the world it came from. A sole-source position does confer real ' +
+      'pricing power, about 4% on the clean sample rather than the 20.9% once believed, which ' +
+      'buys the top of the measured band and not a different rule. It is offered here, ' +
+      'unchanged, because it is yours and because you may know something about a row that the ' +
+      'corpus does not.',
     provenance: 'PRIOR',
   },
 ]
@@ -803,7 +829,18 @@ export type RecommendationCaveatCode =
   | 'SURPLUS_STANCE_UNDECLARED'
   | 'BASIS_IS_OLD_AND_THE_BAND_WAS_WIDENED_BY_ITS_AGE'
   | 'WIDENED_TO_THE_WIDTH_OF_A_STRONGER_RUNG'
+  /**
+   * The multiple in force is one somebody CHOSE, and it sits outside the band the corpus
+   * supports. Its sentence carries what that choice measures out at.
+   */
   | 'MULTIPLIER_IS_A_STATED_RULE_NOT_A_MEASURED_SERIES'
+  /**
+   * The multiple in force is the measured optimum, or another point inside the measured working
+   * band. A DIFFERENT CODE from the line above and not a rewording of it: "somebody stated this"
+   * and "we measured this" are different provenances, one sentence cannot be true of both, and a
+   * surface that branches on the code must be able to tell them apart.
+   */
+  | 'MULTIPLIER_IS_A_MEASURED_OPTIMUM_WITH_ITS_OWN_RECORD'
   | 'INFLATION_FACTORS_ARE_STATED_JUDGEMENTS'
   | 'PEER_BASIS_IS_A_DIFFERENT_ITEM'
   | 'ROW_CONTRADICTS_ITSELF_ON_PRICE_AND_WAS_SET_ASIDE'
@@ -1764,48 +1801,97 @@ export function describeAwardMultiple(config: RecommendationConfig): string {
 }
 
 function multiplierInput(config: RecommendationConfig): RecommendationInputValue {
+  const stance = classifyAwardMultiple(config.awardMultiple)
+  const measuredBasis = stance === 'MEASURED_OPTIMUM' || stance === 'INSIDE_THE_MEASURED_BAND'
   return {
     label: 'Multiplier',
-    renderedValue: `${config.awardMultiple}x`,
+    renderedValue: `${multipleText(config.awardMultiple)}x`,
     valueUsd: null,
     dateIso: null,
     source: describeAwardMultiple(config),
-    evidenceState: 'PRIOR',
+    /*
+     * THE GRADE FOLLOWS THE NUMBER, NOT THE FIELD.
+     *
+     * This line read PRIOR unconditionally. That was right while every multiple this engine could
+     * be handed was somebody's bare judgement, and it became wrong the moment one of them was
+     * measured: it grades the best-supported number in the product exactly as it grades a hunch,
+     * on the one line a reader consults to tell them apart.
+     *
+     * A multiple inside the measured band is ESTIMATED: arithmetic WE performed over a measured
+     * corpus, under a cost basis that is ASSUMED. Deriving is what makes a figure ESTIMATED rather
+     * than MEASURED, and calling it MEASURED would launder an assumption into a reading. A
+     * multiple outside the band stays PRIOR, which is exactly what the operator's 3x is and
+     * exactly what it is entitled to be.
+     */
+    evidenceState: measuredBasis ? 'ESTIMATED' : 'PRIOR',
     citation: null,
   }
 }
 
+/**
+ * THE CAVEAT THAT TELLS THE TRUTH ABOUT WHICHEVER MULTIPLE IS ACTUALLY IN FORCE.
+ *
+ * ★★ WHY THERE ARE TWO CODES HERE AND NOT ONE SENTENCE WITH A NUMBER SUBSTITUTED INTO IT.
+ *
+ * This rung shipped a single caveat, `MULTIPLIER_IS_A_STATED_RULE_NOT_A_MEASURED_SERIES`, whose
+ * sentence opened "The 3x is your own rule, stated once about one item, and it is not a measured
+ * relationship". Every word of that was true of the 3x. Then the default moved and the SENTENCE
+ * DID NOT, so the product began telling the operator that a measured default was his own hunch,
+ * with the substituted number making it read as though it had been checked. That is the same
+ * failure as the one this whole change repairs, pointing the other way, and it is why a provenance
+ * claim may never be stored beside a number instead of being computed from it.
+ *
+ * So the CODE is chosen from the stance of the NUMBER IN FORCE, never from the rung it sits on,
+ * and the two sentences share no wording that would let a reader mistake one provenance for the
+ * other. Both arms carry the same measured record, GENERATED from `MEASURED_CLEARANCE_CURVE`
+ * rather than retyped, and both say the same thing about adjustability, because both are
+ * adjustable.
+ *
+ * A multiple the grid does not hold gets a record saying exactly that, naming the nearest points
+ * that WERE measured. "We measured and the answer is no" and "we have nothing here" are different
+ * states and this product has shipped the confusion between them nine times.
+ */
 function multiplierCaveat(config: RecommendationConfig): RecommendationCaveat {
+  const multiple = config.awardMultiple
+  const stance = classifyAwardMultiple(multiple)
+  const preset = presetForMultiple(multiple)
+  const record = preset === null ? measuredRecordSentence(multiple) : preset.record
+  const band =
+    `${multipleText(MEASURED_AWARD_MULTIPLE_BAND.lowMultiple)}x to ` +
+    `${multipleText(MEASURED_AWARD_MULTIPLE_BAND.highMultiple)}x`
+  const adjustable =
+    'It is adjustable: change the multiplier and every figure on this rung moves with it, ' +
+    'deterministically.'
+
+  if (stance === 'MEASURED_OPTIMUM' || stance === 'INSIDE_THE_MEASURED_BAND') {
+    const opening =
+      stance === 'MEASURED_OPTIMUM'
+        ? `The ${multipleText(multiple)}x is a MEASURED figure, not a rule anybody stated: it is ` +
+          'the peak of the expected margin curve on our own award history.'
+        : `The ${multipleText(multiple)}x sits inside the measured working band of ${band}, ` +
+          'which is where the corpus puts the expected margin optimum.'
+    return {
+      code: 'MULTIPLIER_IS_A_MEASURED_OPTIMUM_WITH_ITS_OWN_RECORD',
+      sentence:
+        `${opening} ${record} The surface is FLAT inside ${band} and steep outside it, so read ` +
+        'the band as the answer rather than the second decimal, and note that the cost basis ' +
+        'behind any margin figure is ASSUMED: this product holds no cost of goods anywhere. ' +
+        `${adjustable}`,
+      measured: { label: 'multiplier', value: multiple, unit: 'RATIO' },
+    }
+  }
+
+  const placement =
+    stance === 'ABOVE_THE_BAND_WITHIN_THE_ADVISORY_CEILING'
+      ? `sits above the measured working band of ${band}, at or under the advisory ceiling of ` +
+        `${multipleText(MEASURED_AWARD_MULTIPLE_BAND.advisoryCeilingMultiple)}x`
+      : `sits outside the measured working band of ${band}`
   return {
     code: 'MULTIPLIER_IS_A_STATED_RULE_NOT_A_MEASURED_SERIES',
-    /*
-     * ★ THIS CAVEAT NOW CARRIES THE OUTCOME, NOT ONLY THE PROVENANCE, AND THAT CHANGE IS THE
-     * WHOLE POINT. Saying "it is not a measured relationship" was true and it was not enough: it
-     * describes where the number came from while staying silent on whether it works, and a
-     * reader takes silence there as "unknown" rather than as "measured, and the answer is no".
-     *
-     * MEASURED 2026-08-19 over the live award corpus, on 40,184 consecutive award pairs, asking
-     * whether the multiplied previous price would have been at or below the price the item
-     * ACTUALLY cleared at next time (that price is the one that beat everyone, so it is an
-     * outcome and not a model): 318 of 40,184, which is 0.8%, and that is an UPPER bound because
-     * being at or below the clearing price is necessary to win and not sufficient.
-     *
-     * Split by world, because the rule came from a sole-source buy and the obvious mitigation is
-     * to keep it there: SOLE 30 of 9,175 (0.3%), COMPETED 288 of 31,009 (0.9%). It fails HARDER
-     * in its own world. The median quote/actual is 3.00x in BOTH, which says the previous award
-     * price is a near-perfect estimator of the next one whether or not anybody competed, so
-     * multiplying it is what breaks it. Repeating the previous price unmultiplied would have
-     * been at or below the clearing price on 76.3%.
-     */
     sentence:
-      `The ${config.awardMultiple}x is your own rule, stated once about one item, and it is not ` +
-      'a measured relationship. Our own award history measures how it would have fared: across ' +
-      '40,184 consecutive award pairs a multiplied quote came in at or below the price the item ' +
-      'actually cleared at 0.8% of the time, and 0.3% on sole-source items, because the previous ' +
-      'award price is itself a close estimate of the next one. It is shown because it is yours ' +
-      'and because it is adjustable: change the multiplier and every figure on this rung moves ' +
-      'with it, deterministically.',
-    measured: { label: 'multiplier', value: config.awardMultiple, unit: 'RATIO' },
+      `The ${multipleText(multiple)}x is a multiple somebody chose rather than one anybody ` +
+      `measured, and it ${placement}. ${record} ${adjustable}`,
+    measured: { label: 'multiplier', value: multiple, unit: 'RATIO' },
   }
 }
 
@@ -1822,7 +1908,7 @@ function buildLastAwardRung(
       missingInput: 'a dated award on this stock number',
       sentence:
         'No dated award on or before the pricing instant is on file for this stock number, so ' +
-        'there is no previous award price for your rule to multiply.',
+        'there is no previous award price for this rung to carry forward.',
     }
   }
   if (latest.kind === 'UNREADABLE') {
@@ -1865,7 +1951,7 @@ function buildLastAwardRung(
         `The most recent award, dated ${latest.awardDateIso}, is flagged as surplus material by ` +
         'the export, and this offer has been declared as new material. A surplus price is a ' +
         'resale price, not a new-manufacture basis. An earlier award is not substituted for it, ' +
-        'because your rule names the PREVIOUS award and quietly using a different one would ' +
+        'because this rung names the PREVIOUS award and quietly using a different one would ' +
         'answer a different question under the same label.',
     }
   }
@@ -1995,7 +2081,7 @@ function buildRecentBandRung(
       ...setAsideCaveat(pool.unreadableRows),
     ],
     wouldSharpenWith: [
-      'a readable most recent award would give rung 2, your own rule on a single price',
+      'a readable most recent award would give rung 2, the multiple in force on a single price',
       'an approved-source award in the inflation factors’ base year would give rung 1',
       SHARPEN_WITH_A_DATED_SERIES,
     ],
@@ -2126,7 +2212,7 @@ function buildTrendRung(
       `${config.recentBandMinimumAwards} readable awards inside the ` +
         `${config.recentWindowMonths} month window would give rung 3, which reads only recent ` +
         'prices instead of the whole history',
-      'a readable most recent award would give rung 2, your own rule on a single price',
+      'a readable most recent award would give rung 2, the multiple in force on a single price',
       'an approved-source award in the inflation factors’ base year would give rung 1',
     ],
     observationCount: pool.kept.length,
@@ -2548,9 +2634,11 @@ function buildEvaluatedContext(
  *
  * Crossing the DLAD 17.7505 band does NOT cap the price and does NOT make the award illegal. It
  * forces an email to the Head of the Contracting Activity and turns an automated award into one
- * carrying senior attention, delay and paperwork. Since the headline rung here is a 3x rule, the
- * operator should be told when their own rule trips that wire, at the moment they read the number
- * rather than after they have sent it.
+ * carrying senior attention, delay and paperwork. The multiple is adjustable and the operator may
+ * raise it, so this fires on the FIGURE and never on an assumption about what the multiple is,
+ * and it tells them at the moment they read the number rather than after they have sent it. At or
+ * below the last award price it never trips, which is a fact about those multiples and not a
+ * reason to stop checking.
  */
 function buildPriceIncreaseContext(
   figure: RecommendedFigure,

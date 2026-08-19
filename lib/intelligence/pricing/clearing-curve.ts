@@ -27,6 +27,17 @@
  * award's unit price is what the item ACTUALLY cleared at. That price beat everyone, so it is an
  * OUTCOME rather than a model. For a multiple m, the pair "clears" when m x earlier <= actual.
  *
+ * ★★★ A PAIR MUST BE TWO BIDDING EVENTS, NOT ONE CONTRACT COUNTED TWICE. MEASURED 2026-08-19:
+ * 4,142,708 of the 6,042,114 ordered pairs in this corpus, 68.6%, carry the SAME CONTRACT NUMBER
+ * on both sides. A DIBBS contract can hold several award lines for one stock number, and pairing
+ * those compares a contract against ITSELF: it is not a second chance to win at a different price.
+ * 2,026,310 pairs sit at a ratio of exactly 1.000 and 84.8% of THOSE are same-contract.
+ *
+ * Left in, they inflate every clearing rate at and below 1x, because a contract always matches its
+ * own price. Excluding them takes P(clear at 1x) from about 80% to the low sixties. The first
+ * version of this module shipped WITH them and overstated the operator's chances on the one screen
+ * where that matters.
+ *
  * ★★ EACH STOCK NUMBER VOTES ONCE, AND THIS IS NOT A REFINEMENT, IT CHANGES THE ANSWER. An item
  * with N priced awards contributes N(N-1)/2 pairs, so pooling weights by n squared. MEASURED on
  * this corpus: one stock number (1,917 priced awards) carries 30.4% of all 6,042,114 pairs and ten
@@ -140,6 +151,15 @@ export function buildPerNsnClearing(byNsn: ReadonlyMap<string, NsnAwardSummary>)
     let pairs = 0
     for (let i = 0; i < priced.length; i++) {
       for (let j = i + 1; j < priced.length; j++) {
+        /*
+         * SAME CONTRACT ON BOTH SIDES IS NOT A PAIR. A row with NO contract number is also
+         * skipped rather than treated as distinct: an unknown identifier cannot establish that
+         * two lines came from different awards, and reading the silence as "different" is the
+         * permissive direction on the number an operator bids against.
+         */
+        const ca = priced[i]!.contractNo
+        const cb = priced[j]!.contractNo
+        if (ca == null || cb == null || ca === cb) continue
         const prev = priced[i]!.effectiveUnitPrice as number
         const actual = priced[j]!.effectiveUnitPrice as number
         pairs++
@@ -148,6 +168,9 @@ export function buildPerNsnClearing(byNsn: ReadonlyMap<string, NsnAwardSummary>)
         }
       }
     }
+    // Every surviving pair was two distinct contracts. A stock number whose whole history is one
+    // contract contributes nothing rather than contributing a row of certainties.
+    if (pairs === 0) continue
     out.push({ fsc: fscOf(s.nsn), shares: clears.map((c) => c / pairs) })
   }
   clearingCache.set(byNsn, out)

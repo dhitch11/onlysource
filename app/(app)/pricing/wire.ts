@@ -45,7 +45,10 @@
  */
 import type { RowLifecycle } from '@/lib/intelligence/feed-window'
 import {
+  OPERATOR_AWARD_MULTIPLE,
   RECOMMENDATION_RUNGS,
+  RUNGS_THAT_APPLY_THE_AWARD_MULTIPLE,
+  classifyAwardMultiple,
   type PriceRecommendation,
   type RecommendationRung,
 } from '@/lib/intelligence/pricing/recommend'
@@ -135,15 +138,48 @@ export function confidenceTier(rung: RecommendationRung, multiple: number): stri
    * pinned to a rung name either, because the same rung means different things at different
    * multiples. So the multiple is an argument.
    */
+  const positional =
+    i === 0
+      ? 'strongest basis we hold'
+      : i === last
+        ? 'weakest basis we hold'
+        : i === 1
+          ? 'strong basis'
+          : 'medium basis'
+
+  /*
+   * ★ THIRD VERSION, AND THE FIRST ONE THAT NAMES NO MULTIPLE. Version one derived the tier from
+   * the rung's INDEX. Version two replaced that with a hardcoded string on R2. Version three
+   * tested `multiple === 1` and called every other multiple "not a measured basis", which is the
+   * same shape as the two failures it was fixing: a claim about how good a basis is, pinned to a
+   * literal, going false the next time the literal moves. It would have called 0.95x and 0.98x
+   * unmeasured, and those are the two most measured numbers in this product.
+   *
+   * So the tier is computed from WHERE THE MULTIPLE STANDS relative to what was measured, by the
+   * engine's own classifier, and it stays true at 0.95, at 0.98, at 1, at 3, and at anything the
+   * operator types. The one exception is still named BY IDENTITY and never by index: his 3x keeps
+   * its own words whenever it is the number in force.
+   */
+  const stance = classifyAwardMultiple(multiple)
+  const measuredBasis = stance === 'MEASURED_OPTIMUM' || stance === 'INSIDE_THE_MEASURED_BAND'
+
   if (rung === 'R2_LAST_AWARD_MULTIPLE') {
-    return multiple === 1
-      ? 'the measured clearing estimate'
-      : `your own ${multiple}x, not a measured basis`
+    if (multiple === OPERATOR_AWARD_MULTIPLE) return 'your stated rule, not a measured basis'
+    if (!measuredBasis) return 'a multiple you set, outside the measured band'
+    return multiple === 1 ? 'the measured clearing estimate' : 'inside the measured band'
   }
-  if (i === 0) return 'strongest basis we hold'
-  if (i === last) return 'weakest basis we hold'
-  if (i === 1) return 'strong basis'
-  return 'medium basis'
+
+  /*
+   * R3, R4 and R5 multiply too. Saying nothing about the multiple on them would leave three rungs
+   * carrying an untested number under a tier that reads as an endorsement, which is exactly how a
+   * 0.00% figure came to wear "strong basis". Named through RUNGS_THAT_APPLY_THE_AWARD_MULTIPLE
+   * rather than by position, because R1 carries its award forward on the inflation factors and
+   * never multiplies at all, so none of this is true of R1.
+   */
+  if (!measuredBasis && RUNGS_THAT_APPLY_THE_AWARD_MULTIPLE.includes(rung)) {
+    return `${positional}, at a multiple outside the measured band`
+  }
+  return positional
 }
 
 

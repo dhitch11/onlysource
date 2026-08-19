@@ -33,6 +33,10 @@
  *    not fire is the roadmap: it names the one fact that would move this row up a tier.
  */
 import { StatusChip } from '@/components/ui/StatusChip'
+import {
+  classifyAwardMultiple,
+  OPERATOR_AWARD_MULTIPLE,
+} from '@/lib/intelligence/pricing/recommend'
 import type { PriceRecommendation, RecommendationRung } from '@/lib/intelligence/pricing/recommend'
 import styles from './recommendation.module.css'
 
@@ -48,7 +52,7 @@ const usdWhole = (n: number): string =>
  */
 const RUNG_TONE: Record<RecommendationRung, 'verified' | 'active' | 'idle'> = {
   R1_MANUFACTURER_ANCHOR: 'verified',
-  // Not `verified`: nothing measured verifies this rung's outcome. See RUNG_CONFIDENCE above.
+  // Overridden on R2 by the multiple in force. See `confidenceFor` below.
   R2_LAST_AWARD_MULTIPLE: 'idle',
   R3_RECENT_AWARD_BAND: 'active',
   R4_AWARD_TREND: 'active',
@@ -66,10 +70,47 @@ const RUNG_TONE: Record<RecommendationRung, 'verified' | 'active' | 'idle'> = {
  */
 const RUNG_CONFIDENCE: Record<RecommendationRung, string> = {
   R1_MANUFACTURER_ANCHOR: 'Highest confidence',
+  // R2 never reads this entry. Its tier depends on the multiple, not on the rung: see below.
   R2_LAST_AWARD_MULTIPLE: 'Your stated rule, not a measured basis',
   R3_RECENT_AWARD_BAND: 'Moderate confidence',
   R4_AWARD_TREND: 'Moderate confidence',
   R5_FSC_PEER_BAND: 'Lowest confidence',
+}
+
+/*
+ * ★ THE TIER ON R2 FOLLOWS THE MULTIPLE IN FORCE, NOT THE RUNG. Corrected by @REFUTE-OPERATOR-VIEW
+ * after reading the live dossier: the chip above the recommended figure read "Your stated rule,
+ * not a measured basis" while the number in force was 1x, whose own caveat two lines below cites
+ * 19,475 measured award events. The same claim had already been corrected on the pricing board
+ * (`app/(app)/pricing/wire.ts`), and this panel kept a second copy of the pre-correction string
+ * keyed by rung name. A rung is not a basis: the same rung means different things at 0.98, at 1
+ * and at 3, so the stance is read from the engine's own classifier and the operator's own rule is
+ * named BY IDENTITY, never by position or by a literal that goes stale when the default moves.
+ *
+ * Why the direction of the error mattered enough to fix on sight: the operator's stated rule IS
+ * 3x, and this product measures 3x clearing essentially never. A chip telling him the figure he
+ * is looking at is his own unmeasured rule invites him to discard the best-measured number in the
+ * product and fall back to the one it refuted.
+ */
+function confidenceFor(rec: Extract<PriceRecommendation, { resolved: true }>): {
+  readonly label: string
+  readonly tone: 'verified' | 'active' | 'idle'
+} {
+  if (rec.rung !== 'R2_LAST_AWARD_MULTIPLE') {
+    return { label: RUNG_CONFIDENCE[rec.rung], tone: RUNG_TONE[rec.rung] }
+  }
+  const multiple = rec.awardMultiple
+  if (multiple === OPERATOR_AWARD_MULTIPLE) {
+    return { label: 'Your stated rule, not a measured basis', tone: 'idle' }
+  }
+  const stance = classifyAwardMultiple(multiple)
+  if (stance === 'MEASURED_OPTIMUM' || stance === 'INSIDE_THE_MEASURED_BAND') {
+    return {
+      label: multiple === 1 ? 'The measured clearing estimate' : 'Inside the measured band',
+      tone: 'verified',
+    }
+  }
+  return { label: 'A multiple you set, outside the measured band', tone: 'idle' }
 }
 
 export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
@@ -92,6 +133,7 @@ export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
   }
 
   const fig = rec.recommended
+  const confidence = confidenceFor(rec)
 
   return (
     <section className={styles.panel} data-resolved="true" data-rung={rec.rung} aria-labelledby="rec-title">
@@ -99,7 +141,7 @@ export function RecommendationPanel({ rec }: { rec: PriceRecommendation }) {
         <h2 className={styles.title} id="rec-title">
           Recommended quote
         </h2>
-        <StatusChip tone={RUNG_TONE[rec.rung]}>{RUNG_CONFIDENCE[rec.rung]}</StatusChip>
+        <StatusChip tone={confidence.tone}>{confidence.label}</StatusChip>
       </div>
 
       {/* ---------------------------------------------------------------- the figure */}
