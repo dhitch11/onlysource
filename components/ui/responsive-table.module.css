@@ -59,6 +59,30 @@
   min-inline-size: 0;
 }
 
+/*
+ * THE DEFAULT IS HIDDEN AND IT IS DECLARED **BEFORE** THE MEDIA QUERY, WHICH IS THE WHOLE POINT.
+ *
+ * Above the card breakpoint every row is a table row again, so the cap has nothing to do and this
+ * note would describe a state that is not in force. It is inert rather than absent so the markup
+ * is identical at every width and nothing has to be conditionally rendered.
+ *
+ * ⚠️ I FIRST WROTE THIS RULE AT THE END OF THE FILE, AFTER the `@media` block that turns it on.
+ * Equal specificity, later source position, so `display: none` won at EVERY width and the note
+ * never rendered. The cap shipped SILENT — precisely the defect the note exists to prevent, on a
+ * page that prints its own counts.
+ *
+ * This is the second time tonight I have made this exact mistake. The first was in
+ * AppShell.module.css, where three of four mobile overrides sat above the rules they were meant to
+ * override and changed nothing; I wrote a commit message about it and then repeated it here hours
+ * later. Writing the lesson down is not the same as having learned it.
+ *
+ * Caught by reading `getComputedStyle(...).display` on the deployed page. The rule was in the
+ * file, greppable, and dead.
+ */
+.cappedNote {
+  display: none;
+}
+
 @media (max-width: 700px) {
   /* Nothing left to scroll sideways, and a live scroll container here would trap touch gestures
    * over content that no longer needs them. */
@@ -313,9 +337,3 @@
   }
 }
 
-/* Above the card breakpoint every row is a table row again, so the cap has nothing to do and the
- * note would be describing a state that is not in force. Both are inert here rather than absent,
- * so the markup is identical at every width and nothing has to be conditionally rendered. */
-.cappedNote {
-  display: none;
-}
