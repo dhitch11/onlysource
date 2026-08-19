@@ -29,7 +29,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { statSync } from 'node:fs'
+import { createReadStream, statSync } from 'node:fs'
 import { mkdir, readFile, writeFile, appendFile, access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
@@ -50,6 +50,38 @@ import type { RetrievalMethod } from './types'
  * Length is checked, not merely existence. Present is not whole, and this archive has held a
  * 141-byte capture of the letter X under the same name as a 439,490-byte index.
  */
+/**
+ * Hash a file on disk WITHOUT holding it in memory.
+ *
+ * ★ WHY, MEASURED. The archive verified a write by reading the whole file back into a Buffer
+ * and hashing that. Correct, and the reason an abrupt kill has never corrupted this archive:
+ * a copy is not evidence that a copy worked. But it cost a SECOND full copy of the file in
+ * RAM on top of the one the fetch already held, so a 712 MB solicitation package peaked at
+ * 1,521 MB RSS on a 2 GB box, roughly 2.1x the file. On 2026-08-19 that turned a routine
+ * re-fetch into a capacity negotiation, and a watchdog killed a capture for it.
+ *
+ * Streaming at a 1 MB high-water mark keeps the verification exactly as strict -- every byte
+ * that landed on disk is read back and hashed -- while the memory cost stops scaling with the
+ * file. THE CHECK IS NOT WEAKENED. It is the same check, not holding the evidence all at once.
+ *
+ * This removes ONE of the two copies. The other is upstream, where the consent client
+ * accumulates the response body so the content gate can classify it before a byte is
+ * archived. That copy is load-bearing and is not touched here.
+ */
+export async function hashFileStreaming(
+  path: string,
+): Promise<{ sha256: string; byteLen: number }> {
+  const hash = createHash('sha256')
+  let byteLen = 0
+  const stream = createReadStream(path, { highWaterMark: 1024 * 1024 })
+  for await (const chunk of stream) {
+    const buf = chunk as Buffer
+    byteLen += buf.length
+    hash.update(buf)
+  }
+  return { sha256: hash.digest('hex'), byteLen }
+}
+
 export function bytesHeldAt(path: string, expectedByteLen: number): boolean {
   try {
     const s = statSync(path)
@@ -237,12 +269,15 @@ export async function archiveBytes(
   await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, input.bytes)
 
-  const writtenBytes = await readFile(destination)
-  const writtenSha = createHash('sha256').update(writtenBytes).digest('hex')
-  if (writtenSha !== sha || writtenBytes.length !== input.bytes.length) {
+  /*
+   * VERIFY BY RE-READING, BUT NOT ALL AT ONCE. Same strictness, every landed byte hashed;
+   * the memory cost simply stops scaling with the file. See hashFileStreaming.
+   */
+  const written = await hashFileStreaming(destination)
+  if (written.sha256 !== sha || written.byteLen !== input.bytes.length) {
     throw new Error(
       `archive write failed verification for ${input.filename}: ` +
-        `source ${sha} / ${input.bytes.length} B, written ${writtenSha} / ${writtenBytes.length} B`,
+        `source ${sha} / ${input.bytes.length} B, written ${written.sha256} / ${written.byteLen} B`,
     )
   }
 

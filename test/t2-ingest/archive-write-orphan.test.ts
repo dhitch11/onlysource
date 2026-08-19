@@ -20,7 +20,9 @@ import { join, dirname } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { archiveBytes, bytesHeldAt, readArchiveManifest, readManifestEntries } from '../../lib/ingest/archive'
+import { createHash } from 'node:crypto'
+
+import { archiveBytes, bytesHeldAt, hashFileStreaming, readArchiveManifest, readManifestEntries } from '../../lib/ingest/archive'
 import { reconcileArchive } from '../../lib/ingest/archive-reconcile'
 
 const roots: string[] = []
@@ -204,5 +206,55 @@ describe('the whole recovery journey', () => {
     // captured it again, and an append-only ledger should say so.
     const rows = await readManifestEntries(root)
     expect(rows.length).toBe(2)
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* THE VERIFICATION STREAMS NOW. SAME STRICTNESS, WITHOUT A SECOND COPY IN RAM         */
+/* ---------------------------------------------------------------------------------- */
+
+describe('hashFileStreaming', () => {
+  it('agrees byte for byte with hashing the whole buffer at once', async () => {
+    const root = freshRoot()
+    const r = await archiveBytes(input(root), root)
+    const path = join(root, r.record.storage_key)
+
+    const streamed = await hashFileStreaming(path)
+    const slurped = createHash('sha256').update(readFileSync(path)).digest('hex')
+
+    // POSITIVE CONTROL FOR THE REPLACEMENT ITSELF. The old verification hashed a whole
+    // Buffer; the new one hashes a stream. If these ever disagree, the archive's write
+    // verification has quietly become a different check than the one it replaced.
+    expect(streamed.sha256).toBe(slurped)
+    expect(streamed.sha256).toBe(r.record.content_sha256)
+    expect(streamed.byteLen).toBe(BYTES.length)
+  })
+
+  it('crosses chunk boundaries correctly, which is where an incremental hash goes wrong', async () => {
+    const root = freshRoot()
+    // Bigger than the 1 MB high-water mark, so the hash is fed several chunks rather than
+    // one. An incremental digest that mishandles boundaries passes every small-file test.
+    const big = Buffer.alloc(3 * 1024 * 1024 + 12345, 0x5a)
+    const r = await archiveBytes({ ...input(root), bytes: big }, root)
+    const path = join(root, r.record.storage_key)
+
+    const streamed = await hashFileStreaming(path)
+    expect(streamed.byteLen).toBe(big.length)
+    expect(streamed.sha256).toBe(createHash('sha256').update(big).digest('hex'))
+    expect(streamed.sha256).toBe(r.record.content_sha256)
+  })
+
+  it('still refuses a write whose bytes did not land as sent', async () => {
+    const root = freshRoot()
+    const r = await archiveBytes(input(root), root)
+    const path = join(root, r.record.storage_key)
+
+    // Corrupt the destination after the fact and confirm the streaming hash notices. The
+    // verification exists because a copy is not evidence that a copy worked, and swapping
+    // slurp for stream must not have softened that.
+    writeFileSync(path, Buffer.concat([BYTES, Buffer.from('x')]))
+    const after = await hashFileStreaming(path)
+    expect(after.sha256).not.toBe(r.record.content_sha256)
+    expect(after.byteLen).toBe(BYTES.length + 1)
   })
 })
