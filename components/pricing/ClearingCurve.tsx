@@ -57,11 +57,19 @@ export function ClearingCurve({ curve, recommendedMultiple }: { curve: Curve; re
         </StatusChip>
       </div>
 
-      <p className={styles.intro}>
-        Measured over {curve.stockNumberCount.toLocaleString()} stock numbers, each counted once
-        however many awards it carries. Every figure is the share of past buys that came in at or
-        below the price the item actually sold for.
-      </p>
+      {/*
+        ★ THE MODULE'S OWN NOTE, AT THE TOP, INSTEAD OF A HAND-WRITTEN INTRO HERE AND THE NOTE
+        AGAIN AT THE BOTTOM. Read at 320: the two said the same thing — "Measured over 78 stock
+        numbers, each counted once however many awards it carries" and "Measured across 78 stock
+        numbers, supply class 5306, each counted once however many awards it carries" — and the
+        second is the one that matters, because it is the only place that says whether this curve
+        is THIS SUPPLY CLASS or the market-wide fallback. That distinction changes what an
+        operator concludes and it was sitting at the very bottom, after the limits.
+
+        What the hand-written intro added beyond it, that every figure is a share of past buys, is
+        already stated in the limits paragraph below in stronger terms.
+      */}
+      <p className={styles.intro}>{curve.note}</p>
 
       <ol className={styles.rows}>
         {curve.points.map((p) => {
@@ -111,7 +119,7 @@ export function ClearingCurve({ curve, recommendedMultiple }: { curve: Curve; re
         point on the curve.
       </p>
 
-      <p className={styles.note}>{curve.note}</p>
+
     </section>
   )
 }
