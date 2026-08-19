@@ -46,6 +46,8 @@
   ],
   "exclude": [
     "node_modules",
-    "test/fixtures/lint-known-bad/**"
+    "test/fixtures/lint-known-bad/**",
+    "tmp/**",
+    ".probe/**"
   ]
 }
