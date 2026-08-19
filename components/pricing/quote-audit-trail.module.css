@@ -1,0 +1,313 @@
+/* ---------------------------------------------------------------------------------------
+ * <QuoteAuditTrail />. Owner: @PRICE-SURFACE.
+ *
+ * SUBORDINATE, NOT INVISIBLE. This block is the working under the recommendation, so it may
+ * never take the brass accent (which the design system reserves for the money signal, and the
+ * recommendation above is the money signal on this page) and it may never use display sizes.
+ * What it must NOT become is grey 11px text: every figure here is real, checkable evidence and
+ * the first person who needs it will be defending a price to a buyer.
+ *
+ * So: same body size as the page, a quieter panel ground, no accent, and collapsed on first
+ * paint. Hierarchy comes from weight, ground and disclosure rather than from shrinking text.
+ * ------------------------------------------------------------------------------------- */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  min-width: 0;
+}
+
+.details {
+  min-width: 0;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-5);
+  cursor: pointer;
+  list-style: none;
+  min-block-size: 44px;
+  min-width: 0;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.summary:focus-visible {
+  outline: var(--focus, 2px solid var(--accent));
+  outline-offset: -2px;
+  border-radius: var(--radius-lg);
+}
+.summaryTitle {
+  font-size: var(--fs-400);
+  font-weight: 650;
+  color: var(--ink);
+}
+.summaryTitle::before {
+  content: '▸';
+  display: inline-block;
+  margin-inline-end: var(--sp-2);
+  color: var(--faint);
+}
+.details[open] .summaryTitle::before {
+  content: '▾';
+}
+.summarySub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-200);
+  max-width: 76ch;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: 0 var(--sp-5) var(--sp-5);
+  min-width: 0;
+}
+
+.blockTitle {
+  font-size: var(--fs-300);
+  font-weight: 650;
+  color: var(--ink);
+  margin-block-end: var(--sp-1);
+}
+.blockSub {
+  font-size: var(--fs-200);
+  color: var(--dim);
+  line-height: var(--lh-300);
+  max-width: 80ch;
+  margin-block-end: var(--sp-3);
+}
+
+/* ------------------------------------------------------------- the inputs consumed */
+.inputs {
+  min-width: 0;
+}
+.inputList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--sp-3);
+  list-style: none;
+}
+.input {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.inputHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.inputLabel {
+  font-size: var(--fs-200);
+  font-weight: 600;
+  color: var(--ink);
+}
+.inputValue {
+  font-size: var(--fs-400);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.inputMeta {
+  font-size: var(--fs-100);
+  color: var(--dim);
+  line-height: var(--lh-100);
+  overflow-wrap: anywhere;
+}
+/* An undated value SAYS it is undated. It never borrows the date of the value beside it. */
+.undated {
+  color: var(--faint);
+  font-style: italic;
+}
+.citation {
+  font-size: var(--fs-100);
+  color: var(--faint);
+  line-height: var(--lh-100);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- the four figures */
+.figures {
+  min-width: 0;
+}
+.figureList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  list-style: none;
+  counter-reset: fig;
+}
+.figure {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.figure[data-resolved='false'] {
+  background: transparent;
+  border-style: dashed;
+}
+.figureHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.figureLabel {
+  font-size: var(--fs-300);
+  font-weight: 600;
+  color: var(--ink);
+}
+.figureValue {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-500);
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.to {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--faint);
+  font-weight: 400;
+}
+.figureBody,
+.figureArith,
+.limitation,
+.missing {
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+  max-width: 84ch;
+}
+.figureArith {
+  color: var(--ink);
+}
+.limitation {
+  color: var(--faint);
+}
+.missing {
+  color: var(--ink);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: baseline;
+  font-size: var(--fs-200);
+}
+.line dt {
+  color: var(--dim);
+}
+.line dd {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.lineArith {
+  grid-column: 1 / -1;
+  text-align: start;
+  font-size: var(--fs-100);
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+.preferred {
+  font-size: var(--fs-100);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--olive);
+  margin-inline-start: var(--sp-1);
+}
+
+.recorded,
+.gaps {
+  margin-block-start: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.recordedTitle {
+  font-size: var(--fs-200);
+  font-family: var(--font-mono);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.recordedItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  border-inline-start: 2px solid var(--line-2);
+  padding-inline-start: var(--sp-3);
+}
+.recordedHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-300);
+  color: var(--ink);
+  font-weight: 600;
+}
+.recordedBody,
+.recordedCheck {
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+  max-width: 84ch;
+}
+.recordedCheck {
+  color: var(--faint);
+  font-size: var(--fs-100);
+}
+.gapList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-inline-start: var(--sp-4);
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+}
+
+@media (max-width: 40rem) {
+  .summary {
+    padding: var(--sp-4);
+  }
+  .body {
+    padding: 0 var(--sp-4) var(--sp-4);
+  }
+  .inputList {
+    grid-template-columns: 1fr;
+  }
+}

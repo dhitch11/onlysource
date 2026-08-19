@@ -21,6 +21,8 @@ import { sendPreflight } from '@/lib/notify/email'
 import { readSettings } from '@/lib/notify/settings'
 import { Scrollable } from '@/components/ui/Scrollable'
 import { RecommendationPanel } from '@/components/pricing/RecommendationPanel'
+import { QuoteAuditTrail } from '@/components/pricing/QuoteAuditTrail'
+import { buildQuoteView, toDossierAward } from '@/lib/intelligence/pricing'
 import {
   buildFscPeerPool,
   liveClassifierOrNull,
@@ -154,6 +156,45 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
     classifier: liveClassifierOrNull(),
   })
 
+  /*
+   * THE AUDIT TRAIL UNDER THE RECOMMENDATION. Added by @PRICE-SURFACE, ADDITIVE: nothing above
+   * this block was changed, moved or reworded.
+   *
+   * ★ THIS IS THE FIRST CALLER `buildQuoteView` HAS EVER HAD. Roughly 2,270 lines of tested
+   * pricing engine and nine test files, and `grep -rln buildQuoteView app components` returned
+   * nothing. The four separately auditable figures this product was built around had never been
+   * on a screen. That is this estate's dominant failure shape rather than an oversight: built and
+   * wired and never fed, and the cure is a caller.
+   *
+   * The owner lifting the rule that forbade a single recommended number did not delete the
+   * arithmetic that justifies one. The four figures stay underneath as the working, and beside
+   * them go the INPUTS the winning rung consumed, each with its own date and its own source,
+   * which is what makes a figure defensible to a buyer rather than merely printed.
+   *
+   * The SAME `nowMs` the recommendation was priced at is passed here. A second clock read would
+   * let the recommendation and the audit trail beneath it price one row against two instants,
+   * and every threshold and band in this engine is dated.
+   *
+   * Nothing is declared on the operator's behalf: the three declaration fields stay null rather
+   * than defaulting to false, because "we are not offering surplus" and "nobody has said" are
+   * different facts, and reading the silence as a false omits an applicable evaluation factor
+   * and overstates our competitiveness on a price-alone evaluation.
+   */
+  const quoteView = buildQuoteView({
+    nsn: row.nsn,
+    awards: award ? award.awards.map(toDossierAward) : [],
+    approvedSourceCages: row.approvedSources,
+    solicitationQuantity: row.quantity,
+    solicitation: row.solicitation,
+    automatedSolicitation: row.automatedSolicitation,
+    atInstantMs: nowMs,
+    feedWindow: awardIx.ok ? awardIx.window : { firstAwardIso: null, lastAwardIso: null },
+    proposedUnitPriceUsd: null,
+    offeringUnusedFormerGovernmentSurplus: null,
+    esaCoordinationCount: null,
+    buyAmericanOrBalanceOfPayments: null,
+  })
+
   return (
     <main className={styles.page}>
       <Link href={'/monopoly' as never} className={styles.back}>
@@ -275,6 +316,24 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
         the working. Putting the working first would bury the answer.
       */}
       <RecommendationPanel rec={recommendation} />
+
+      {/*
+        THE WORKING, DIRECTLY UNDER THE ANSWER. @PRICE-SURFACE, additive: the panel above and its
+        placement belong to @BUILD-THE-WIRES and neither was changed.
+
+        It carries the two things a recommendation cannot be defended without and the panel does
+        not render: every INPUT the winning rung consumed with its own date and source, and the
+        FOUR separately auditable figures underneath. Collapsed on first paint, because the
+        recommendation is the answer and this is the working, and every word of it stays in the
+        DOM so the browser's own find, the keyboard and a screen reader all still reach it.
+
+        Shown on an abstention too. When no rung reached, the four figures underneath are the only
+        arithmetic on the page, which is exactly when an operator needs them.
+      */}
+      <QuoteAuditTrail
+        view={quoteView}
+        inputs={recommendation.resolved ? recommendation.inputs : []}
+      />
 
       <section className={styles.cards}>
         <div className={styles.card}>
