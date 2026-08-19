@@ -165,6 +165,12 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--faint);
+  /*
+   * `em`, and deliberately NOT a token. This is the disclosure chevron, and it has to grow and
+   * shrink with the row it sits in: the grid ships three densities, so a fixed size would be
+   * right in one of them and wrong in the other two. A glyph that scales with its text is a
+   * different kind of value from a type size.
+   */
   font-size: 1.15em;
   line-height: 1;
   transition: transform 160ms ease, color 160ms ease;
@@ -611,7 +617,9 @@
   border: 0;
   background: transparent;
   color: var(--dim);
-  font-size: 18px;
+  /* 18px is --fs-500. It was written as a number here on the first pass; the glyph is a
+     multiplication sign and its size is a type decision like any other. */
+  font-size: var(--fs-500);
   cursor: pointer;
 }
 /* Grows the HIT AREA to 32px square without drawing a larger control. The glyph reads at 22px
@@ -641,9 +649,10 @@
     max-width: none;
   }
   .search {
-    /* 16px exactly. Below it, iOS Safari zooms the viewport on focus and leaves the operator
-       scrolled sideways on a page that has no horizontal scroll of its own. */
-    font-size: 16px;
+    /* --fs-400 IS 16px, and that is not a coincidence: the token exists because below 16px
+       iOS Safari zooms the viewport on focus, leaving the operator scrolled sideways on a
+       page that has no horizontal scroll of its own. Named rather than repeated. */
+    font-size: var(--fs-400);
     min-height: 44px;
   }
   .searchClear,

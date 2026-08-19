@@ -441,7 +441,7 @@
   color: var(--accent-on-fill);
   font: inherit;
   font-size: var(--fs-200, 0.875rem);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -470,7 +470,7 @@
   flex: 1;
   min-width: 0;
   color: var(--ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   font-size: var(--fs-200, 0.875rem);
   text-decoration: none;
   border-bottom: 1px solid var(--line-control);
@@ -833,7 +833,7 @@
   }
 
   .paperFacts dt {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     display: inline;
   }
 
@@ -886,7 +886,7 @@
   .notesLabel {
     margin: 0 0 0.04in;
     font-size: 8pt;
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     color: #000;
   }
 

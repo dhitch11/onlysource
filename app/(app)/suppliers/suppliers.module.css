@@ -18,7 +18,7 @@
 }
 .h1 {
   font-size: var(--fs-600);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
 }
 .sub {
@@ -59,7 +59,7 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-600);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 1;
   letter-spacing: -0.02em;
 }
@@ -118,7 +118,7 @@
 .scoreN {
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-500);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   color: var(--ink);
 }
 
@@ -175,7 +175,7 @@
 }
 .unavailableTitle {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
 }
 .unavailable p {
   font-size: var(--fs-200);
@@ -239,7 +239,7 @@
   background: var(--accent-soft);
   border-color: var(--accent-2);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .chipN {
   font-family: var(--font-mono);
@@ -283,7 +283,7 @@
    phone rather than wrapping. A note explaining a bound must not itself break the layout. */
 .resultNote {
   color: var(--dim);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
   white-space: normal;
 }
 .exportBtn {
@@ -295,7 +295,7 @@
   color: var(--ink);
   font: inherit;
   font-size: var(--fs-200);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
 }
 .exportBtn:hover {
@@ -330,7 +330,7 @@
   background: var(--accent-fill);
   color: var(--accent-on-fill);
   font-size: var(--fs-100);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -387,7 +387,7 @@
 }
 .elsewhere strong {
   color: var(--ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .elsewhereBtn {
   min-height: 32px;
@@ -398,7 +398,7 @@
   color: var(--accent);
   font: inherit;
   font-size: var(--fs-100);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
 }
 .elsewhereBtn:focus-visible {

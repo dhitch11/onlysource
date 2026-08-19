@@ -279,7 +279,7 @@
   color: var(--accent-on-fill);
   font: inherit;
   font-size: var(--fs-300, 0.9375rem);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
 }
 .addBtn:focus-visible {
@@ -324,7 +324,7 @@
   color: var(--accent-on-fill);
   font: inherit;
   font-size: var(--fs-200, 0.875rem);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -341,7 +341,7 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .cardNext {
   font-size: var(--fs-100, 0.8125rem);
@@ -419,11 +419,11 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--accent);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 .cardWonRef {
   color: var(--faint);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
   font-size: var(--fs-100);
 }
 

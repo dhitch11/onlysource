@@ -39,7 +39,7 @@
 }
 .title {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   margin: 0;
   letter-spacing: -0.01em;
 }
@@ -54,7 +54,7 @@
 }
 .figureNum {
   font-size: var(--fs-700, 2rem);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -79,7 +79,7 @@
   color: var(--ink);
 }
 .basisLabel {
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .basisSep {
   color: var(--dim);
@@ -146,12 +146,12 @@
 }
 .totalValue {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .totalBlock[data-role='evaluated'] .totalValue {
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
   color: var(--dim);
 }
 .totalNote {
@@ -246,7 +246,7 @@
 }
 .rungLabel {
   font-size: var(--fs-200);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .rungBody {
   margin: 0;
@@ -290,7 +290,7 @@
   color: var(--accent);
 }
 .figure[data-kind='BAND'] .figureNum {
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   /* The connective "to" is what makes it a range; keep it from being crushed out on a phone. */
   white-space: normal;
 }

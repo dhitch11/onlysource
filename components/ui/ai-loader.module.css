@@ -32,7 +32,7 @@
 }
 .title {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .stages {
@@ -57,6 +57,12 @@
   flex: none;
   border-radius: 50%;
   border: 1.5px solid var(--line-control);
+  /*
+   * OFF THE SCALE ON PURPOSE, and the only reason that is allowed is that this is not text.
+   * It is a tick glyph centred in a fixed 16px ring; at the 13px floor it touches the border.
+   * Nobody reads it, they see whether the ring is filled. A type token here would be naming a
+   * decision that is really about a 16px circle.
+   */
   font-size: 10px;
   color: var(--accent);
 }
@@ -71,7 +77,7 @@
 }
 .stageActive {
   color: var(--ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .stageDone {
   color: var(--dim);

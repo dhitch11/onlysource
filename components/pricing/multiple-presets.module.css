@@ -15,7 +15,7 @@
 .title {
   margin: 0;
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
 }
 .intro {
   margin: 0;
@@ -66,7 +66,7 @@
 }
 .value {
   font-size: var(--fs-500);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
 }
 .label {
@@ -109,7 +109,7 @@
 }
 .rateNum {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   font-variant-numeric: tabular-nums;
 }
 .rateLabel {

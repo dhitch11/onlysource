@@ -64,7 +64,7 @@
 }
 .panelTitle {
   font-size: var(--fs-300);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .panelSettings {
@@ -103,7 +103,7 @@
 }
 .itemTitle {
   font-size: var(--fs-300);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .itemBody {
@@ -115,7 +115,9 @@
 .sev {
   justify-self: start;
   font-family: var(--font-mono);
-  font-size: 10px;
+  /* WAS 10px. This is a word a person reads - HIGH, LOW - not a glyph, and 10px is three
+     steps under the scale's stated floor. --fs-100 is what this system calls a badge. */
+  font-size: var(--fs-100);
   letter-spacing: var(--track-label);
   text-transform: uppercase;
   padding: 2px 6px;
@@ -160,7 +162,7 @@
 }
 .toastTitle {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .toastBody {
@@ -182,7 +184,7 @@
   background: var(--accent-fill);
   color: var(--accent-on-fill);
   font-size: var(--fs-200);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   text-decoration: none;
 }
 .toastDismiss {

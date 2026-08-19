@@ -32,7 +32,7 @@
 }
 .title {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .subtitle {

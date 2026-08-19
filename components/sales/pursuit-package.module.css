@@ -25,7 +25,7 @@
 }
 .title {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 /* A panel title with its eye-in-circle explainer beside it, never inside the heading. */
@@ -51,7 +51,7 @@
   color: var(--accent-on-fill);
   font: inherit;
   font-size: var(--fs-300);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   flex: none;
   transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease);
@@ -190,7 +190,7 @@
 }
 .contactWho {
   color: var(--ink);
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
 }
 .contactCage {
   color: var(--faint);
@@ -231,7 +231,7 @@
   color: var(--ink);
   font: inherit;
   font-size: var(--fs-200);
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
@@ -260,7 +260,7 @@
 }
 .draftTitle {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .draftBlock {

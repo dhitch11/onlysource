@@ -42,7 +42,7 @@
 }
 .summaryTitle {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .summaryTitle::before {
@@ -71,7 +71,7 @@
 
 .blockTitle {
   font-size: var(--fs-300);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
   margin-block-end: var(--sp-1);
 }
@@ -112,7 +112,7 @@
 }
 .inputLabel {
   font-size: var(--fs-200);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .inputValue {
@@ -173,7 +173,7 @@
 }
 .figureLabel {
   font-size: var(--fs-300);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .figureValue {
@@ -182,7 +182,7 @@
   gap: var(--sp-2);
   flex-wrap: wrap;
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -191,7 +191,7 @@
   text-transform: uppercase;
   letter-spacing: var(--track-label);
   color: var(--faint);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
 }
 .figureBody,
 .figureArith,
@@ -276,7 +276,7 @@
   flex-wrap: wrap;
   font-size: var(--fs-300);
   color: var(--ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 .recordedBody,
 .recordedCheck {

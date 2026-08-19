@@ -14,7 +14,7 @@
 }
 .h1 {
   font-size: var(--fs-600);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
 }
 .sub {
@@ -25,7 +25,7 @@
 .sub b {
   color: var(--ink);
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 /* ---------- measured counts ----------
@@ -121,7 +121,7 @@
 }
 .unavailableTitle {
   font-size: var(--fs-400);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
 }
 .unavailable p {
   font-size: var(--fs-200);

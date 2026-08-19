@@ -79,6 +79,17 @@ const HEAVY_INTELLIGENCE_TESTS = [
   // Its sibling `scale-suspect-consumers.test.ts` stays in the default project on purpose: it only
   // shells out to `git grep` and reads no corpus at all.
   'test/pricing-scale/decimal-shift.test.ts',
+  // ★ THIS FILE ASKED TO BE HERE, IN ITS OWN COMMENT, AND WAS NOT.
+  // test/feed-window/wiring.test.ts says: "This file belongs in HEAVY_INTELLIGENCE_TESTS in
+  // vitest.config.mts, beside the other four files that call buildAllDatasets(), so it runs
+  // pinned to one worker with a shared module registry. That config file is owned by another
+  // lane and is not edited from here."
+  //
+  // The request was correct and the deference is no longer needed: this is the only lane left.
+  // Until now the file documented a placement it did not have, and paid for it - one of its 21
+  // tests timed out at 5,000ms in the full suite while all 21 pass in 5.55s alone, the same
+  // contention signature as the four files already listed.
+  'test/feed-window/wiring.test.ts',
 ]
 
 // The known-bad lint fixtures are deliberately broken source. They are input to the

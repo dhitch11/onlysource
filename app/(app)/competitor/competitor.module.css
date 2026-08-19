@@ -40,7 +40,7 @@
 }
 .h1 {
   font-size: var(--fs-600);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: -0.02em;
   color: var(--ink);
   min-width: 0;
@@ -106,7 +106,7 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-700);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 1.05;
   color: var(--accent);
 }
@@ -133,7 +133,7 @@
 }
 .cardTitle {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .cardSub {
@@ -257,7 +257,7 @@
 }
 .unavailableTitle {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--ink);
 }
 .unavailable p {
@@ -473,7 +473,7 @@
 }
 .layerTitle {
   font-size: var(--fs-500);
-  font-weight: 650;
+  font-weight: var(--fw-heavy);
   color: var(--dim);
 }
 .layerBody {
