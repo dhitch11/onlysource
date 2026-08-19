@@ -172,7 +172,7 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
           </button>
         </div>
       ) : (
-        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards} ${rt.capped}`}>
           <table className={styles.table}>
             <caption className="vh">
               Federal Supply Classes on this feed day, ordered by evidence, then candidate
@@ -231,6 +231,23 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
           </table>
         </Scrollable>
       )}
+      {/*
+       * The cap is CSS and bites only below the card breakpoint, so this sentence exists at every
+       * width and is visible at few. A cap the reader cannot see is the silent version of a cap.
+       *
+       * This board states its own ordering in its caption — evidence, then candidate count, then
+       * class size — and that is what makes hiding the TAIL correct here. On a page ordered
+       * oldest-first the same rule would keep the least useful rows and drop the rest.
+       */}
+      {shown.length > 10 ? (
+        <p className={rt.cappedNote}>
+          Showing the first 10 of {shown.length.toLocaleString()} classes here to keep this
+          readable on a narrow screen. These are the strongest by evidence, then candidate count.
+          Turn your phone sideways or open this on a wider screen for all{' '}
+          {shown.length.toLocaleString()}; nothing is removed, and your browser&rsquo;s own find
+          still reaches every row.
+        </p>
+      ) : null}
     </section>
   )
 }

@@ -308,7 +308,8 @@ function OpportunityTable({
   showHolders: boolean
 }) {
   return (
-    <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
+    <>
+    <Scrollable className={`${styles.tableWrap} ${rt.cards} ${rt.capped}`}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -378,5 +379,21 @@ function OpportunityTable({
         </tbody>
       </table>
     </Scrollable>
+      {/*
+       * The cap is CSS and it only bites below the card breakpoint, so this sentence has to be
+       * here at every width and invisible at most of them. A cap the reader cannot see is the
+       * silent version of a cap, and this page already prints its own counts — hiding rows
+       * underneath a sentence that says "showing 60" would make the page state a number it is
+       * not showing.
+       */}
+      {rows.length > 10 ? (
+        <p className={rt.cappedNote}>
+          Showing the first 10 of {rows.length.toLocaleString()} here to keep this readable on a
+          narrow screen. Turn your phone sideways or open this on a wider screen for all{' '}
+          {rows.length.toLocaleString()}. Nothing is removed: your browser&rsquo;s own find still
+          reaches every row.
+        </p>
+      ) : null}
+    </>
   )
 }

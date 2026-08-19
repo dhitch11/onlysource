@@ -259,4 +259,63 @@
   .cards tbody td[class*="alignEnd"] {
     text-align: start;
   }
+
+  /*
+   * ==========================================================================================
+   * `.capped` — BECAUSE FIXING THE WIDTH CREATED A HEIGHT PROBLEM
+   * ==========================================================================================
+   * A table row is one line. The same row as a card is eight to twelve. Converting a table to
+   * cards multiplies its height by roughly 8x, and nothing anybody was measuring could see it,
+   * because every check in this pass measured WIDTH.
+   *
+   * Measured at 320 on the deployed build, after the card conversion:
+   *
+   *      /groups        175,250px = 243 SCREENS    280 cards x 567px
+   *      /goldmine       94,304px = 131 SCREENS    187 cards x 452px
+   *      /hubzone        14,189px =  19.7          23 cards
+   *      /intelligence    8,585px =  11.9          10 cards
+   *
+   * 243 screens is not a long page, it is an unusable one, and it did not exist this morning.
+   * The defect is entirely mine: the width fix created it and the width fix passed every check.
+   *
+   * ★ THE HIDING IS CSS AND THE ROWS STAY IN THE DOM. Nothing is sliced server-side, so the
+   * browser's own find still reaches every row, and rotating the phone or opening the page wider
+   * returns the full set with no second request.
+   *
+   * ★★ WHICH END TO HIDE IS A PROPERTY OF THE PAGE AND MUST BE READ, NEVER ASSUMED. This rule
+   * hides from `--rt-cap + 1` ONWARD, which is correct only for a table whose BEST rows are
+   * first. Verified before use: /groups states its order in its own caption ("ordered by
+   * evidence, then candidate count, then class size") and /goldmine ranks by size of buy and
+   * already cuts server-side at `SHOWN`. Both are best-first. /corner's award history is the
+   * opposite — oldest first, stated in its subtitle — and hiding its first ten would keep 2016
+   * and drop everything an operator needs, which is why that page uses `nth-last-child` instead.
+   * A page that does not state its order does not get this class until somebody reads the sort.
+   *
+   * ⚠️ A CAP THE READER CANNOT SEE IS THE SILENT VERSION OF A CAP, and it is worse here than
+   * usual: these pages already PRINT a count. Hiding rows underneath a sentence that says
+   * "showing 60" makes the page state a number it is not showing. `.cappedNote` is not optional
+   * decoration — a page adopting `.capped` must render it, and it is visible only at the widths
+   * where the cap is in force.
+   */
+  .capped tbody tr:nth-child(n + 11) {
+    display: none;
+  }
+
+  .cappedNote {
+    display: block;
+    margin-block-start: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    color: var(--dim);
+    font-size: var(--fs-100);
+  }
+}
+
+/* Above the card breakpoint every row is a table row again, so the cap has nothing to do and the
+ * note would be describing a state that is not in force. Both are inert here rather than absent,
+ * so the markup is identical at every width and nothing has to be conditionally rendered. */
+.cappedNote {
+  display: none;
 }
