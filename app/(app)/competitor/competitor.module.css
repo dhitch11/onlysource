@@ -3,6 +3,21 @@
   flex-direction: column;
   gap: var(--sp-5);
   padding-bottom: var(--sp-7);
+  /*
+   * THE PAGE NEVER SCROLLS SIDEWAYS; ITS WIDE CONTENT SCROLLS INSIDE ITSELF.
+   *
+   * Measured on live prod at 390: this element reported scrollWidth 665 against clientWidth 366
+   * with overflow-x visible, and it was the ONLY route on the product still moving the document
+   * horizontally. A flex column's items take their automatic minimum from their content, so a
+   * wide child inside a card pushed this container past the viewport and the whole page slid
+   * under the reader's thumb.
+   *
+   * min-inline-size: 0 releases that automatic minimum. overflow-x: clip contains what is left
+   * to the box, so a wide table still scrolls in its own wrap and the ExplainButton popovers are
+   * unaffected because they render in the top layer.
+   */
+  min-inline-size: 0;
+  overflow-x: clip;
 }
 .head {
   display: flex;
