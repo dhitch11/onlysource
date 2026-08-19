@@ -377,6 +377,14 @@ export function DataGrid<T>({
                         <td
                           key={cell.id}
                           data-cell={`${ri}-${ci}`}
+                          /*
+                           * ★ THE COLUMN'S OWN HEADER, CARRIED ONTO THE CELL, so the narrow-width
+                           * card layout labels each value from the ONE place that already knows the
+                           * header text. The only other hook the DOM offered was the column INDEX in
+                           * `data-cell`, and a label bound to column position desyncs silently the
+                           * day a column moves.
+                           */
+                          data-label={col.header}
                           tabIndex={focusCell.r === ri && focusCell.c === ci ? 0 : -1}
                           onFocus={() => setFocusCell({ r: ri, c: ci })}
                           className={[

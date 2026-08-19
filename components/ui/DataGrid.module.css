@@ -355,3 +355,139 @@
   font-size: var(--fs-100);
   color: var(--faint);
 }
+
+/* ==========================================================================================
+ * NARROW WIDTHS: THE TABLE BECOMES CARDS.
+ *
+ * MEASURED on /pricing before this existed: a 9-column table 1,542px wide inside a 294px scroller
+ * at 320 and a 364px scroller at 390. Four to five times the viewport. The body did NOT scroll
+ * sideways, so every geometry assertion passed and the page was reported clean.
+ * ★ "CONTAINED" AND "USABLE" ARE DIFFERENT CLAIMS, and only one was ever checked. The screenshot
+ * showed what the measurements could not: one row read across five screens, `overflow-wrap:
+ * anywhere` splitting VALVE,ANGLE P into VALV / E,AN / GLE P and BATTERY POWER SUPPLY P into six
+ * lines, the recommended quote cut off at the right edge, and the "Scroll for more columns" pill
+ * sitting on top of the last visible row.
+ *
+ * A row becomes a card and every value is labelled from `data-label`, which the cell carries from
+ * its column definition rather than inferring from column position.
+ *
+ * THE HEADER IS NOT HIDDEN. Sorting lives there, and removing a control on small screens removes a
+ * feature rather than adapting a layout. It becomes a wrapping strip of sort chips above the cards.
+ *
+ * SHARED ON PURPOSE: /pricing, /board, /monopoly and /suppliers all render through this component
+ * and all had the same defect. Fix the cause once.
+ * ========================================================================================== */
+@media (max-width: 700px) {
+  .scroller {
+    /* Nothing left to scroll sideways; a scroll container here would trap touch gestures. */
+    overflow-x: visible;
+  }
+
+  .table,
+  .table thead,
+  .table tbody,
+  .table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .table thead th {
+    display: inline-flex;
+    inline-size: auto !important;
+    max-inline-size: 100%;
+    padding: var(--sp-1) var(--sp-2);
+    border: 0;
+    /*
+     * The desktop header is `position: sticky` against the scroller. Once the row is a wrapping
+     * flex strip that sticky context has no axis to hold, and the headers rendered ON TOP OF EACH
+     * OTHER with the first clipped mid-word to "...OTE, PER UNIT".
+     */
+    position: static;
+    inset-block-start: auto;
+  }
+  .table thead th .headCell,
+  .table thead th > * {
+    min-inline-size: 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .table tbody tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    margin-block-start: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    box-sizing: border-box;
+  }
+
+  /*
+   * Label and value on one line. `minmax(0, ...)` on BOTH tracks: without it a long unbroken value
+   * blows the grid back out to the width this block exists to remove.
+   */
+  .table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+    gap: var(--sp-2);
+    align-items: baseline;
+    padding: var(--sp-1) 0;
+    border: 0;
+    white-space: normal;
+    box-sizing: border-box;
+  }
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: var(--fs-100, 0.72rem);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+  /* A cell with no label would silently swallow its value into the first column. */
+  .table tbody td:not([data-label])::before {
+    content: '';
+  }
+
+  /*
+   * Everything inside a cell may shrink and wrap, AT ANY DEPTH. The basis chip sat 24px past the
+   * edge when only its parent had been told it could shrink.
+   */
+  .table tbody td * {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    white-space: normal;
+  }
+  .table tbody td .cellValue {
+    display: flex;
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .table tbody td .cellValue > * {
+    min-inline-size: 0;
+    overflow-wrap: break-word;
+  }
+
+  /*
+   * At card width there is room to wrap normally, and `anywhere` was the thing splitting VALVE
+   * into VALV and E.
+   */
+  .wrapAnywhere {
+    overflow-wrap: break-word;
+  }
+
+  /* A pinned column has nothing to pin against once the row is a card. */
+  .pinned {
+    position: static;
+  }
+  .alignEnd .cellValue {
+    justify-content: flex-start;
+  }
+}
