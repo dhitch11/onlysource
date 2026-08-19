@@ -6,6 +6,7 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import type { BookMatch, DedicatedPull, MakerRow, SubjectPart } from '@/lib/intelligence/competitor/rural-route'
 
 import styles from './competitor.module.css'
+import rt from '@/components/ui/responsive-table.module.css'
 
 /**
  * THE DEDICATED PULL VIEW. Rendered only for a company we hold a company-specific export for,
@@ -42,6 +43,50 @@ const ACCESS_WORDS: Record<string, string> = {
   closed_to_new_manufacturing: 'closed to new manufacturing',
   not_established: 'not established',
 }
+
+const MAKER_COLS = {
+  maker: "Maker",
+  tracedToThem: "Traced to them",
+  sharedWithOtherApprovedSources: "Shared with other approved sources",
+  referenceHeld: "Reference held",
+  ourBook: "Our book",
+} as const
+
+const BEHIND_COLS = {
+  maker: "Maker",
+  behindTheirAwards: "Behind their awards",
+  researcherTier: "Researcher tier",
+  contactsOnFile: "Contacts on file",
+  inventoryRead: "Inventory read",
+  lastAwardSeen: "Last award seen",
+} as const
+
+const PART_COLS = {
+  stockNumber: "Stock number",
+  part: "Part",
+  awards: "Awards",
+  awardedValue: "Awarded value",
+  makersApproved: "Makers approved",
+  routeForANewSource: "Route for a new source",
+  demandAhead: "Demand ahead",
+  listedStock: "Listed stock",
+} as const
+
+const RIVAL_COLS = {
+  company: "Company",
+  awards: "Awards",
+  awardedValue: "Awarded value",
+  stockNumbers: "Stock numbers",
+  alsoAnApprovedSource: "Also an approved source",
+} as const
+
+const STOCK_COLS = {
+  firm: "Firm",
+  stockNumbersListed: "Stock numbers listed",
+  unitsListed: "Units listed",
+  roleInThisExport: "Role in this export",
+  ourBook: "Our book",
+} as const
 
 export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull; cornerDigits: Set<string> }) {
   const { role, attribution, snapshot, bookSummary } = pull
@@ -158,21 +203,21 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           />
           <MetricMoney amount={attribution.noRecordValue} label="maker unknown" hint={`${count(attribution.noRecordNsns)} stock numbers with no approved-source row at all`} />
         </div>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Maker</th>
-                <th>Traced to them</th>
-                <th>Shared with other approved sources</th>
-                <th>Reference held</th>
-                <th>Our book</th>
+                <th>{MAKER_COLS.maker}</th>
+                <th>{MAKER_COLS.tracedToThem}</th>
+                <th>{MAKER_COLS.sharedWithOtherApprovedSources}</th>
+                <th>{MAKER_COLS.referenceHeld}</th>
+                <th>{MAKER_COLS.ourBook}</th>
               </tr>
             </thead>
             <tbody>
               {pull.makers.slice(0, MAKERS_SHOWN).map((m) => (
                 <tr key={m.cage}>
-                  <td>
+                  <td data-label={MAKER_COLS.maker}>
                     <span className={styles.makerName}>{m.company ?? 'company name absent'}</span>
                     <span className={`mono ${styles.makerCage}`}>CAGE {m.cage}</span>
                     {m.sameNameCages.length > 0 ? (
@@ -182,7 +227,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
                       </span>
                     ) : null}
                   </td>
-                  <td>
+                  <td data-label={MAKER_COLS.tracedToThem}>
                     {m.soleNsns.length > 0 ? (
                       <>
                         <Money amount={m.soleAwardedValue} provenance="measured" />
@@ -194,7 +239,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
                       <span className={styles.cellAbsent}>never the only approved source</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label={MAKER_COLS.sharedWithOtherApprovedSources}>
                     {m.sharedNsns.length > 0 ? (
                       <>
                         <span className={styles.ceilingPrefix}>up to</span>{' '}
@@ -208,7 +253,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
                       <span className={styles.cellAbsent}>none</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label={MAKER_COLS.referenceHeld}>
                     {m.holdsIdentityGradeReference ? (
                       <StatusChip tone="verified" srLabel="design control or source control reference, item identifying">
                         design control
@@ -219,7 +264,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
                       </StatusChip>
                     )}
                   </td>
-                  <td>
+                  <td data-label={MAKER_COLS.ourBook}>
                     <BookCell book={m.book} />
                   </td>
                 </tr>
@@ -250,42 +295,42 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
               <Metric n={count(bookSummary.notInBook)} label="not in the book" hint="unknown to us, which is not a statement about them" />
             </div>
             {pull.contactableMakers.length > 0 ? (
-              <Scrollable className={styles.tableWrap}>
+              <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Maker</th>
-                      <th>Behind their awards</th>
-                      <th>Researcher tier</th>
-                      <th>Contacts on file</th>
-                      <th>Inventory read</th>
-                      <th>Last award seen</th>
+                      <th>{BEHIND_COLS.maker}</th>
+                      <th>{BEHIND_COLS.behindTheirAwards}</th>
+                      <th>{BEHIND_COLS.researcherTier}</th>
+                      <th>{BEHIND_COLS.contactsOnFile}</th>
+                      <th>{BEHIND_COLS.inventoryRead}</th>
+                      <th>{BEHIND_COLS.lastAwardSeen}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pull.contactableMakers.map((m) => (
                       <tr key={m.cage}>
-                        <td>
+                        <td data-label={BEHIND_COLS.maker}>
                           <span className={styles.makerName}>{m.company ?? 'company name absent'}</span>
                           <span className={`mono ${styles.makerCage}`}>CAGE {m.cage}</span>
                         </td>
-                        <td>{behindLabel(m)}</td>
-                        <td>
+                        <td data-label={BEHIND_COLS.behindTheirAwards}>{behindLabel(m)}</td>
+                        <td data-label={BEHIND_COLS.researcherTier}>
                           {m.book.state === 'contactable' ? (
                             <span className={styles.prior}>{m.book.tier ?? 'untiered'}{m.book.score != null ? ` · ${m.book.score}` : ''}</span>
                           ) : null}
                         </td>
-                        <td className="mono">
+                        <td data-label={BEHIND_COLS.contactsOnFile} className="mono">
                           {m.book.state === 'contactable'
                             ? `${count(m.book.contacts)}${m.book.hasEmail ? ' · email' : ''}${m.book.hasPhone ? ' · phone' : ''}`
                             : ''}
                         </td>
-                        <td>
+                        <td data-label={BEHIND_COLS.inventoryRead}>
                           {m.book.state === 'contactable' ? (
                             <span className={styles.prior}>{m.book.holdsInventory ?? 'not researched'}</span>
                           ) : null}
                         </td>
-                        <td className="mono">
+                        <td data-label={BEHIND_COLS.lastAwardSeen} className="mono">
                           {m.book.state === 'contactable' ? (m.book.lastAwardedAt ?? 'not recorded') : ''}
                         </td>
                       </tr>
@@ -325,18 +370,18 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           on their newest award say about how a new source could reach it. The route reading comes from the
           government codebook and abstains where a code is missing rather than guessing at an answer.
         </p>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Stock number</th>
-                <th>Part</th>
-                <th className={styles.numCol}>Awards</th>
-                <th>Awarded value</th>
-                <th>Makers approved</th>
-                <th>Route for a new source</th>
-                <th>Demand ahead</th>
-                <th>Listed stock</th>
+                <th>{PART_COLS.stockNumber}</th>
+                <th>{PART_COLS.part}</th>
+                <th className={styles.numCol}>{PART_COLS.awards}</th>
+                <th>{PART_COLS.awardedValue}</th>
+                <th>{PART_COLS.makersApproved}</th>
+                <th>{PART_COLS.routeForANewSource}</th>
+                <th>{PART_COLS.demandAhead}</th>
+                <th>{PART_COLS.listedStock}</th>
               </tr>
             </thead>
             <tbody>
@@ -361,30 +406,30 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           these are the makers themselves bidding direct, which is marked, and the rest are dealers competing for
           the same items.
         </p>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Company</th>
-                <th className={styles.numCol}>Awards</th>
-                <th>Awarded value</th>
-                <th className={styles.numCol}>Stock numbers</th>
-                <th>Also an approved source</th>
+                <th>{RIVAL_COLS.company}</th>
+                <th className={styles.numCol}>{RIVAL_COLS.awards}</th>
+                <th>{RIVAL_COLS.awardedValue}</th>
+                <th className={styles.numCol}>{RIVAL_COLS.stockNumbers}</th>
+                <th>{RIVAL_COLS.alsoAnApprovedSource}</th>
               </tr>
             </thead>
             <tbody>
               {pull.rivals.slice(0, RIVALS_SHOWN).map((r) => (
                 <tr key={r.cage}>
-                  <td>
+                  <td data-label={RIVAL_COLS.company}>
                     <span className={styles.makerName}>{r.company ?? 'company name absent'}</span>
                     <span className={`mono ${styles.makerCage}`}>CAGE {r.cage}</span>
                   </td>
-                  <td className={`mono ${styles.numCol}`}>{count(r.awards)}</td>
-                  <td>
+                  <td data-label={RIVAL_COLS.awards} className={`mono ${styles.numCol}`}>{count(r.awards)}</td>
+                  <td data-label={RIVAL_COLS.awardedValue}>
                     <Money amount={r.awardedValue} provenance="measured" />
                   </td>
-                  <td className={`mono ${styles.numCol}`}>{count(r.nsns)}</td>
-                  <td>
+                  <td data-label={RIVAL_COLS.stockNumbers} className={`mono ${styles.numCol}`}>{count(r.nsns)}</td>
+                  <td data-label={RIVAL_COLS.alsoAnApprovedSource}>
                     {r.isApprovedSource ? (
                       <StatusChip tone="verified">maker bidding direct</StatusChip>
                     ) : (
@@ -418,34 +463,34 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           <Metric n={count(pull.spotMarket.unitsListed)} label="units listed" hint={`${count(pull.spotMarket.zeroQuantityRows)} listings carry a quantity of zero, which is a published zero`} />
           <Metric n={count(pull.spotMarket.firmsAlsoApprovedSource)} label="also an approved source" hint="everyone else here is holding material, not making it" />
         </div>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Firm</th>
-                <th className={styles.numCol}>Stock numbers listed</th>
-                <th className={styles.numCol}>Units listed</th>
-                <th>Role in this export</th>
-                <th>Our book</th>
+                <th>{STOCK_COLS.firm}</th>
+                <th className={styles.numCol}>{STOCK_COLS.stockNumbersListed}</th>
+                <th className={styles.numCol}>{STOCK_COLS.unitsListed}</th>
+                <th>{STOCK_COLS.roleInThisExport}</th>
+                <th>{STOCK_COLS.ourBook}</th>
               </tr>
             </thead>
             <tbody>
               {pull.spotMarket.holders.slice(0, HOLDERS_SHOWN).map((h) => (
                 <tr key={h.cage}>
-                  <td>
+                  <td data-label={STOCK_COLS.firm}>
                     <span className={styles.makerName}>{h.company ?? 'company name absent'}</span>
                     <span className={`mono ${styles.makerCage}`}>CAGE {h.cage}</span>
                   </td>
-                  <td className={`mono ${styles.numCol}`}>{count(h.nsns)}</td>
-                  <td className={`mono ${styles.numCol}`}>{count(h.unitsListed)}</td>
-                  <td>
+                  <td data-label={STOCK_COLS.stockNumbersListed} className={`mono ${styles.numCol}`}>{count(h.nsns)}</td>
+                  <td data-label={STOCK_COLS.unitsListed} className={`mono ${styles.numCol}`}>{count(h.unitsListed)}</td>
+                  <td data-label={STOCK_COLS.roleInThisExport}>
                     {h.isApprovedSource ? (
                       <StatusChip tone="verified">approved source</StatusChip>
                     ) : (
                       <StatusChip tone="idle">holds material only</StatusChip>
                     )}
                   </td>
-                  <td>
+                  <td data-label={STOCK_COLS.ourBook}>
                     {pull.bookAvailable ? (
                       h.inBook ? (
                         <StatusChip tone="accent">in our book</StatusChip>
@@ -533,7 +578,7 @@ function BookCell({ book }: { book: BookMatch }) {
 function PartRow({ part, isCorner }: { part: SubjectPart; isCorner: boolean }) {
   return (
     <tr>
-      <td className="mono">
+      <td data-label={PART_COLS.stockNumber} className="mono">
         {isCorner ? (
           <Link href={`/corner/${part.nsn.replace(/[^0-9]/g, '')}` as never} className={styles.nsnLink}>
             {part.nsn}
@@ -543,9 +588,9 @@ function PartRow({ part, isCorner }: { part: SubjectPart; isCorner: boolean }) {
         )}
         {isCorner ? <StatusChip tone="accent">Corner</StatusChip> : null}
       </td>
-      <td className={styles.partCell}>{part.description || 'no description in the export'}</td>
-      <td className={`mono ${styles.numCol}`}>{count(part.awards)}</td>
-      <td>
+      <td data-label={PART_COLS.part} className={styles.partCell}>{part.description || 'no description in the export'}</td>
+      <td data-label={PART_COLS.awards} className={`mono ${styles.numCol}`}>{count(part.awards)}</td>
+      <td data-label={PART_COLS.awardedValue}>
         <Money amount={part.awardedValue} provenance="measured" />
         {part.awardsWithUnreadValue > 0 ? (
           <span className={styles.cellNote}>
@@ -554,7 +599,7 @@ function PartRow({ part, isCorner }: { part: SubjectPart; isCorner: boolean }) {
           </span>
         ) : null}
       </td>
-      <td className={styles.makerCell}>
+      <td data-label={PART_COLS.makersApproved} className={styles.makerCell}>
         {part.attribution === 'no_approved_source_recorded' ? (
           <span className={styles.cellAbsent}>no approved-source row in this export</span>
         ) : (
@@ -574,7 +619,7 @@ function PartRow({ part, isCorner }: { part: SubjectPart; isCorner: boolean }) {
           </>
         )}
       </td>
-      <td>
+      <td data-label={PART_COLS.routeForANewSource}>
         {part.route.unknown ? (
           <span className={styles.cellAbsent}>codes incomplete, not determined</span>
         ) : (
@@ -586,14 +631,14 @@ function PartRow({ part, isCorner }: { part: SubjectPart; isCorner: boolean }) {
           </>
         )}
       </td>
-      <td className="mono">
+      <td data-label={PART_COLS.demandAhead} className="mono">
         {part.forecast ? (
           `${count(part.forecast.quantity)} units / ${count(part.forecast.rows)} months`
         ) : (
           <span className={styles.cellAbsent}>not forecast</span>
         )}
       </td>
-      <td className="mono">
+      <td data-label={PART_COLS.listedStock} className="mono">
         {part.spot ? (
           `${count(part.spot.holders)} listing${part.spot.holders === 1 ? '' : 's'} / ${count(part.spot.quantity)} units`
         ) : (

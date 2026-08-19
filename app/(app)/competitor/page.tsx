@@ -11,6 +11,7 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import { CompetitorPicker } from './CompetitorPicker'
 import { DedicatedPullView } from './DedicatedPullView'
 import styles from './competitor.module.css'
+import rt from '@/components/ui/responsive-table.module.css'
 
 export const metadata: Metadata = { title: 'Competitor teardown · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,17 @@ const SHOWN = 60
  * section below for the second half of that: for a company the deep pull reads as a DEALER,
  * the sole-source language is corrected here rather than left to be read as a monopoly.
  */
+const PARTS_COLS = {
+  stockNumber: "Stock number",
+  part: "Part",
+  partNumber: "Part number",
+  amsc: "AMSC",
+  // The fifth column is one of two, chosen by `showRivals`. Two keys rather than one, so the
+  // header and the cell that actually renders always read the SAME string.
+  rivals: "Rivals",
+  sources: "Sources",
+} as const
+
 export default async function CompetitorPage({
   searchParams,
 }: {
@@ -303,15 +315,15 @@ function Section({
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>{title}</h2>
       <p className={styles.cardSub}>{blurb}</p>
-      <Scrollable className={styles.tableWrap}>
+      <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Stock number</th>
-              <th>Part</th>
-              <th>Part number</th>
-              <th>AMSC</th>
-              {showRivals ? <th>Rivals</th> : <th className={styles.numCol}>Sources</th>}
+              <th>{PARTS_COLS.stockNumber}</th>
+              <th>{PARTS_COLS.part}</th>
+              <th>{PARTS_COLS.partNumber}</th>
+              <th>{PARTS_COLS.amsc}</th>
+              {showRivals ? <th>{PARTS_COLS.rivals}</th> : <th className={styles.numCol}>{PARTS_COLS.sources}</th>}
             </tr>
           </thead>
           <tbody>
@@ -319,7 +331,7 @@ function Section({
               const isCorner = cornerDigits.has(p.niin) || cornerDigits.has(p.nsn.replace(/[^0-9]/g, ''))
               return (
                 <tr key={p.nsn}>
-                  <td className="mono">
+                  <td data-label={PARTS_COLS.stockNumber} className="mono">
                     {isCorner ? (
                       <Link href={`/corner/${p.nsn.replace(/[^0-9]/g, '')}` as never} className={styles.nsnLink}>
                         {p.nsn}
@@ -329,13 +341,13 @@ function Section({
                     )}
                     {isCorner ? <StatusChip tone="accent">Corner</StatusChip> : null}
                   </td>
-                  <td className={styles.partCell} title={p.description}>
+                  <td data-label={PARTS_COLS.part} className={styles.partCell} title={p.description}>
                     {p.description || '—'}
                   </td>
-                  <td className={`mono ${styles.pn}`}>{p.partNumber ?? '—'}</td>
-                  <td className="mono">{p.amsc ?? '—'}</td>
+                  <td data-label={PARTS_COLS.partNumber} className={`mono ${styles.pn}`}>{p.partNumber ?? '—'}</td>
+                  <td data-label={PARTS_COLS.amsc} className="mono">{p.amsc ?? '—'}</td>
                   {showRivals ? (
-                    <td className={styles.rivalCell} title={p.otherSources.map((o) => o.company ?? o.cage).join(', ')}>
+                    <td data-label={PARTS_COLS.rivals} className={styles.rivalCell} title={p.otherSources.map((o) => o.company ?? o.cage).join(', ')}>
                       {p.otherSources
                         .slice(0, 2)
                         .map((o) => o.company ?? o.cage)
@@ -343,7 +355,7 @@ function Section({
                       {p.otherSources.length > 2 ? ` +${p.otherSources.length - 2}` : ''}
                     </td>
                   ) : (
-                    <td className={`mono ${styles.numCol}`}>{p.sourceCount}</td>
+                    <td data-label={PARTS_COLS.sources} className={`mono ${styles.numCol}`}>{p.sourceCount}</td>
                   )}
                 </tr>
               )
