@@ -119,5 +119,60 @@ if [ "$ok" != "1" ]; then
   die "the new build did not come up serving /enter at $TARGET_SHA"
 fi
 
+# --------------------------------------------------------------------------
+# WARM THE COLD BUILD, AND SMOKE THE SIGNED-IN ROUTES WHILE DOING IT.
+#
+# MEASURED 2026-08-19: /monopoly takes 11.3 seconds on the FIRST request after a
+# deploy and 1.7 seconds on every one after it. /pricing shows the same signature,
+# 4.55s then 1.83s. The pages are not slow; the first visitor pays to build the
+# scored set, and the memo is per-process so a restart throws it away.
+#
+# We deploy constantly. That first visitor is whoever opens the product next, which
+# on any given night is the owner or a customer, on the flagship, seconds after a
+# promote. THIS TURNS AN ELEVEN-SECOND VISITOR INTO AN ELEVEN-SECOND DEPLOY STEP.
+#
+# ★ AND IT IS THE FIRST SIGNED-IN CHECK THIS DEPLOY HAS EVER HAD. Everything above
+# is anonymous, and an anonymous caller gets a 307 from every app route, so a page
+# that 500s for a signed-in operator passes the entire protocol. That is not
+# hypothetical: /monopoly and /pricing were both measured at 500 signed-in during a
+# promote window while every anonymous check stayed green.
+#
+# The cookie is minted ON THIS BOX so the signing secret never leaves it. If minting
+# is unavailable the deploy does NOT fail: an un-warmed deploy is a slow first visit,
+# not a broken one, and refusing to finish over it would be a gate that costs more
+# than the defect. A route that ANSWERS BADLY is a different matter and fails.
+# --------------------------------------------------------------------------
+WARM_ROUTES="${WARM_ROUTES:-/monopoly /board /pricing /suppliers /intelligence /}"
+MINT="${MINT_SCRIPT:-/tmp/mint.js}"
+
+if [ -r "$MINT" ]; then
+  say "warming the new build and smoking it signed in"
+  WARM_COOKIE="__Host-os_gate=$(node "$MINT" deploy:warm 2>/dev/null || true)"
+  if [ "$WARM_COOKIE" = "__Host-os_gate=" ]; then
+    printf '   could not mint a session; skipping the warm. First visitor will pay the cold build.\n'
+  else
+    warm_failed=""
+    for r in $WARM_ROUTES; do
+      t0=$(date +%s%N)
+      # `|| true` not `|| echo 000`: curl already prints 000 on a connection failure, and
+      # appending another would report "000000", which reads like a status nobody can look up.
+      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 120 -H "cookie: $WARM_COOKIE" "$ORIGIN$r" || true)"
+      code="${code:-000}"
+      ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+      printf '   %-14s %s  %6s ms\n' "$r" "$code" "$ms"
+      # 200 or a redirect are both fine; a 5xx or a failed connection is not.
+      case "$code" in 2*|3*) ;; *) warm_failed="$warm_failed $r($code)" ;; esac
+    done
+    if [ -n "$warm_failed" ]; then
+      printf '\n   signed-in smoke FAILED on:%s\n' "$warm_failed" >&2
+      rollback
+      die "the new build serves anonymous callers but fails signed in. Rolled back."
+    fi
+    say "warm: every route above was served once, so the first real visitor does not build the cache"
+  fi
+else
+  printf '\n   no %s on this host; skipping the warm. First visitor will pay the cold build.\n' "$MINT"
+fi
+
 say "LIVE: $TARGET_SHA · /enter 200 · previous build kept at $PREVIOUS"
 echo "roll back with:  rm -rf $LIVE && mv $PREVIOUS $LIVE && pm2 restart $APP"
