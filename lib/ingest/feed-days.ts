@@ -40,7 +40,13 @@ export type VerifiedCapture = {
   retrievedAt: string
   byteLen: number
   /** Which re-verification admitted it: the full index gate, or zip magic plus length. */
-  verifiedBy: 'index_content_gate' | 'zip_magic_and_length'
+  /**
+   * `zip_magic_and_length` is deliberately NOT in this union any more. It named a check that
+   * read the first four bytes and called a truncated 56 MB download verified, so leaving the
+   * old value assignable would let a caller re-introduce the weaker guarantee under a name that
+   * still reads like a passing verification.
+   */
+  verifiedBy: 'index_content_gate' | 'zip_magic_directory_and_length'
 }
 
 export type ExcludedCapture = {
@@ -90,6 +96,50 @@ function hasZipMagic(path: string): boolean {
   } finally {
     closeSync(fd)
   }
+}
+
+/**
+ * THE ZIP HAS AN END AS WELL AS A BEGINNING, AND A TRUNCATION ONLY DAMAGES THE END.
+ *
+ * `hasZipMagic` reads four bytes at offset 0, so it answers "did this download START correctly".
+ * A truncated download starts perfectly: the local-file-header magic is the first thing written.
+ * Measured on this estate's own archive on 2026-08-19:
+ *
+ *   ca260811.zip  56,826,248 bytes  no central directory  `unzip -t` fails
+ *   discoverFeedDays() accepted it, verifiedBy: 'zip_magic_and_length', 0 exclusions
+ *
+ * The manifest recorded the retrieval as successful and the byte length matched the bytes on
+ * disk exactly, because a truncated file is perfectly consistent with a manifest that recorded
+ * how much of it arrived. Length agreement is not integrity. The same day on the server held a
+ * 712,059,275-byte copy that reads cleanly, so the archive silently carried a partial capture
+ * and a complete one for the same date, and nothing anywhere said so.
+ *
+ * This is the same shape as the sentinel index file caught by the volume floors an hour earlier:
+ * the SHAPE checks passed on 140 literal "X" characters because 140 X's is a perfectly formed
+ * 140-character line. A malformed beginning is rare; a missing end is the normal failure of an
+ * interrupted transfer. Check the end.
+ *
+ * The End Of Central Directory record is the structure a truncation removes. It is at the tail,
+ * at most 22 + 65,535 bytes in, so this reads a bounded window and scans backwards. No inflation,
+ * no full read, and it does not care how large the archive is: 712 MB costs the same as 56 MB.
+ */
+function hasZipCentralDirectory(path: string): boolean {
+  const size = statSync(path).size
+  const EOCD_MIN = 22
+  if (size < EOCD_MIN) return false
+  const window = Math.min(size, EOCD_MIN + 0xffff)
+  const buf = Buffer.alloc(window)
+  const fd = openSync(path, 'r')
+  try {
+    readSync(fd, buf, 0, window, size - window)
+  } finally {
+    closeSync(fd)
+  }
+  // 0x06054b50, little-endian, scanned from the tail so a comment containing the bytes loses.
+  for (let i = buf.length - EOCD_MIN; i >= 0; i -= 1) {
+    if (buf[i] === 0x50 && buf[i + 1] === 0x4b && buf[i + 2] === 0x05 && buf[i + 3] === 0x06) return true
+  }
+  return false
 }
 
 type CacheEntry = { mtimeMs: number; size: number; value: FeedDayDiscovery }
@@ -168,12 +218,23 @@ export function discoverFeedDays(root: string = defaultRoot()): FeedDayDiscovery
         })
         return null
       }
+      if (!hasZipCentralDirectory(path)) {
+        excluded.push({
+          filename,
+          storageKey: row.storage_key,
+          reason:
+            'begins with the zip magic but has no end-of-central-directory record, so the ' +
+            'download was truncated: the manifest recorded how much of it arrived, not that it ' +
+            'arrived complete',
+        })
+        return null
+      }
       return {
         filename,
         storageKey: row.storage_key,
         retrievedAt: row.retrieved_at,
         byteLen: row.byte_len,
-        verifiedBy: 'zip_magic_and_length',
+        verifiedBy: 'zip_magic_directory_and_length',
       }
     }
     excluded.push({ filename, storageKey: row.storage_key, reason: 'not a recognised daily file shape' })
