@@ -120,6 +120,20 @@ export function callerPermissions(caller: Caller): readonly string[] {
  * The whole answer for an account is `can()` over the permissions its CURRENT role holds, so
  * adding a permission to a role changes what the API allows with no second edit anywhere.
  */
+/**
+ * The role name to SHOW this caller, for a refusal that names who they are.
+ *
+ * It lives here rather than in a page because it is a fact about a `Caller`, and the second
+ * surface that needed it would otherwise have copied it. Two copies of a mapping like this drift,
+ * and the drift is silent: one screen says "No account" while another says "Anonymous" about the
+ * same session, and neither is wrong enough to notice.
+ */
+export function callerRoleName(caller: Caller): string {
+  if (caller.kind === 'account') return caller.account.role.name
+  if (caller.kind === 'bootstrap') return 'Break-glass session'
+  return 'No account'
+}
+
 export function callerCan(caller: Caller, permissionKey: string): boolean {
   return can(callerPermissions(caller), permissionKey)
 }

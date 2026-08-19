@@ -5,6 +5,7 @@ import {
   callerPermissions,
   readCaller,
   type Caller,
+  callerRoleName,
 } from '@/lib/session/authz'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { ExplainButton } from '@/components/ui/ExplainButton'
@@ -266,12 +267,6 @@ export default async function AdminPage() {
 }
 
 /** The viewer's role as a person reads it, or the honest absence of one. */
-function callerRoleName(caller: Caller): string {
-  if (caller.kind === 'account') return caller.account.role.name
-  if (caller.kind === 'bootstrap') return 'Break-glass session'
-  return 'No account'
-}
-
 /**
  * A short, honest summary of what a role can do.
  *

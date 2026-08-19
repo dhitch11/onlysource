@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { requireGateSession, readGateVerdict } from '@/lib/session/require-gate'
+import { callerCan, callerRoleName, readCaller } from '@/lib/session/authz'
 import { ANONYMOUS_SUBJECT } from '@/lib/session/pre-release-gate'
 import { findAccountById } from '@/lib/auth/accounts'
 import { buildIdentity } from '@/lib/build-identity'
@@ -299,6 +300,56 @@ function PrintStrip(props: {
 
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireGateSession('/')
+
+  /*
+   * ★ THE PAGE ASKS THE SAME QUESTION THE API ALREADY ASKED. IT WAS NOT ASKING IT.
+   *
+   * `document.view` is `sensitive: true`, and the `read_only` role is defined as every
+   * non-sensitive operator permission, so it deliberately does not hold it.
+   * `app/api/packets/route.ts` checks it correctly, twice. This page did not check it at all,
+   * and it SERVER-RENDERS the artifact bodies into the HTML.
+   *
+   * So the route that serves documents refused a caller the page then handed the same content
+   * to. The lock was on the door nobody uses, and a server-rendered page is the main way anyone
+   * reads anything here.
+   *
+   * This is the third instance of one sentence: FOUR of the fourteen permissions govern SEEING a
+   * fact rather than doing one, and this product enforced permissions at the point of ACTION.
+   * Every mutation is properly gated; the read paths were gated wherever a route happened to
+   * exist. A permission checked only before a write is not enforced on a read.
+   *
+   * The refusal NAMES THE BOUNDARY and names the role, rather than rendering an empty document
+   * list. An empty list would teach an operator there is no paperwork, which is a false
+   * statement about the world rather than a true one about their role.
+   */
+  const caller = await readCaller()
+  if (!callerCan(caller, 'document.view')) {
+    return (
+      <div className={s.wrap}>
+        <div className={s.screen}>
+          <section className={s.section}>
+            <div className={s.docHead}>
+              <h1 className={s.sectionTitle}>Documents and POs</h1>
+            </div>
+            <p className={s.lede}>
+              Opening documents is a permission your role does not hold, so the paperwork on this
+              screen is not shown to you. Your role is <b>{callerRoleName(caller)}</b>. This is not
+              an empty workspace: the documents exist and the API refuses the same request for the
+              same reason. Ask an owner if you need it.
+            </p>
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  /*
+   * Seeing a document and taking a copy of it are separate permissions, so this is resolved
+   * separately rather than implied by the check above. A caller may legitimately read the
+   * paperwork and not be allowed to walk out with the file.
+   */
+  const canExport = callerCan(caller, 'data.export')
+
   const p = await searchParams
   const asOf = new Date(systemClock.now()).toISOString()
 
@@ -581,6 +632,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
             ) : null}
             <div className={s.actionRow}>
               <DownloadFileButton
+                canExport={canExport}
                 label="Download the whole packet"
                 variant="primary"
                 filename={packetFile.filename}
@@ -599,6 +651,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                 <div className={s.actionRow}>
                   {artifactFiles.map((a) => (
                     <DownloadFileButton
+                      canExport={canExport}
                       key={a.kind}
                       label={`Download ${a.label.toLowerCase()}`}
                       filename={a.file.filename}

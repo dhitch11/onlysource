@@ -34,6 +34,20 @@ export function DownloadFileButton(props: {
   variant?: 'primary' | 'secondary'
   /** Rendered under the button. Says what the file contains, before it is opened. */
   description?: string
+  /*
+   * ★ WHETHER THIS CALLER MAY TAKE THE FILE, WHICH IS A DIFFERENT QUESTION FROM READING IT.
+   *
+   * `data.export` is `sensitive: true` and the `read_only` role withholds it. Before this, a
+   * download built its file in the browser from content the page had already rendered, and A
+   * CLIENT-SIDE BLOB IS NOT A ROUTE, so it never passed a permission gate of any kind. That is
+   * why the suppliers CSV was invisible until someone went looking for it.
+   *
+   * Seeing a document and taking a copy of it are separate permissions on purpose, so this is
+   * separate from the page's `document.view` check rather than implied by it. Defaults to true
+   * so no existing caller silently loses a button; every caller that renders sensitive content
+   * should pass it explicitly.
+   */
+  canExport?: boolean
 }) {
   const [problem, setProblem] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -65,9 +79,21 @@ export function DownloadFileButton(props: {
 
   return (
     <div className={s.action}>
+      {props.canExport === false ? (
+        /*
+         * A refusal that NAMES THE BOUNDARY, not a hidden button. A missing control teaches an
+         * operator the file does not exist; this tells them it does and that their role does not
+         * include taking a copy.
+         */
+        <p className={s.note}>
+          Downloading is a permission your role does not hold, so this file is shown on screen and
+          not offered as a copy.
+        </p>
+      ) : (
       <Button type="button" variant={props.variant ?? 'secondary'} onClick={download}>
         {props.label}
       </Button>
+      )}
       {props.description ? <p className={s.note}>{props.description}</p> : null}
       <p className={s.file}>
         <span className="mono">{props.filename}</span>, {props.content.length.toLocaleString()} characters
