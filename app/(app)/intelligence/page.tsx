@@ -9,6 +9,7 @@ import { HBars } from '@/components/ui/HBars'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import rt from '@/components/ui/responsive-table.module.css'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { PortfolioBrief } from './PortfolioBrief'
 import styles from './intelligence.module.css'
@@ -179,7 +180,7 @@ export default async function IntelligencePage() {
       <section className={styles.card}>
         <h2 className={styles.chartTitle}>Top plays</h2>
         <p className={styles.chartSub}>The highest-ranked corners in the book. Open any for its full dossier.</p>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -197,17 +198,17 @@ export default async function IntelligencePage() {
             <tbody>
               {pf.topCorners.map((c) => (
                 <tr key={c.nsn}>
-                  <td className="mono">
+                  <td className="mono" data-label="Stock number">
                     <Link href={`/corner/${c.nsn.replace(/[^0-9]/g, '')}` as never} className={styles.escNsn}>
                       {c.nsn}
                     </Link>
                   </td>
-                  <td className={styles.itemCell} title={c.item}>
+                  <td className={styles.itemCell} title={c.item} data-label="Item">
                     {c.item}
                   </td>
-                  <td className={`mono ${styles.numCol}`}>{c.score}</td>
-                  <td className={`mono ${styles.numCol}`}>{usd(c.lastPrice)}</td>
-                  <td>
+                  <td className={`mono ${styles.numCol}`} data-label="Score">{c.score}</td>
+                  <td className={`mono ${styles.numCol}`} data-label="Last award">{usd(c.lastPrice)}</td>
+                  <td data-label="Trend">
                     {c.priceSeries.length >= 2 ? (
                       <PriceSparkline
                         points={c.priceSeries}
@@ -220,7 +221,7 @@ export default async function IntelligencePage() {
                       <span className={styles.dash}>—</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Signals">
                     <span className={styles.signals}>
                       {c.onForecast ? <StatusChip tone="verified">Forecast</StatusChip> : null}
                       {c.machineAward ? <StatusChip tone="active">Machine</StatusChip> : null}

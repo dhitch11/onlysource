@@ -7,6 +7,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { systemClock } from '@/lib/time/clock'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import rt from '@/components/ui/responsive-table.module.css'
 import { PursueButton } from '@/components/sales/PursueButton'
 import { readDeals } from '@/lib/sales/deals-store'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
@@ -129,7 +130,7 @@ export default async function HubzonePage() {
           have already passed; an <b>Open</b> chip marks the ones still open to quote. A stock
           number that is also one of our candidate corners links into its dossier.
         </p>
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -155,7 +156,7 @@ export default async function HubzonePage() {
                 const open = m.closeDate ? Date.parse(m.closeDate) >= nowMs : false
                 return (
                   <tr key={`${m.nsn}:${m.solicitation}`}>
-                    <td className="mono">
+                    <td className="mono" data-label="Stock number">
                       {isCorner ? (
                         <Link href={`/corner/${m.nsn.replace(/[^0-9]/g, '')}` as never} className={styles.nsnLink}>
                           {m.nsn}
@@ -164,19 +165,19 @@ export default async function HubzonePage() {
                         <span className={styles.nsnPlain}>{m.nsn || '—'}</span>
                       )}
                     </td>
-                    <td className="mono">
+                    <td className="mono" data-label="Solicitation">
                       {m.solicitation || '—'}
                       {m.typeChar === 'U' ? <StatusChip tone="idle">U</StatusChip> : m.typeChar === 'T' ? <StatusChip tone="idle">T</StatusChip> : null}
                     </td>
-                    <td className={styles.partCell} title={m.description}>
+                    <td className={styles.partCell} title={m.description} data-label="Part">
                       {m.description || '—'}
                     </td>
-                    <td className={`mono ${styles.numCol}`}>{m.quantity?.toLocaleString() ?? '—'}</td>
-                    <td className={`mono ${styles.numCol}`}>{usd(m.lastSoldPrice)}</td>
-                    <td className={`mono ${styles.numCol} ${styles.sizeCol}`}>
+                    <td className={`mono ${styles.numCol}`} data-label="Qty">{m.quantity?.toLocaleString() ?? '—'}</td>
+                    <td className={`mono ${styles.numCol}`} data-label="Last price">{usd(m.lastSoldPrice)}</td>
+                    <td className={`mono ${styles.numCol} ${styles.sizeCol}`} data-label="Size of buy">
                       {m.size.known ? usd0(m.size.usd) : '—'}
                     </td>
-                    <td className={styles.closeCell}>
+                    <td className={styles.closeCell} data-label="Close date">
                       {m.closeDate ? (
                         <span className={styles.closeRow}>
                           <span className="mono">{m.closeDate}</span>
@@ -186,7 +187,7 @@ export default async function HubzonePage() {
                         '—'
                       )}
                     </td>
-                    <td>
+                    <td data-label="Action">
                       {/* The pursuit wire, on rows that are also candidate corners (the same
                           rows whose stock number links into a dossier). */}
                       {isCorner && m.nsn ? (

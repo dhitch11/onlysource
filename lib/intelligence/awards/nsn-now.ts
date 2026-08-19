@@ -25,6 +25,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { readWorkbookSheets, usDateToIso, distinctWorkbookPaths, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
 import { dataPath } from '@/lib/data-root'
+import { SHEET_ROW_CAP } from '@/lib/ingest/batch-export/workbook'
 import {
   rollUpSurplus,
   summariseSurplusCensus,
@@ -204,6 +205,8 @@ export type NsnAwardIndex = {
     mcrlRows: number
     nsnsWithAwards: number
     nsnsWithApprovedSources: number
+    /** Asked about, never answered, because a Procurement sheet stopped at the ceiling. */
+    nsnsNeverAnswered: number
   }
   /**
    * The population-level Surplus reading, so any surface rendering a surplus mark can publish
@@ -211,6 +214,24 @@ export type NsnAwardIndex = {
    * headline and the rows cannot disagree.
    */
   surplusCensus: SurplusCensus
+  /**
+   * ★ STOCK NUMBERS A BATCH EXPORT WAS ASKED ABOUT AND NEVER ANSWERED FOR.
+   *
+   * NOT the same as a stock number with no award history, and the difference is not cosmetic.
+   * Measured on the 2026-08-15 pull: `full_1` and `full_3` stopped at EXACTLY 20,000 Procurement
+   * rows, the sheet ceiling, leaving 355 and 314 requested stock numbers with no rows. `full_2`
+   * stopped 34 rows short, so nothing was cut and its 235 silent stock numbers genuinely have no
+   * award history at DLA.
+   *
+   * All 904 arrive here identically — absent from the sheet — and 669 of them are currently
+   * carried as `awards: []` by `emptySummary`, which every consumer reads as "never bought".
+   * That is a claim about the market derived from a download that stopped early.
+   *
+   * Membership here means UNKNOWN. It must never be rendered as "no award history", counted in
+   * a denominator of items-without-awards, or used to justify falling to a weaker pricing basis.
+   * It costs a re-request: see `data/nsn-now/pull-lists/never-answered.txt`.
+   */
+  neverAnswered: Set<string>
 }
 
 export type NsnAwardUnavailable = {
@@ -361,11 +382,40 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
   const seenHolder = new Set<string>()
   const seenMcrl = new Set<string>()
 
+  /*
+   * Stock numbers a report was asked about but whose Procurement sheet hit the ceiling before
+   * reaching them. Collected per file because the ceiling is per SHEET, and resolved after the
+   * loop: a stock number answered by ANY report is not unknown because another cut it short.
+   */
+  const neverAnswered = new Set<string>()
+
   for (const file of files) {
     const wb = readWorkbookSheets(file)
     provenance.push(wb.provenance)
 
     const proc = wb.sheets.get('Procurement')
+
+    /*
+     * THE REQUEST WAS NEVER RECORDED, SO IT IS RECONSTRUCTED AS THE UNION OF EVERY SHEET.
+     * A stock number appearing anywhere in the workbook was certainly asked about. That is a
+     * LOWER bound on the request — one that returned nothing on every sheet is invisible to it —
+     * so this can only UNDER-count what we failed to answer, never invent an unknown. Under-
+     * counting costs a later re-request; over-counting would put a false doubt on a real reading.
+     */
+    if (proc && proc.rows.length >= SHEET_ROW_CAP) {
+      const answeredHere = new Set<string>()
+      for (const r of proc.rows) {
+        const n = nsn13(r['NSN Number'])
+        if (n) answeredHere.add(n)
+      }
+      for (const [, sheet] of wb.sheets) {
+        for (const r of sheet.rows) {
+          const n = nsn13(r['NSN Number'])
+          if (n && !answeredHere.has(n)) neverAnswered.add(n)
+        }
+      }
+    }
+
     for (const r of proc?.rows ?? []) {
       const nsn = nsn13(r['NSN Number'])
       if (!nsn) continue
@@ -585,9 +635,17 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
   for (const nsn of holdersByNsn.keys()) if (!byNsn.has(nsn)) byNsn.set(nsn, emptySummary(nsn))
   for (const nsn of mcrlByNsn.keys()) if (!byNsn.has(nsn)) byNsn.set(nsn, emptySummary(nsn))
 
+  /*
+   * A stock number ANSWERED by any report is not unknown because a different report cut it
+   * short. Chunked reports overlap, and without this a real award history would be shadowed by
+   * a truncation somewhere else in the batch.
+   */
+  for (const nsn of awardsByNsn.keys()) neverAnswered.delete(nsn)
+
   cache = {
     ok: true,
     byNsn,
+    neverAnswered,
     window: {
       firstAwardIso: feedOldestIso,
       lastAwardIso: feedNewestIso,
@@ -602,6 +660,8 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       mcrlRows,
       nsnsWithAwards: [...awardsByNsn.keys()].length,
       nsnsWithApprovedSources: [...mcrlByNsn.keys()].length,
+      /** Asked about, never answered. Published so a coverage figure can subtract it. */
+      nsnsNeverAnswered: neverAnswered.size,
     },
     surplusCensus: summariseSurplusCensus(
       [...byNsn.values()].map((s) => s.surplus),
@@ -609,6 +669,40 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
     ),
   }
   return cache
+}
+
+/**
+ * WHAT THE EXPORT ACTUALLY ESTABLISHED ABOUT ONE STOCK NUMBER'S AWARD HISTORY.
+ *
+ * ★ USE THIS INSTEAD OF `byNsn.get(nsn)?.awards.length === 0`, WHICH CANNOT BE RIGHT.
+ * An empty `awards[]` currently means one of three different things and a consumer reading the
+ * array alone gets the same answer for all three:
+ *
+ *   `held`           the export carried award rows for it
+ *   `none`           it was asked about, the sheet had room, and there were no rows.
+ *                    The origin answered and the answer was nothing. Final, usable.
+ *   `never_answered` it was asked about and the sheet stopped at the ceiling before reaching it.
+ *                    UNKNOWN. Not a zero, not a weak basis, not a denominator — a re-request.
+ *   `never_asked`    it was never on any pull list. Also unknown, but nothing was spent on it.
+ *
+ * The last three all present as "no awards" today. 669 stock numbers are `never_answered` and
+ * are being served as though they were `none`.
+ */
+export type AwardHistoryState = 'held' | 'none' | 'never_answered' | 'never_asked'
+
+export function awardHistoryState(
+  index: NsnAwardIndex,
+  nsn: string,
+): AwardHistoryState {
+  const key = nsn13(nsn) ?? nsn
+  const summary = index.byNsn.get(key)
+  if (summary && summary.awards.length > 0) return 'held'
+  if (index.neverAnswered.has(key)) return 'never_answered'
+  /*
+   * Present in the index without awards means a sheet DID carry it (holders or approved sources
+   * put it there) and Procurement did not. Absent entirely means no report ever mentioned it.
+   */
+  return summary ? 'none' : 'never_asked'
 }
 
 /** Test seam: drop the memoized index so a fresh export on disk is picked up. */

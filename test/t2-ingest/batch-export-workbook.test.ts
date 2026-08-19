@@ -10,7 +10,7 @@
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import {
   MEASURED_ROWS_PER_REQUESTED_NSN,
@@ -114,24 +114,34 @@ const real = (n: string) => join(DIR, n)
 const havePull = existsSync(real('full_1.xlsx')) && existsSync(real('full_2.xlsx'))
 
 describe.skipIf(!havePull)('the real 2026-08-15 workbooks', () => {
+  /*
+   * Read ONCE, with a real budget. These parse ~7MB of xlsx apiece; alone that is ~300ms, but
+   * under the full suite the workers contend and it passed 5s and timed out — a green file and a
+   * red suite from identical code. Reading once is also the honest shape: all three assertions
+   * are about the same two measurements.
+   */
+  let full1!: ReturnType<typeof readBatchExportWorkbook>
+  let full2!: ReturnType<typeof readBatchExportWorkbook>
+  beforeAll(() => {
+    full1 = readBatchExportWorkbook(real('full_1.xlsx'))
+    full2 = readBatchExportWorkbook(real('full_2.xlsx'))
+  }, 120_000)
+
   it('★ full_1 Procurement sat EXACTLY on the ceiling — the signature of a list cut short', () => {
-    const r = readBatchExportWorkbook(real('full_1.xlsx'))
-    const proc = r.sheets.find((s) => s.name === 'Procurement')
+    const proc = full1.sheets.find((s) => s.name === 'Procurement')
     expect(proc).toBeDefined()
     expect(proc!.dataRows).toBe(SHEET_ROW_CAP)
     expect(proc!.atCap).toBe(true)
   })
 
   it('★ full_2 Procurement stopped 34 rows SHORT, so its silences are honest absences', () => {
-    const r = readBatchExportWorkbook(real('full_2.xlsx'))
-    const proc = r.sheets.find((s) => s.name === 'Procurement')!
+    const proc = full2.sheets.find((s) => s.name === 'Procurement')!
     expect(proc.dataRows).toBeLessThan(SHEET_ROW_CAP)
     expect(proc.atCap).toBe(false)
   })
 
   it('★★ the cap binds PER SHEET, not per report — a per-report guard would never fire', () => {
-    const r = readBatchExportWorkbook(real('full_1.xlsx'))
-    const total = r.sheets.reduce((s, x) => s + x.dataRows, 0)
+    const total = full1.sheets.reduce((s, x) => s + x.dataRows, 0)
     expect(total).toBeGreaterThan(SHEET_ROW_CAP) // 27,087 rows in one "20,000 record" report
   })
 })
