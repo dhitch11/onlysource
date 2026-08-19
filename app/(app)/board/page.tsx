@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildBoard, type BoardRow } from "@/lib/board/build";
+import { Note } from "@/components/ui/Note";
 import { ExplainButton } from "@/components/ui/ExplainButton";
 import { BoardGrid } from "./BoardGrid";
 import styles from "./board.module.css";
@@ -92,35 +93,51 @@ export default async function BoardPage() {
          * structural, not cosmetic.
          */}
         <div className={styles.truthBody}>
-          <p>
-            Every figure on this page is counted from the two files DLA published for {feedDay}:
-            the fixed-width requirement index and the approved-source list.{" "}
-            <b>
-              Price, availability and modeled lift are absent from this page because those files do
-              not contain them
-            </b>
-            , and they are not estimated here. Open and closed are judged against <b>{asOf}</b>,{" "}
-            {asOfBasis}: a requirement&rsquo;s published return date passes whether or not our capture
-            ran, so a board that judged itself against its own feed day would keep calling expired
-            solicitations open for as long as the capture had been missed.
-            {counts.closed > 0 || counts.undated > 0 ? (
+          {/*
+           * ★ 154 WORDS IN ONE PARAGRAPH, MEASURED. Every clause was doing real work — what the
+           * figures are counted from, what is deliberately absent, why "open" is judged against
+           * today rather than the feed day — and all of it was skipped, because nobody reads a
+           * 154-word paragraph on a dashboard.
+           *
+           * NOTHING IS DELETED. The lead carries the two facts that change how a reader treats
+           * the numbers on this screen: what they are built from, and what is missing from them.
+           * The method sits one obvious click behind it.
+           */}
+          <Note
+            lead={
               <>
-                {" "}
+                Counted from the two files DLA published for <b>{feedDay}</b>. Price, availability
+                and modeled lift are <b>not on this page</b>: those files do not carry them, and
+                nothing here estimates them.
+              </>
+            }
+            label="How open and closed are judged"
+          >
+            <p>
+              The two files are the fixed-width requirement index and the approved-source list.
+            </p>
+            <p>
+              Open and closed are judged against <b>{asOf}</b>, {asOfBasis} — not against the feed
+              day. A requirement&rsquo;s published return date passes whether or not our capture
+              ran, so a board that judged itself against its own feed day would keep calling
+              expired solicitations open for as long as the capture had been missed.
+            </p>
+            {counts.closed > 0 || counts.undated > 0 ? (
+              <p>
                 Of the {counts.published.toLocaleString()} published here,{" "}
                 <b>{counts.closed.toLocaleString()}</b> had already closed by {asOf} and{" "}
                 <b>{counts.undated.toLocaleString()}</b> carried no readable return date. Both are
                 kept and labelled rather than dropped.
-              </>
+              </p>
             ) : null}
             {drift.unparsedNsn > 0 || drift.unparsedSourceLines > 0 ? (
-              <>
-                {" "}
+              <p>
                 Reported rather than hidden: {drift.unparsedNsn} index rows and{" "}
                 {drift.unparsedSourceLines} approved-source lines could not be parsed and are
                 excluded from the joins above.
-              </>
+              </p>
             ) : null}
-          </p>
+          </Note>
           {/*
            * THIS EXPLAINER IS WHY THE EVALUATED-PRICE COLUMN IS NO LONGER IN THE GRID. That column
            * took no row argument: it returned the identical abstention for every row on every feed

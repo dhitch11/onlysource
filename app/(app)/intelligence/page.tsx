@@ -1,3 +1,4 @@
+import { TextNote } from "@/components/ui/Note";
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireGateSession } from '@/lib/session/require-gate'
@@ -91,7 +92,7 @@ export default async function IntelligencePage() {
         {/* The stored sentence, not a second hand-written copy of it: the span, the thin-day
             disclosure, what was excluded from demand and on which day, and what the newest
             archived day alone shows judged the same way. */}
-        <p className={styles.basis}>{coverage.statement}</p>
+        <TextNote text={coverage.statement} label="How the window is counted" tone="quiet" />
       </header>
 
       {/* --------------------------------------------------------- AI portfolio brief */}

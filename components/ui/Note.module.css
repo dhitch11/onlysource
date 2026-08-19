@@ -1,0 +1,144 @@
+/* <Note /> — see Note.tsx for why this exists and what it is allowed to hide.
+
+   BASE RULES FIRST, MEDIA QUERY LAST, in this file, adjacent and in order. */
+
+.note {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent-2);
+  border-radius: var(--radius, 8px);
+  background: var(--panel);
+}
+
+.quiet {
+  border-left-color: var(--line-control);
+  background: transparent;
+}
+
+/* ---------- the control ----------------------------------------------------------------
+   THIS IS THE PART THAT HAS TO LOOK PRESSABLE. A disclosure nobody notices is worse than no
+   disclosure: the detail is now both hidden and unreachable. */
+.summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  cursor: pointer;
+  /* The native triangle is replaced by our own chevron, which sits with the LABEL rather than
+     alone in the margin where it reads as decoration. */
+  list-style: none;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+.summary:hover .toggleText,
+.summary:hover .chev {
+  color: var(--accent);
+}
+.summary:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius, 8px);
+}
+
+.lead {
+  flex: 1 1 22rem;
+  min-width: 0;
+  font-size: var(--fs-200);
+  line-height: var(--lh-200);
+  color: var(--ink);
+}
+
+/* The word is not optional. A chevron alone is a shape; a chevron beside "How this is counted"
+   is an instruction, and it survives being read at a glance by somebody who has never seen the
+   screen before. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  /* 32px of vertical hit area without drawing a button: the row is the target. */
+  padding: 5px var(--sp-2);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-pill, 999px);
+  color: var(--dim);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.summary:hover .toggle {
+  border-color: var(--accent-2);
+}
+.toggleText {
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chev {
+  flex: none;
+  transition: transform 160ms ease;
+}
+.note[open] .chev {
+  transform: rotate(180deg);
+}
+/* Open state is visible on the CONTROL too, not only by the body being there — a reader who has
+   scrolled past the body needs to know this one is expanded. */
+.note[open] .toggle {
+  border-color: var(--accent-2);
+  color: var(--accent);
+}
+
+.body {
+  padding: 0 var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--line);
+  margin-top: 0;
+  padding-top: var(--sp-3);
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  max-inline-size: 78ch;
+}
+.body :global(b),
+.body :global(strong) {
+  color: var(--ink);
+}
+.body > * + * {
+  margin-top: var(--sp-2);
+}
+
+.single {
+  font-size: var(--fs-200);
+  line-height: var(--lh-300);
+  color: var(--dim);
+  max-inline-size: 78ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chev {
+    transition: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .summary {
+    /* Label under the lead rather than crushed beside it: at 390px the two competed for the
+       same row and the control lost, which is the one thing it cannot afford to do. */
+    align-items: flex-start;
+    gap: var(--sp-2);
+  }
+  .lead {
+    flex: 1 1 100%;
+  }
+  .toggle {
+    /* 44px touch target on a coarse pointer, without growing it on a mouse. */
+    padding: var(--sp-2) var(--sp-3);
+    min-height: 36px;
+  }
+}
+
+@media (pointer: coarse) {
+  .toggle {
+    min-height: 44px;
+  }
+}

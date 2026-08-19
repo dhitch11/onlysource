@@ -86,6 +86,45 @@ a {
 }
 
 /*
+ * ==========================================================================================
+ * A LINK INSIDE A GRID CELL HAS TO LOOK LIKE A LINK.
+ * ==========================================================================================
+ * MEASURED on live /pricing and /monopoly: the stock-number link computed to
+ * rgb(234,237,228) — byte-identical to the body text beside it — with `text-decoration: none`
+ * and `font-weight: 400`. The ONLY signal that it opened anything was the mouse cursor, and a
+ * phone does not have one. On touch there was no affordance at all.
+ *
+ * The cause is a deliberate override: `.nsnLink { color: var(--ink) }` beating the rule above.
+ * That instinct was RIGHT and is kept. Twelve hundred gold links is not a premium data grid, it
+ * is a christmas tree, and the accent stops meaning anything when everything wears it.
+ *
+ * So the affordance is carried by an underline instead of by colour: quiet enough at rest that a
+ * column of stock numbers still reads as a column, unmistakable as a link on inspection, and it
+ * resolves to the accent on hover and on keyboard focus. Colour is never the only channel.
+ *
+ * Scoped to `td` deliberately. Links in prose already take the accent from the rule above and do
+ * not need a second treatment.
+ */
+td a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--line-control);
+  text-underline-offset: 3px;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+td a:hover,
+td a:focus-visible {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  td a {
+    transition: none;
+  }
+}
+
+/*
  * Focus is visible, it is never removed, and it is measured: --focus is asserted at 3:1
  * against --bg in the contrast test. A keyboard user has to be able to see where they are,
  * and one full daily workflow gets done with the mouse unplugged before this lane calls

@@ -1,3 +1,4 @@
+import { TextNote } from "@/components/ui/Note";
 import type { Metadata } from "next";
 import { requireGateSession } from "@/lib/session/require-gate";
 import { buildMonopolyView } from "@/lib/intelligence/monopoly-view";
@@ -324,7 +325,7 @@ export default async function MonopolyPage() {
               from the dashboard or from the dossier the AI brief is written out of. It carries
               the span, the thin-day comparison, what was excluded from demand and on which day,
               and what the newest archived day alone shows judged against that same day. */}
-          <p className={styles.truthProv}>{coverage.statement}</p>
+          <TextNote text={coverage.statement} label="How the window is counted" tone="quiet" />
           {/* THE INSTRUCTION HAS TO BE FOLLOWABLE. This sentence told the operator to open a
               row to read that row's archived file and hash while the expansion rendered
               neither: `grep -c -e sha256 -e archiveStorageKey -e feedDay` over MonopolyGrid.tsx
