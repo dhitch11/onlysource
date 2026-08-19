@@ -381,6 +381,23 @@
   .scroller {
     /* Nothing left to scroll sideways; a scroll container here would trap touch gestures. */
     overflow-x: visible;
+    /*
+     * ★★ AND NOTHING TO WINDOW VERTICALLY EITHER. `max-block-size: 70vh` is right for a desktop
+     * table: a fixed window with the rows scrolling inside it. On a phone, once every row is a
+     * ~550px card, it becomes a 630px porthole holding 226,293px of content — MEASURED, 360
+     * windows of nested scrolling inside a page that already scrolls.
+     *
+     * Worse on a busier board: a peer measured a 708px card inside a 502px window, so there was
+     * NO scroll position at which one complete recommendation was visible.
+     *
+     * Every page-level check passes throughout: the document is short, nothing overflows, there
+     * is no horizontal scroll. The scroller absorbs it. CONTAINED IS NOT USABLE, one level
+     * deeper, with a container doing the hiding.
+     *
+     * Released here so the cards flow in the document and the page has ONE scrollbar.
+     */
+    max-block-size: none;
+    overflow-y: visible;
   }
 
   .table,
@@ -489,5 +506,27 @@
   }
   .alignEnd .cellValue {
     justify-content: flex-start;
+  }
+}
+
+/* Shown only where the narrow-width cap applies; meaningless on a screen showing every row. */
+.narrowCapNote {
+  display: none;
+}
+@media (max-width: 700px) {
+  .narrowCapNote {
+    display: block;
+    margin: var(--sp-2) 0 0;
+    font-size: var(--fs-200);
+    color: var(--dim);
+    line-height: 1.5;
+  }
+  /*
+   * Rows are ordered strongest-basis-first, so the FIRST fifteen are the ones worth keeping.
+   * The opposite of the corner award history, which is oldest-first and keeps its tail with
+   * nth-last-child. Getting this backwards keeps the rows nobody needs.
+   */
+  .table tbody tr:nth-child(n + 16) {
+    display: none;
   }
 }

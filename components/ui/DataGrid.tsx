@@ -160,6 +160,13 @@ function CellBody({ cell, mono }: { cell: Cell; mono?: boolean }) {
   );
 }
 
+/**
+ * How many card-rows render below 700px. Fifteen at ~550px each is about nine screens, which is
+ * a board somebody can actually scan on a phone. It is a constant rather than a prop because the
+ * constraint is the viewport, not the caller.
+ */
+const NARROW_ROW_CAP = 15;
+
 export function DataGrid<T>({
   rows,
   columns,
@@ -435,6 +442,26 @@ export function DataGrid<T>({
         <span className="mono">{rows.length.toLocaleString()}</span> rows.
         {expansion ? " Click any row (or press Enter) to see its exact source records." : ""}
       </p>
+      {/*
+        ★ THE NARROW-WIDTH CAP, STATED. Below 700px every row is a ~550px card, so rendering all
+        of them is hundreds of screens: MEASURED at 226,293px on a 331-row board, and the fixed
+        70vh scroller was hiding it inside a 630px porthole with 360 windows of nested scroll.
+        The cards now flow in the document, and the document has to be a length somebody can use.
+
+        The rows are ordered strongest-basis-first, so the FIRST N are the ones to keep — the
+        opposite of the corner award history, which is oldest-first and keeps its tail.
+
+        Hidden in CSS, so every row stays in the DOM, stays findable by the browser's own find,
+        and returns in full on a wider screen with no second request. And the count is stated,
+        because a cap the reader has to notice is the silent version of a cap.
+      */}
+      {rows.length > NARROW_ROW_CAP ? (
+        <p className={styles.narrowCapNote}>
+          Showing the first <span className="mono">{NARROW_ROW_CAP}</span> of{" "}
+          <span className="mono">{rows.length.toLocaleString()}</span> on this screen size, ordered
+          strongest first. The rest are on this page and appear on a wider screen.
+        </p>
+      ) : null}
     </div>
   );
 }
