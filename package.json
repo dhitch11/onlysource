@@ -21,6 +21,7 @@
     "gate:all": "npm run gate:r0 && npm run gate:reachability:selftest && npm run gate:reachability && npm run typecheck && npm run test",
     "ingest:capture": "npx tsx scripts/ingest/capture-day.mts",
     "ingest:backfill": "npx tsx scripts/ingest/backfill.mts",
+    "ingest:series": "npx tsx scripts/ingest/capture-series.mts",
     "gate:reachability:selftest": "node scripts/reachability-census.mjs --selftest",
     "gate:reachability": "node scripts/reachability-census.mjs",
     "gate:reachability:list": "node scripts/reachability-census.mjs --list",
