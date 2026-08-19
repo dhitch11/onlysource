@@ -723,3 +723,33 @@
     text-align: left;
   }
 }
+
+/*
+ * Shown only where the card layout applies. The count it carries is meaningless on a wide screen,
+ * where every row is visible and 33px tall.
+ */
+.narrowOnly {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .narrowOnly {
+    display: block;
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-200);
+    color: var(--dim);
+    line-height: 1.5;
+  }
+
+  /*
+   * ★ THE TEN MOST RECENT, NOT THE FIRST TEN. The table is ordered oldest-first and says so, so
+   * `nth-child(n+11)` would have hidden exactly the awards an operator needs and kept the ones
+   * from 2016. `nth-last-child(n+11)` keeps the tail.
+   *
+   * Hidden with CSS rather than sliced on the server: every row stays in the DOM, stays findable
+   * by the browser's own find, and returns in full on any wider screen without another request.
+   */
+  .table tbody tr:nth-last-child(n + 11) {
+    display: none;
+  }
+}

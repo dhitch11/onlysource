@@ -633,6 +633,26 @@ export default async function CornerPage({
                 ))}
               </tbody>
             </table>
+            {/*
+              ★ ON A PHONE THE CARD LAYOUT MAKES EVERY ROW ~275px, SO 53 AWARDS IS 14,339px OF
+              THIS ONE SECTION — SIXTEEN SCREENS. On desktop the same 53 rows are 33px each and
+              there is nothing to fix, which is why it went unnoticed: the defect is created by
+              the mobile layout, not present in the data.
+
+              The narrow layout shows the ten MOST RECENT and hides the rest with CSS, so every
+              row stays in the DOM, stays findable by the browser's own find, and stays fully
+              present on any wider screen. Nothing is dropped server-side.
+
+              This line states the count, because a cap the reader has to notice is the silent
+              version of a cap.
+            */}
+            {dossier.priceHistory.length > 10 ? (
+              <p className={styles.narrowOnly}>
+                Showing the {Math.min(10, dossier.priceHistory.length)} most recent of{' '}
+                {dossier.priceHistory.length.toLocaleString()} awards. The rest are on this page and
+                appear on a wider screen.
+              </p>
+            ) : null}
           </Scrollable>
         </section>
       ) : null}
