@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { FRESHNESS_QUERY, PG_DATABASE, PG_HOST, PG_PORT, PG_USER, client } from '@/lib/ingest/db'
 import { NAMED_STATES, type NamedState } from '@/lib/ingest/types'
+import { resolveServedFeedDay } from '@/lib/intelligence/feed-day'
 
 /**
  * THE FRESHNESS CONTRACT. Every surface in the app can say when its data was last updated
@@ -136,6 +137,43 @@ function describeConnectionFailure(error: unknown): string {
   return `${String(error) || 'unknown failure'}. Tried ${target}.`
 }
 
+/**
+ * The archive's own reading, which is what the app serves from.
+ *
+ * Deliberately a separate shape from `SourceHealth`: they answer different questions, and a
+ * common shape would invite a surface to render one where it meant the other.
+ */
+function describeArchive(): {
+  readonly basis: 'archive_feed_days'
+  readonly servable: boolean
+  readonly servedFeedDay: string | null
+  readonly heldButNotServable: readonly { readonly feedDay: string; readonly reason: string }[]
+  readonly explanation: string
+} {
+  const r = resolveServedFeedDay()
+  if (!r.ok) {
+    return {
+      basis: 'archive_feed_days',
+      servable: false,
+      servedFeedDay: null,
+      heldButNotServable: r.skipped.map((sk) => ({ feedDay: sk.feedDay, reason: sk.reason })),
+      explanation: `No archived feed day can be served: ${r.reason}`,
+    }
+  }
+  const skipped = r.served.skipped.map((sk) => ({ feedDay: sk.feedDay, reason: sk.reason }))
+  return {
+    basis: 'archive_feed_days',
+    servable: true,
+    servedFeedDay: r.served.feedDay,
+    heldButNotServable: skipped,
+    explanation:
+      `The app is serving feed day ${r.served.feedDay} from the verified archive.` +
+      (skipped.length > 0
+        ? ` ${skipped.length} newer day(s) are held but did not pass verification and are named above.`
+        : ' No newer day is held, so this is the newest the archive has.'),
+  }
+}
+
 export async function GET(): Promise<NextResponse> {
   const connection = client()
   try {
@@ -147,8 +185,29 @@ export async function GET(): Promise<NextResponse> {
       {
         state: 'offline' satisfies NamedState,
         explanation:
-          'The ingest database is not reachable, so data freshness cannot be reported. This is ' +
-          'a statement that we do not know, not a statement that there is nothing.',
+          'The ingest database is not reachable, so ingest freshness cannot be reported. This is ' +
+          'a statement that we do not know, not a statement that there is nothing. The archive ' +
+          'reading below is a DIFFERENT source and does not answer this question.',
+        /*
+         * ★ WHAT THE ARCHIVE VERIFIABLY HOLDS, REPORTED ALONGSIDE AND NEVER MERGED IN.
+         *
+         * This endpoint has returned 503 on production for its whole life, because it asks a
+         * Postgres that does not exist on the droplet (ECONNREFUSED localhost:55432). The
+         * refusal was honest and it meant the one surface reporting data freshness has never
+         * once been able to answer.
+         *
+         * The archive is a different question with a different answer: it is what every serving
+         * surface actually reads, and `resolveServedFeedDay` verifies its captures rather than
+         * trusting a manifest. So it is reported HERE, under its own key, with its own basis
+         * stated. It is NOT folded into `sources`, and the state stays `offline`, because
+         * substituting one source's reading for another's is precisely the silent swap this
+         * estate keeps paying for. A badge must not read "healthy" from a question it did not
+         * ask.
+         *
+         * The status stays 503 for the same reason: the thing that was asked about is still
+         * unknown.
+         */
+        archive: describeArchive(),
         // A connection error from `pg` frequently carries an EMPTY message, which would leave
         // an operator with "offline" and no reason at 6am. Fall back through the error's code
         // and name, and always state WHICH database was unreachable. Never the password.
