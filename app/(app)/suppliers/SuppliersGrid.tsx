@@ -504,9 +504,26 @@ export function SuppliersGrid({
             { field: "Holds inventory", value: r.holdsInventory ?? "(not researched)" },
             { field: "Website", value: det ? det.url ?? "(none)" : held! },
             ...(det?.executive ? [{ field: "Executive", value: `${det.executive}${det.executiveTitle ? `, ${det.executiveTitle}` : ""}` }] : []),
+            /*
+             * EVERY CONTACT, NOT THE FIRST EIGHT.
+             *
+             * This read `.slice(0, 8)` and hid 1,584 contacts across 276 suppliers, measured
+             * against the real file. The supplier an operator has 40 ways to reach is the one
+             * worth working, and the slice removed exactly those 32 extra ways with no sign
+             * that anything had been removed. A truncation nobody can see reads as a complete
+             * list, so the operator stops at eight believing that is all there is.
+             *
+             * It costs nothing to lift. This branch only runs for a company already expanded
+             * and already fetched from /api/suppliers/detail, one at a time, behind
+             * `supplier.identity.view`. Nothing here is on the book payload.
+             *
+             * The count is stated on the first row so the expansion says how long it is
+             * rather than making the operator scroll to find out. Median is 4 and the largest
+             * is 151, so this is a long list on 2 companies and a short one on 1,966.
+             */
             ...(det
-              ? det.contacts.slice(0, 8).map((c, i) => ({
-                  field: i === 0 ? "Verified contacts" : "",
+              ? det.contacts.map((c, i) => ({
+                  field: i === 0 ? `Verified contacts (${det.contacts.length})` : "",
                   value: `${c.name ?? "?"}${c.title ? `, ${c.title}` : ""}${c.email ? ` · ${c.email}` : ""}${c.phone ? ` · ${c.phone}` : ""}${c.verified ? " ✓" : ""}`,
                 }))
               : [{ field: "Verified contacts", value: `${r.contactCount} on file ${held}` }]),

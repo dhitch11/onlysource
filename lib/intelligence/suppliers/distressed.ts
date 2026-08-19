@@ -186,7 +186,25 @@ export function buildDistressedSuppliers(): DistressedSuppliersIndex | Distresse
       }
       contactCount += 1
       if (verified) verifiedCount += 1
-      if (sup && sup.contacts.length < 25) sup.contacts.push(c)
+      /*
+       * EVERY CONTACT ON FILE, BECAUSE THEY WERE ALL PAID FOR.
+       *
+       * This read `sup.contacts.length < 25`, which silently dropped 419 contacts across 19
+       * suppliers. Measured against the real file: 10,167 contact rows over 1,968 suppliers,
+       * median 4 each, MAX 151. So the cap only ever bound the handful of companies an operator
+       * has the most ways to reach, which is exactly backwards.
+       *
+       * The cap looked like payload discipline and was not. `leanBook()` strips contacts from
+       * the wire entirely, so none of these cross to the browser with the book. They travel
+       * only through /api/suppliers/detail, one company per request, behind
+       * `supplier.identity.view`. Removing the ceiling adds ZERO bytes to the page and stays
+       * fully permission-gated.
+       *
+       * `Email 1 Source` in the data names who was billed for them: Apollo.io, LeadMagic, and
+       * a website crawl. Dropping a purchased record on the floor is the one cost we cannot
+       * recover by loading it later.
+       */
+      if (sup) sup.contacts.push(c)
     }
   }
 
