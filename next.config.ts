@@ -60,6 +60,35 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   typedRoutes: true,
+  /*
+   * ==========================================================================================
+   * SIGN-IN WAS IMPOSSIBLE THROUGH THE PUBLIC URL, FOR EVERYONE, AND NO CHECK WE HAD SAW IT.
+   * ==========================================================================================
+   * The public host onlysourceai.netlify.app is a pure proxy to the droplet. Next.js validates
+   * every Server Action by comparing the `origin` header against `x-forwarded-host`, and through
+   * the proxy those legitimately differ:
+   *
+   *     origin            onlysourceai.netlify.app     (the browser, telling the truth)
+   *     x-forwarded-host  206.189.230.237.nip.io       (the proxy, also telling the truth)
+   *
+   * so every submit of the /enter form died server-side with "Invalid Server Actions request"
+   * and the operator saw the error boundary: "Try again. If it keeps happening, send the
+   * reference below to the build team." The owner found it by trying to log in.
+   *
+   * WHY EVERY CHECK MISSED IT: our probes authenticate with a minted cookie against the droplet
+   * host, so the one thing they never do is SUBMIT A FORM THROUGH THE PROXY. A GET through
+   * Netlify renders fine; only a POSTed action trips the origin comparison. "The site works on
+   * Netlify" was measured on reads and asserted about writes.
+   *
+   * The allow-list below is every host this app is legitimately served through. It is the
+   * ORIGINS the check will accept for a forwarded action, not a CORS wildcard: an attacker's
+   * page still fails the check because their origin is not here.
+   */
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['onlysourceai.netlify.app', '206.189.230.237.nip.io', 'localhost:3000'],
+    },
+  },
   // Pin the workspace root. Without this, Turbopack walks up and adopts the lockfile in the
   // home directory, which silently changes what is in the build context.
   turbopack: { root: fileURLToPath(new URL('.', import.meta.url)) },
