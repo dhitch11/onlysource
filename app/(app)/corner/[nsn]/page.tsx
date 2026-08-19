@@ -6,7 +6,7 @@ import { callerCan, readCaller } from '@/lib/session/authz'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
-import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
+import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { buildCornerDossier, priceSeries } from '@/lib/intelligence/brief/dossier'
@@ -141,7 +141,14 @@ export default async function CornerPage({
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
   })
-  const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
+  const dossier = buildCornerDossier(
+    row,
+    award,
+    forecast,
+    score,
+    awardIx.ok ? awardIx.window : undefined,
+    awardIx.ok ? awardHistoryState(awardIx, key) : undefined,
+  )
   const series = priceSeries(dossier)
 
   // THE PURSUIT WIRE: the dossier's primary action. The modeled buy value is quantity x the
@@ -246,6 +253,14 @@ export default async function CornerPage({
     indices: liveIndices.config,
     mayReadMargin,
     config: pricingConfigForRow,
+    /*
+     * ★ THE INDEX KNOWS SOMETHING `award` CANNOT CARRY. When `award` is null the engine receives
+     * an empty award list, and that is either "DLA has bought this from nobody" or "we asked and
+     * the export stopped at its row ceiling before reaching this stock number". Without passing
+     * the index's verdict, this page states the first about 669 stock numbers for which only the
+     * second is true.
+     */
+    awardHistoryState: awardIx.ok ? awardHistoryState(awardIx, key) : undefined,
   })
 
   /*

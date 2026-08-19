@@ -73,6 +73,7 @@
  * plausible wrong dollar figure. The distinction is enforced by the compiler, not by a comment.
  */
 
+import type { AwardHistoryState } from '../awards/nsn-now'
 import {
   INDEX_CONFIG_1650,
   NSN_1650_01_059_8221,
@@ -222,6 +223,20 @@ export type QuoteViewInput = {
   /** The award-date span of the feed, so any "earliest observed" claim can state its bound. */
   readonly feedWindow: { readonly firstAwardIso: string | null; readonly lastAwardIso: string | null }
 
+  /**
+   * ★ WHAT THE EXPORT ESTABLISHED ABOUT THIS STOCK NUMBER'S AWARD HISTORY, when the caller knows.
+   *
+   * An empty `awards` array means one of two opposite things and the array cannot tell them
+   * apart. Measured on the real export: 235 stock numbers were asked about and honestly answered
+   * "nothing", while 669 were never answered at all, because a Procurement sheet stopped at
+   * exactly its 20,000-row ceiling before reaching them. Saying "no award history is on file" of
+   * those 669 is a claim about the market derived from a download that stopped early.
+   *
+   * OPTIONAL, and its absence is NOT `'none'`. A caller that has not been taught the difference
+   * keeps today's wording rather than being handed a confident answer it never established.
+   */
+  readonly awardHistoryState?: AwardHistoryState
+
   /** What the operator is considering quoting per unit, when they have typed one. */
   readonly proposedUnitPriceUsd?: number | null
 
@@ -261,6 +276,13 @@ export const DEFAULT_FLIP_WINDOW_MONTHS = 36
 
 export type OemAwardIdentificationFailure =
   | 'NO_AWARD_HISTORY'
+  /**
+   * ★ WE ASKED AND NEVER GOT AN ANSWER. Distinct from NO_AWARD_HISTORY, which is a statement
+   * about DLA; this is a statement about our own acquisition. 669 stock numbers reach here
+   * because a batch-export Procurement sheet stopped at exactly its 20,000-row ceiling before
+   * reaching them. The abstention is the same; the SENTENCE must not be.
+   */
+  | 'AWARD_HISTORY_NEVER_ANSWERED'
   | 'NO_APPROVED_SOURCE_LIST'
   | 'NO_AWARD_TO_AN_APPROVED_SOURCE'
   | 'APPROVED_SOURCE_AWARD_CARRIES_NO_PRICE_OR_DATE'
@@ -500,6 +522,18 @@ function setAsideReasonClauses(setAside: readonly SetAsideRow[]): string {
  */
 export function identifyOemAward(input: QuoteViewInput): OemAwardIdentification {
   if (input.awards.length === 0) {
+    if (input.awardHistoryState === 'never_answered') {
+      return {
+        identified: false,
+        reason: 'AWARD_HISTORY_NEVER_ANSWERED',
+        missingInput: 'the award history for this stock number, which was requested and never returned',
+        sentence:
+          'We asked for this stock number\u2019s award history and never received it: the export ' +
+          'report stopped at its row ceiling before reaching it. So we do not know whether a ' +
+          'manufacturer award exists. This is an unread input, not a finding that nobody has bought ' +
+          'this item, and it is fixed by re-requesting the report rather than by pricing around it.',
+      }
+    }
     return {
       identified: false,
       reason: 'NO_AWARD_HISTORY',
@@ -811,6 +845,8 @@ export type FlipObservation = {
 
 export type FlipBandAbstentionReason =
   | 'NO_AWARD_HISTORY'
+  /** Asked, never answered: the report was cut short before reaching this stock number. */
+  | 'AWARD_HISTORY_NEVER_ANSWERED'
   | 'CANNOT_CLASSIFY_SECONDARY_WITHOUT_AN_APPROVED_SOURCE_LIST'
   /**
    * Awards exist and not one of them carries a price. NOT a finding about who is buying: with no
@@ -1268,6 +1304,19 @@ const FLIP_LABEL = 'Recent resale band: what the secondary market has been clear
 
 function buildFlipBandFigure(input: QuoteViewInput, windowMonths: number): RecentFlipBandFigure {
   if (input.awards.length === 0) {
+    if (input.awardHistoryState === 'never_answered') {
+      return {
+        figureId: 'RECENT_FLIP_BAND',
+        label: FLIP_LABEL,
+        resolved: false,
+        reason: 'AWARD_HISTORY_NEVER_ANSWERED',
+        missingInput: 'the award history for this stock number, which was requested and never returned',
+        sentence:
+          'The award history for this stock number was requested and never returned \u2014 the export ' +
+          'report stopped at its row ceiling before reaching it \u2014 so no resale range can be read. ' +
+          'Unknown, not empty.',
+      }
+    }
     return {
       figureId: 'RECENT_FLIP_BAND',
       label: FLIP_LABEL,

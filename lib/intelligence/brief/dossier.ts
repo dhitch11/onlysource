@@ -1,4 +1,5 @@
 import type { CornerRow } from '@/lib/intelligence/corner'
+import type { AwardHistoryState } from '../awards/nsn-now'
 import { readQuoteSignals, type QuoteSignal } from '../scoring/quote-signals'
 import type { FeedWindow, NsnAwardSummary, AwardRecord } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
@@ -66,6 +67,15 @@ export type CornerDossier = {
     escalationPct: number | null
     distinctAwardees: number | null
     awardCount: number
+    /**
+     * ★ WHAT `awardCount: 0` MEANS, WHICH THE NUMBER ITSELF CANNOT SAY. `held` we have rows.
+     * `none` we asked and DLA has bought this from nobody. `never_answered` we asked and the
+     * export stopped at its row ceiling before reaching this stock number, so the zero is our
+     * failure and not a market fact. `never_asked` no pull list has ever carried it. Measured:
+     * 235 `none` against 669 `never_answered`, and until this field existed every one of the 904
+     * rendered as the same zero.
+     */
+    awardHistoryState: AwardHistoryState | null
   }
   forecast: {
     onForecast: boolean
@@ -149,6 +159,12 @@ export function buildCornerDossier(
   /* The span of the award feed. Required for any dormancy reading to be honest: a gap of nine
      years means something different in an eleven year feed than in a forty year one. */
   window: FeedWindow = { firstAwardIso: null, lastAwardIso: null, years: null },
+  /**
+   * What the export established about this stock number's award history. Optional: a caller that
+   * has not been taught the difference keeps today's wording rather than having a claim asserted
+   * on its behalf. Absence is not `'none'`.
+   */
+  awardHistory?: AwardHistoryState,
 ): CornerDossier {
   const first = award?.firstUnitPrice ?? null
   const last = award?.lastUnitPrice ?? null
@@ -179,6 +195,7 @@ export function buildCornerDossier(
       escalationPct,
       distinctAwardees: award?.distinctAwardees ?? null,
       awardCount: award?.awards.length ?? 0,
+      awardHistoryState: awardHistory ?? null,
     },
     forecast: {
       onForecast: forecast?.onForecast ?? false,
@@ -205,7 +222,7 @@ export function buildCornerDossier(
     },
     // Computed from the award summary when there is one. With no award rows there is nothing to
     // read, and an empty list is the honest answer rather than nine "unknown" rows.
-    quoteSignals: award ? readQuoteSignals(award, window) : [],
+    quoteSignals: award ? readQuoteSignals(award, window, awardHistory) : [],
     openGaps: score.dataGaps,
   }
 }

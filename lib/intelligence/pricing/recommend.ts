@@ -107,6 +107,7 @@
  * whose correct answers were worked out by hand before the code ran.
  */
 
+import type { AwardHistoryState } from '../awards/nsn-now'
 import {
   INDEX_CONFIG_1650,
   PRICING_CONFIG,
@@ -855,6 +856,14 @@ export type RecommendationInput = {
   readonly nsn: string
   /** This stock number's own award history, as the dossier carries it. */
   readonly awards: readonly DossierAward[]
+  /**
+   * ★ WHY `awards: []` IS NOT SELF-EXPLANATORY. It means either "asked, and DLA has bought this
+   * from nobody" or "asked, and the export report stopped at its row ceiling before reaching this
+   * stock number". 235 are the first; 669 are the second. Only the caller, holding the index, can
+   * tell them apart. Absent stays absent: an unset field keeps the existing wording rather than
+   * asserting the market is empty.
+   */
+  readonly awardHistoryState?: AwardHistoryState
   /** The MCRL approved-source CAGEs. Empty is a silence, never "nobody is approved". */
   readonly approvedSourceCages: readonly string[]
   /** The quantity on the live requirement. Known on every served row; the type allows silence. */
@@ -2798,6 +2807,7 @@ function toQuoteViewInput(input: RecommendationInput): QuoteViewInput {
     automatedSolicitation: null,
     atInstantMs: input.atInstantMs,
     feedWindow: input.feedWindow ?? { firstAwardIso: null, lastAwardIso: null },
+    awardHistoryState: input.awardHistoryState,
   }
 }
 

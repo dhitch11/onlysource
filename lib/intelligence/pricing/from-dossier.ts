@@ -11,6 +11,7 @@
  * unchanged. If arithmetic appears here, it belongs in the engine.
  */
 
+import type { AwardHistoryState } from '../awards/nsn-now'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { DossierAward, QuoteViewInput } from './quote-view'
 
@@ -77,6 +78,12 @@ export function quoteViewInputFromAwardSummary(args: {
   readonly feedWindow: { readonly firstAwardIso: string | null; readonly lastAwardIso: string | null }
   readonly atInstantMs: number
   readonly declarations?: OperatorDeclarations
+  /**
+   * What the export established about this stock number's award history. Optional, and its
+   * absence is NOT 'none': a caller that cannot tell an unanswered request from a genuine
+   * absence must not have one asserted on its behalf.
+   */
+  readonly awardHistoryState?: AwardHistoryState
 }): QuoteViewInput {
   const { summary, solicitation, feedWindow, atInstantMs } = args
   const d = args.declarations ?? {}
@@ -94,6 +101,7 @@ export function quoteViewInputFromAwardSummary(args: {
     automatedSolicitation: solicitation.automatedSolicitation,
     atInstantMs,
     feedWindow,
+    awardHistoryState: args.awardHistoryState,
     proposedUnitPriceUsd: d.proposedUnitPriceUsd ?? null,
     offeringUnusedFormerGovernmentSurplus: d.offeringUnusedFormerGovernmentSurplus ?? null,
     esaCoordinationCount: d.esaCoordinationCount ?? null,

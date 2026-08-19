@@ -11,6 +11,7 @@
  * renders one row and the pricing index renders hundreds, so the pool is built once from the
  * index the caller already loaded and handed in as a closure.
  */
+import type { AwardHistoryState } from '../awards/nsn-now'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import { buildAwardeeClassifierFromLive } from '@/lib/intelligence/suppliers/classify/live'
 import type { AnchorIndexConfig } from '@/lib/engine/pricing/anchor'
@@ -144,6 +145,14 @@ export type CornerRecommendationArgs = {
   readonly mayReadMargin?: boolean
   /** The operator's chosen multiple, already validated against the preset list by the caller. */
   readonly config?: RecommendationConfig
+  /**
+   * ★ WHY THE EMPTY AWARD LIST BELOW IS AMBIGUOUS WITHOUT THIS. `args.award` being absent
+   * produces `awards: []`, and that is either "DLA has bought this from nobody" or "we asked and
+   * the export stopped at its row ceiling before reaching this stock number". 235 of the first,
+   * 669 of the second. Only the caller holds the index that tells them apart, so it passes the
+   * verdict rather than letting the engine infer one from an absence.
+   */
+  readonly awardHistoryState?: AwardHistoryState
 }
 
 /**
@@ -173,6 +182,7 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
     indices: args.indices,
     mayReadMargin: args.mayReadMargin ?? false,
     config: args.config,
+    awardHistoryState: args.awardHistoryState,
     declarations: args.declarations,
   })
 }

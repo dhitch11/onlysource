@@ -1,4 +1,5 @@
 import { readDealerEligibility } from '../codebook'
+import type { AwardHistoryState } from '../awards/nsn-now'
 import { measured, unavailable, type Leg } from './evidence-state'
 import type { FeedWindow, NsnAwardSummary } from '../awards/nsn-now'
 
@@ -81,14 +82,35 @@ export type QuoteSignal = {
 const NO_AWARDS = 'No award rows for this stock number in the export, so this cannot be read.'
 
 /**
+ * ★ THE SAME EMPTY ARRAY, THE OPPOSITE MEANING. `NO_AWARDS` above is honest only when the export
+ * actually answered. For the 669 stock numbers whose Procurement sheet stopped at its 20,000-row
+ * ceiling before reaching them, "no award rows in the export" invites the reader to conclude the
+ * item has never been bought, when what happened is that we never asked successfully.
+ */
+const AWARDS_NEVER_ANSWERED =
+  'The award history for this stock number was requested and never returned: the export report ' +
+  'stopped at its row ceiling before reaching it. Unknown, not empty, and fixed by re-requesting ' +
+  'the report.'
+
+/**
  * Read every checklist signal for one stock number.
  *
  * `window` is required rather than optional on purpose: a dormancy reading without the window
  * it was measured in is the kind of number that looks like a fact and is not one.
  */
-export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): QuoteSignal[] {
+export function readQuoteSignals(
+  summary: NsnAwardSummary,
+  window: FeedWindow,
+  /**
+   * What the export established about this stock number. Optional, and its absence is NOT
+   * 'none': a caller that has not been taught the difference keeps the existing wording rather
+   * than having a confident claim made on its behalf.
+   */
+  awardHistory?: AwardHistoryState,
+): QuoteSignal[] {
   const signals: QuoteSignal[] = []
   const hasAwards = summary.awards.length > 0
+  const noAwardsNote = awardHistory === 'never_answered' ? AWARDS_NEVER_ANSWERED : NO_AWARDS
   const windowNote =
     window.firstAwardIso && window.lastAwardIso
       ? `Measured across the award feed, which runs ${window.firstAwardIso.slice(0, 4)} to ${window.lastAwardIso.slice(0, 4)}. A longer gap than the feed itself cannot appear here.`
@@ -264,7 +286,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
     signals.push({
       id: 'urgency',
       label: 'Delivery window on the last award',
-      leg: unavailable(hasAwards ? 'the most recent award row carries no delivery window' : NO_AWARDS),
+      leg: unavailable(hasAwards ? 'the most recent award row carries no delivery window' : noAwardsNote),
       reading: 'No delivery window is recorded, so urgency cannot be read.',
       direction: 'neutral',
       limitation: null,
@@ -293,7 +315,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
     signals.push({
       id: 'ltc_expiry',
       label: 'Long term contract',
-      leg: unavailable(hasAwards ? 'no award row records a long term contract expiry' : NO_AWARDS),
+      leg: unavailable(hasAwards ? 'no award row records a long term contract expiry' : noAwardsNote),
       reading: 'No long term contract expiry is recorded against this stock number.',
       direction: 'neutral',
       limitation: null,
@@ -317,7 +339,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
       : {
           id: 'first_article',
           label: 'First article test',
-          leg: unavailable(hasAwards ? 'no award row records a first article requirement' : NO_AWARDS),
+          leg: unavailable(hasAwards ? 'no award row records a first article requirement' : noAwardsNote),
           reading: 'No first article requirement is recorded on any past award.',
           direction: 'neutral',
           limitation: null,
@@ -338,7 +360,7 @@ export function readQuoteSignals(summary: NsnAwardSummary, window: FeedWindow): 
       : {
           id: 'set_aside',
           label: 'Set aside',
-          leg: unavailable(hasAwards ? 'no award row records a set aside' : NO_AWARDS),
+          leg: unavailable(hasAwards ? 'no award row records a set aside' : noAwardsNote),
           reading: 'No past award records a set aside, so past buys were unrestricted.',
           direction: 'neutral',
           limitation: null,
