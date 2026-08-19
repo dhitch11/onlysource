@@ -634,3 +634,69 @@
 .docsLink:hover {
   border-color: var(--olive-dim);
 }
+
+/* ==========================================================================================
+ * THE AWARD HISTORY BECOMES CARDS ON A PHONE.
+ *
+ * This table is NOT the shared DataGrid, so the card layout added there does not reach it, and
+ * MEASURED at 320 its columns ran up to 275px past the visible edge: "Final price" 275, "Unit
+ * price" 160, "Qty" 70. `min-width: 520px` inside an `overflow-x: auto` wrapper is contained and
+ * is not usable — the same claim confusion the pricing grid was shipping.
+ *
+ * Every value is labelled from `data-label`, written on the cell beside the header it mirrors.
+ * The header row is dropped here rather than kept as a sort strip, because unlike the shared grid
+ * this table has no sort controls to preserve: the labels ARE the header.
+ * ========================================================================================== */
+@media (max-width: 700px) {
+  .tableWrap {
+    overflow-x: visible;
+    border: 0;
+  }
+  .table {
+    min-width: 0;
+    display: block;
+  }
+  /*
+   * Visually hidden rather than `display: none`: the header text is still the accessible name for
+   * the columns, and a screen reader that loses it loses the meaning of every number below.
+   */
+  .table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .table tbody,
+  .table tbody tr {
+    display: block;
+  }
+  .table tbody tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm, 8px);
+    padding: var(--sp-2) var(--sp-3);
+    margin-block-start: var(--sp-3);
+    box-sizing: border-box;
+  }
+  .table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+    gap: var(--sp-2);
+    align-items: baseline;
+    padding: var(--sp-1) 0;
+    border-bottom: 0;
+    box-sizing: border-box;
+  }
+  .table tbody td::before {
+    content: attr(data-label);
+    font-size: var(--fs-100);
+    text-transform: uppercase;
+    letter-spacing: var(--track-label);
+    color: var(--faint);
+  }
+  /* Right-alignment is a column property. In a card there is no column to align against. */
+  .numCol {
+    text-align: left;
+  }
+}

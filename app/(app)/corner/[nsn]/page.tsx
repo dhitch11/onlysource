@@ -616,14 +616,19 @@ export default async function CornerPage({
               <tbody>
                 {dossier.priceHistory.map((p, i) => (
                   <tr key={i}>
-                    <td className="mono">{p.dateIso ?? '—'}</td>
-                    <td>
+                    {/*
+                      `data-label` on every cell so the narrow-width card layout can name each
+                      value. Written next to the header it mirrors, because a label kept anywhere
+                      else is a second list to keep in step with this one.
+                    */}
+                    <td className="mono" data-label="Award date">{p.dateIso ?? '—'}</td>
+                    <td data-label="Awardee">
                       {p.company ?? '—'}
                       {p.cage ? <span className={styles.cage}> {p.cage}</span> : null}
                     </td>
-                    <td className={`mono ${styles.numCol}`}>{p.quantity?.toLocaleString() ?? '—'}</td>
-                    <td className={`mono ${styles.numCol}`}>{usd(p.unitPrice)}</td>
-                    <td className={`mono ${styles.numCol}`}>{usd(p.finalPrice)}</td>
+                    <td className={`mono ${styles.numCol}`} data-label="Qty">{p.quantity?.toLocaleString() ?? '—'}</td>
+                    <td className={`mono ${styles.numCol}`} data-label="Unit price">{usd(p.unitPrice)}</td>
+                    <td className={`mono ${styles.numCol}`} data-label="Final price">{usd(p.finalPrice)}</td>
                   </tr>
                 ))}
               </tbody>
