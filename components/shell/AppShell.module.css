@@ -416,6 +416,27 @@
   .nav {
     display: flex;
     align-items: center;
+    /*
+     * THE STRIP SCROLLS INSIDE ITSELF; IT NEVER PUSHES THE DOCUMENT.
+     *
+     * Measured on live prod at 390: the stage strip lays out to 684px of nav items in a 390px
+     * viewport, so before hydration collapsed it the whole PAGE scrolled sideways under the
+     * reader's thumb, on every route, at first paint. `/competitor` was where a click-through
+     * audit caught it (documentElement.scrollWidth 677 vs 390), but the offender is this shell,
+     * so it was every route on a phone.
+     *
+     * Contained rather than wrapped: the comment above states the intent that this form stays
+     * one clean line with the guide carrying the stage names, and wrapping would change that
+     * layout. A strip that does not fit is a strip you swipe.
+     */
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  /* The scrollbar would sit across the nav's own hairline; the strip is swiped, not dragged. */
+  .nav::-webkit-scrollbar {
+    display: none;
   }
 
   .group {
