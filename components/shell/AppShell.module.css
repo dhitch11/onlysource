@@ -348,6 +348,93 @@
     padding: 0;
   }
 
+  /* -----------------------------------------------------------------------------------
+   * THE MOBILE HEADER WAS FIVE STACKED ROWS AND SEVEN ROUNDED BOXES BEFORE ONE LINE OF
+   * CONTENT, AND THE OWNER SAID SO: "we have weird bubbles and boxes around things."
+   *
+   * At 320 the chrome consumed 45% of the viewport before the page began. The fix is
+   * DELETION, not restyling: restyling a box keeps the box, and the count of things on
+   * screen was the defect. What follows removes containers rather than decorating them.
+   *
+   * THE WORST OFFENDER WAS THE ORGANIZATION PLATE, AND ONLY BECAUSE OF WHERE IT LANDED.
+   * `.sideFoot` is a SIDEBAR FOOTER. In the column form it sits at the bottom of the rail,
+   * far from the wordmark, and states which organization the deployment is scoped to. When
+   * the rail becomes a top bar that footer lands directly under the brand, so the screen
+   * read:
+   *          ONLYSOURCE / Intelligence          <- the wordmark
+   *          [ (o) ONLYSOURCE / ORGANIZATION ]  <- the same word, boxed, 12px below
+   * The plate is correct in the sidebar and redundant in the top bar. One organization
+   * exists, its name IS the wordmark, and repeating it inside a bordered plate directly
+   * beneath itself is the "weird box" in the owner's sentence. It is hidden here rather
+   * than deleted: the day a second organization exists the plate becomes load-bearing
+   * again, and this rule is the one line to revisit.
+   * --------------------------------------------------------------------------------- */
+  .sideFoot {
+    order: 2;
+    margin-block-start: 0;
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding-block-start: 0;
+  }
+
+  .org {
+    display: none;
+  }
+
+  /* No top border and no top padding: both existed to separate the account from the org
+   * plate above it in the column, and there is nothing above it here. A divider with
+   * nothing on the other side is a line the eye has to resolve for no information. */
+  .acct {
+    padding-block-start: 0;
+    border-block-start: none;
+    gap: var(--sp-2);
+  }
+
+  /*
+   * THE SCROLL HINT WAS A BORDERED, SHADOWED PILL SITTING ON TOP OF THE NAV ROW, so at 320
+   * it read as a thirteenth destination competing with "Dashboard" rather than as a hint
+   * about the twelve behind it. The information is right and the affordance is right; the
+   * chrome was wrong. It keeps its words and its position and loses the bubble: the fade
+   * beneath it is already the visual container, and a pill on top of a gradient is two
+   * containers doing one job.
+   */
+  .navHint {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding-inline: 0;
+    padding-inline-start: var(--sp-4);
+  }
+
+  .topMeta {
+    padding-inline: var(--sp-3);
+    gap: var(--sp-2);
+  }
+
+  /*
+   * TIGHTER GUTTERS, AND ROOM FOR THE ASSISTANT LAUNCHER THAT WAS COVERING LIVE CONTENT.
+   *
+   * `components/thomas/thomas.module.css` fixes the launcher at `bottom: var(--sp-4)`. On a
+   * phone that put it ON TOP of whatever the page ended with: measured on /corner it covered
+   * a sentence mid-word, and on /pricing it sat over the "Dismiss" button of the award-cutoff
+   * card — a floating control obscuring a real one the operator is meant to press.
+   *
+   * A fixed element cannot be pushed by content, so the content has to yield to it. The
+   * reserve is the launcher's own height plus its offset plus a breathing gap, and it lives
+   * on the scrolling content rather than on the launcher so the launcher's own placement
+   * stays that component's business.
+   *
+   * One rule, not two. A second `.content` block further down the same media query would
+   * win on order and leave the first one's shorthand looking authoritative while doing
+   * nothing to the bottom edge — the exact cascade trap this estate has already shipped once,
+   * where a rule was present in the file, greppable, and changed no computed value.
+   */
+  .content {
+    padding: var(--sp-4) var(--sp-3) calc(var(--sp-4) + 52px + var(--sp-5));
+  }
+
   /* The frame takes the strip's place in the top-bar flex; the nav scrolls inside it, so
    * the fade and hint can anchor to the frame's (non-scrolling) edges. */
   .navFrame {
