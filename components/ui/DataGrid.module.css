@@ -8,6 +8,21 @@
  */
 
 .wrap {
+  /*
+   * ★ THE SIZE A ROW EXPANSION SHOULD WRAP TO, WHICH IS NOT THE TABLE'S.
+   *
+   * The expansion is a <td colSpan> inside a table that is deliberately wider than the viewport
+   * on a phone. A cell spanning that table is as wide as the table, so its prose wrapped at a
+   * width that is mostly off-screen: MEASURED on /suppliers at 390, the sentence "Acquired or
+   * restructured; awards likely the parent" was cut mid-phrase at the right edge, and reading
+   * the rest meant scrolling a data table sideways to finish a sentence.
+   *
+   * The grid itself is exempt from the 320px reflow floor because it is two-dimensional content.
+   * A DETAIL PANEL IS NOT. It is prose about one row and it should read at the width the reader
+   * actually has, so this element becomes the container the expansion measures itself against:
+   * `.wrap` is outside the scroller and is already viewport-width.
+   */
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
@@ -233,11 +248,25 @@
 .expansionRow td {
   padding: 0;
   background: var(--bg);
+  /*
+   * Pinned to the left edge of the scroller, so scrolling the TABLE sideways does not carry the
+   * detail panel out of view. The row's data columns still scroll; its explanation stays put.
+   */
+  position: sticky;
+  inset-inline-start: 0;
 }
 
 .expansion {
   padding: var(--sp-4);
   border-inline-start: 2px solid var(--accent);
+  /*
+   * The visible width, not the table's. `100cqi` resolves against `.wrap` above, which sits
+   * outside the horizontal scroller. Falls back to the old behaviour anywhere container queries
+   * are unavailable, which is a wide panel rather than a broken one.
+   */
+  inline-size: 100cqi;
+  max-inline-size: 100cqi;
+  box-sizing: border-box;
 }
 
 .expansionHead {
