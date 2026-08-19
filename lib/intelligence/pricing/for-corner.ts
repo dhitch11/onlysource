@@ -13,6 +13,7 @@
  */
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import { buildAwardeeClassifierFromLive } from '@/lib/intelligence/suppliers/classify/live'
+import type { AnchorIndexConfig } from '@/lib/engine/pricing/anchor'
 import { toDossierAward } from './from-dossier'
 import {
   fscOf,
@@ -127,6 +128,14 @@ export type CornerRecommendationArgs = {
   readonly classifier?: AwardeeClassifierPort | null
   readonly surplusStance?: SurplusStance
   readonly declarations?: OperatorDeclarations
+  /**
+   * The inflation indices the anchor rung carries money forward with.
+   *
+   * PASSED IN rather than read here, because resolving it needs the ingested series ledger and
+   * that read is async while this adapter and the engine beneath it are synchronous. Absent means
+   * the engine's own pinned default, which is a dated reading and not a current one.
+   */
+  readonly indices?: AnchorIndexConfig
 }
 
 /**
@@ -153,6 +162,7 @@ export function recommendForCorner(args: CornerRecommendationArgs): PriceRecomme
      * sentences and only one of them is a measurement.
      */
     peerLookup: args.peerLookup ? excludeSubject(args.peerLookup, args.nsn) : null,
+    indices: args.indices,
     declarations: args.declarations,
   })
 }

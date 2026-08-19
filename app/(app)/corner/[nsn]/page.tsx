@@ -23,6 +23,8 @@ import { Scrollable } from '@/components/ui/Scrollable'
 import { RecommendationPanel } from '@/components/pricing/RecommendationPanel'
 import { QuoteAuditTrail } from '@/components/pricing/QuoteAuditTrail'
 import { buildQuoteView, toDossierAward } from '@/lib/intelligence/pricing'
+import { readSeriesLedger } from '@/lib/ingest/series/store'
+import { resolveLiveIndexConfig, seriesVintageAsOf } from '@/lib/engine/pricing/live-indices'
 import {
   buildFscPeerPool,
   liveClassifierOrNull,
@@ -145,6 +147,33 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
    */
   const nowMs = Date.now()
   const peers = awardIx.ok ? peerLookupFrom(buildFscPeerPool(awardIx.byNsn)) : null
+
+  /*
+   * ★ THE INFLATION FACTOR IS READ FROM THE INGESTED SERIES, NOT PINNED IN SOURCE.
+   *
+   * The anchor carried 1.3223, which was never a judgement: it is a READING of BLS CPI-U
+   * CUUR0000SA0 taken in November 2025, and a reading goes stale. The same series at 2026-M07
+   * gives 1.3623, so every anchored figure computed from the constant is about 3 percent LOW and
+   * drifts further every month with no code change and no alert.
+   *
+   * That was a labelling problem while the product only displayed four auditable figures. It
+   * stopped being one the moment the product began recommending a number an operator types into
+   * DIBBS: a silently stale factor is then a wrong recommendation WITH A CITATION ON IT.
+   *
+   * The ledger is read HERE, at the edge, and injected. `buildQuoteView` and `recommendPrice`
+   * are pure and synchronous and must stay that way, or no test can hand them a world with a
+   * known answer. On abstention the pinned factor is kept and carries its own vintage, because
+   * dropping the anchor would make a wiring gap look identical to thin evidence about the item.
+   *
+   * ★ THE VINTAGE IS A UTC DATE, NOT THE PAGE'S EASTERN `asOf`, AND THE DIFFERENCE IS NOT
+   * COSMETIC. Series vintages are stamped from `retrieved_at`, which is UTC, while feed days use
+   * the Eastern civil date. Passing `measuredOn` here made the ledger's only vintage look like it
+   * was published tomorrow, so every reading was correctly refused and the anchor fell back to
+   * the pinned figure silently. See `seriesVintageAsOf`.
+   */
+  const seriesLedger = await readSeriesLedger()
+  const liveIndices = resolveLiveIndexConfig(seriesLedger, seriesVintageAsOf(nowMs))
+
   const recommendation = recommendForCorner({
     nsn: row.nsn,
     award,
@@ -154,6 +183,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
     atInstantMs: nowMs,
     peerLookup: peers,
     classifier: liveClassifierOrNull(),
+    indices: liveIndices.config,
   })
 
   /*
@@ -193,6 +223,7 @@ export default async function CornerPage({ params }: { params: Promise<{ nsn: st
     offeringUnusedFormerGovernmentSurplus: null,
     esaCoordinationCount: null,
     buyAmericanOrBalanceOfPayments: null,
+    indices: liveIndices.config,
   })
 
   return (
