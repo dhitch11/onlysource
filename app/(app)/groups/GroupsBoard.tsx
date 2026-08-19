@@ -38,6 +38,7 @@
 import { useId, useMemo, useState } from 'react'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { Scrollable } from '@/components/ui/Scrollable'
+import rt from '@/components/ui/responsive-table.module.css'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { count } from './format'
 import type { GroupOption, GroupRowView } from './presentation'
@@ -171,7 +172,7 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
           </button>
         </div>
       ) : (
-        <Scrollable className={styles.tableWrap}>
+        <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <caption className="vh">
               Federal Supply Classes on this feed day, ordered by evidence, then candidate

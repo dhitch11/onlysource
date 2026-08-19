@@ -209,6 +209,28 @@
 }
 
   /*
+   * A SPANNING CELL IS A PANEL, NOT A FIELD.
+   *
+   * `<td colSpan={n}>` is how a table carries an expansion row — the detail panel that opens under
+   * a row. It is not a value with a name, so the two-column label/value grid is wrong for it in
+   * every way: it has no `data-label`, so it would render an empty label column and indent the
+   * whole panel by the width of nothing, and its content is prose and controls rather than a
+   * figure. It gets the full width of the card and no label gutter.
+   *
+   * Worth stating because the failure is quiet: without this the panel still renders, still reads,
+   * and is simply pushed right by an invisible empty column, which looks like a styling opinion
+   * rather than a bug.
+   */
+  .cards tbody td[colspan] {
+    display: block;
+    padding: 0;
+  }
+
+  .cards tbody td[colspan]::before {
+    content: none;
+  }
+
+  /*
    * ★ AN EMPTY CELL IS INVISIBLE IN A ROW AND BECOMES A LABELLED BLANK IN A CARD.
    *
    * This is a defect the card treatment CREATES rather than one it inherits. In a table an empty
