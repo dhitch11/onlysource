@@ -74,7 +74,7 @@ const rowSeed = {
 function build(over: Partial<CornerRow> = {}, eligibility?: ReturnType<typeof resolveDossierEligibility>) {
   const row = { ...rowSeed, ...over } as CornerRow
   const dossier = buildCornerDossier(row, null, null, scoreCorner(row, null, null))
-  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility })
+  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility, mayReadIdentities: true })
 }
 
 const verdictFor = (row: { nsn: string; solicitation: string }) =>

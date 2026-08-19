@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requirePermission } from '@/lib/session/authz'
+import { requirePermission, callerCan, readCaller } from '@/lib/session/authz'
 import { MODEL_CHAINS } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { assemblePursuitPackage } from '@/lib/intelligence/brief/assemble-package'
@@ -32,6 +32,15 @@ export async function POST(req: NextRequest) {
   // A pursuit package is the quoting decision, assembled, and this one leaves by email.
   const denied = await requirePermission('board.quote')
   if (denied) return denied
+
+  /*
+   * `board.quote` says this caller may assemble a quoting decision. It says nothing about whether
+   * they may see WHO the suppliers are — that is `supplier.identity.view`, which is
+   * `sensitive: true` and which `read_only` deliberately does not hold. The package is resolved
+   * WITHOUT the identities rather than resolved and then stripped, because this object is fed to a
+   * language model and anything still in memory at prose time gets spoken.
+   */
+  const mayReadIdentities = callerCan(await readCaller(), 'supplier.identity.view')
 
   // No key at all is an environment fact, stated up front like the alerts route states it:
   // not a send failure, and never a pretend success.
@@ -66,7 +75,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const assembled = assemblePursuitPackage(nsnRaw)
+  const assembled = assemblePursuitPackage(nsnRaw, mayReadIdentities)
   if (!assembled.ok) {
     return Response.json({ error: assembled.error, message: assembled.message }, { status: assembled.status })
   }

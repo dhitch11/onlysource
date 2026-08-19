@@ -162,7 +162,7 @@ const index = (amc: string, amsc: string, pica: string): AmscIndex => ({
 function pkgFor(eligibility: PackageEligibility): PursuitPackage {
   const row = { ...rowSeed } as CornerRow
   const dossier = buildCornerDossier(row, null, null, scoreCorner(row, null, null))
-  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility })
+  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility, mayReadIdentities: true })
 }
 
 const verdictFor = (amc: string, amsc: string, pica = 'GX'): DossierEligibility =>
@@ -254,7 +254,7 @@ describe('every warning this lane writes survives the guard in BOTH spellings of
     const lost: string[] = []
     let checked = 0
     for (const r of cornerMap.rows.slice(0, LIVE_SAMPLE)) {
-      const a = assemblePursuitPackage(r.nsn)
+      const a = assemblePursuitPackage(r.nsn, true)
       if (!a.ok || a.pkg.eligibility.kind !== 'dossier_eligibility') continue
       checked += 1
       /*

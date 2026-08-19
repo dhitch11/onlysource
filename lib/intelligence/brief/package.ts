@@ -47,6 +47,21 @@ export type PackageBookContact = {
   person: string | null
   email: string | null
   phone: string | null
+  /**
+   * WHETHER THIS COMPANY IS REACHABLE AT ALL — computed from the book REGARDLESS of whether the
+   * caller may read the identity, and it is the reason redaction here does not become a lie.
+   *
+   * `contactChannelsOnFile` used to be counted by filtering on `email || phone`. Once those are
+   * withheld the filter matches nothing, the count collapses to ZERO, and the memo's own sentence
+   * — "reach the N suppliers with a contact channel" — starts telling an operator that nobody is
+   * reachable. That is not a withheld fact, it is a FALSE one, and it is the same defect this
+   * estate has been fixing all night in the other direction: an absence rendered as an answer.
+   *
+   * A count of reachable companies is not an identity. `/suppliers` already shows exactly that to
+   * every signed-in caller: the row says "Show contacts (32)" with the true number, and the
+   * thirty-two names sit behind the permission. This is the same line in a different place.
+   */
+  hasChannel: boolean
 }
 
 export type PackageHolder = {
@@ -131,11 +146,44 @@ export type PursuitPackage = {
 const usd = (n: number): string =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function bookContact(cage: string | null, byCage: Map<string, DistressedSupplier> | null): PackageBookContact | null {
+/**
+ * THE ONE PLACE A PERSON'S NAME, EMAIL OR PHONE ENTERS A PURSUIT PACKAGE.
+ *
+ * `mayReadIdentities` is `supplier.identity.view`, resolved by the route. It is REQUIRED and has
+ * no default, so a call site that forgets it does not compile. A boolean with a permissive default
+ * is a hole waiting for the next caller; a boolean with a safe default is a hole waiting for
+ * someone to "simplify" it. The type checker is the only guard here that cannot be forgotten.
+ *
+ * WHY THIS EXISTS. `/api/pursuit-package` gates on `board.quote` and nothing else. `board.quote` is
+ * `sensitive: false`, so `read_only` holds it; `supplier.identity.view` is `sensitive: true`, so
+ * `read_only` does not. Proven end-to-end on live prod by another lane, with controls: a session
+ * the server refuses `supplier.identity.view` on `/api/suppliers/detail` (403) and on `/documents`
+ * (refusal rendered) was handed two people's names, emails and phone numbers by this path.
+ *
+ * `lib/admin/permissions.ts` says in its own docstring that read-only "never sees a document body,
+ * a supplier identity, a margin or a secret… the sales answer to 'can your staff read my supplier
+ * negotiations'." That is a claim we make to customers, and it was not true.
+ *
+ * ★ WHAT IS WITHHELD AND WHAT IS NOT IS NOT A NEW PRODUCT DECISION. `/suppliers` already made it:
+ * the page renders for every signed-in caller and withholds the CONTACT DETAILS, while the company
+ * name and CAGE stay. This mirrors that exactly, so the same caller sees the same facts about the
+ * same firm on both surfaces. Changing which fields are sensitive is a product call; making one
+ * surface agree with another is not.
+ *
+ * ★★ THE FIELDS ARE NEVER BUILT, NOT BUILT AND THEN STRIPPED. That is the Thomas lesson: when a
+ * permission removes a figure and the assembly layer still holds it in memory, something
+ * downstream speaks it anyway — a prose layer, a serialiser, a debug field. This package is fed to
+ * a language model, which is the most literal version of that risk on this estate.
+ */
+function bookContact(
+  cage: string | null,
+  byCage: Map<string, DistressedSupplier> | null,
+  mayReadIdentities: boolean,
+): PackageBookContact | null {
   if (!cage || !byCage) return null
   const s = byCage.get(cage.toUpperCase())
   if (!s) return null
-  const recipient = bestRecipient(s)
+  const recipient = mayReadIdentities ? bestRecipient(s) : null
   return {
     cage: s.cage,
     company: s.company,
@@ -144,7 +192,11 @@ function bookContact(cage: string | null, byCage: Map<string, DistressedSupplier
     holdsInventory: s.holdsInventory,
     person: recipient?.name ?? null,
     email: recipient?.email ?? null,
-    phone: s.phone ?? s.contacts.find((c) => c.phone)?.phone ?? null,
+    phone: mayReadIdentities ? (s.phone ?? s.contacts.find((c) => c.phone)?.phone ?? null) : null,
+    // Read from the book, never from the fields above, which may have been withheld.
+    hasChannel: Boolean(
+      bestRecipient(s)?.email ?? s.phone ?? s.contacts.find((c) => c.phone)?.phone ?? null,
+    ),
   }
 }
 
@@ -166,8 +218,14 @@ export function buildPursuitPackage(args: {
    * package carries `ELIGIBILITY_NOT_RESOLVED`, whose every sentence says the lookup did not run.
    */
   eligibility?: PackageEligibility
+  /**
+   * Whether this caller holds `supplier.identity.view`. REQUIRED and undefaulted on purpose: a
+   * permissive default is a hole waiting for the next caller and a safe default is a hole waiting
+   * for someone to simplify it away. Resolved by the route, never inferred here.
+   */
+  mayReadIdentities: boolean
 }): PursuitPackage {
-  const { row, dossier, award, byCage, savedPacketCount } = args
+  const { row, dossier, award, byCage, savedPacketCount, mayReadIdentities } = args
   /*
    * Spelled out rather than imported, because importing the constant would make this a value
    * import of a module that reads the filesystem. Same shape, same words, and the type checker
@@ -205,7 +263,7 @@ export function buildPursuitPackage(args: {
     company: h.company,
     cage: h.cage,
     quantityListed: h.quantity,
-    inBook: bookContact(h.cage, byCage),
+    inBook: bookContact(h.cage, byCage, mayReadIdentities),
   }))
 
   const approvedSources: PackageApprovedSource[] =
@@ -214,13 +272,13 @@ export function buildPursuitPackage(args: {
           cage: s.cage,
           company: s.company,
           partNumber: s.partNumber,
-          inBook: bookContact(s.cage, byCage),
+          inBook: bookContact(s.cage, byCage, mayReadIdentities),
         }))
       : row.approvedSources.map((cage) => ({
           cage,
           company: null,
           partNumber: null,
-          inBook: bookContact(cage, byCage),
+          inBook: bookContact(cage, byCage, mayReadIdentities),
         }))
 
   const awardeeLatest = new Map<string, { company: string | null; dateIso: string | null }>()
@@ -236,7 +294,7 @@ export function buildPursuitPackage(args: {
     cage,
     company: v.company,
     lastAwardDateIso: v.dateIso,
-    inBook: bookContact(cage, byCage),
+    inBook: bookContact(cage, byCage, mayReadIdentities),
   }))
 
   const allRows: Array<{ cage: string | null; inBook: PackageBookContact | null }> = [
@@ -252,7 +310,10 @@ export function buildPursuitPackage(args: {
    */
   const contactChannelsOnFile = new Set(
     allRows
-      .filter((r) => r.inBook && (r.inBook.email || r.inBook.phone))
+      // `hasChannel`, NOT `email || phone`: those two are withheld from a caller without
+      // `supplier.identity.view`, and counting them would report zero reachable suppliers to a
+      // person who is merely not allowed to see who they are.
+      .filter((r) => r.inBook?.hasChannel)
       .map((r) => (r.cage ?? r.inBook!.cage).toUpperCase()),
   ).size
 
@@ -269,7 +330,10 @@ export function buildPursuitPackage(args: {
   } else {
     gaps.push('No company lists stock for this stock number in the export; who holds the article is unconfirmed.')
   }
-  const noChannel = [...new Set(allRows.filter((r) => r.cage && !(r.inBook && (r.inBook.email || r.inBook.phone))).map((r) => (r.cage as string).toUpperCase()))]
+  // Same reason as the count above, inverted and worse: filtering on the redactable fields
+  // would list EVERY company as unreachable for a caller without `supplier.identity.view`,
+  // and this list feeds the gap sentences the memo reads out.
+  const noChannel = [...new Set(allRows.filter((r) => r.cage && !r.inBook?.hasChannel).map((r) => (r.cage as string).toUpperCase()))]
   for (const cage of noChannel.slice(0, 3)) {
     gaps.push(`No contact channel on file for CAGE ${cage}.`)
   }

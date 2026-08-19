@@ -156,6 +156,7 @@ function build(opts: {
   award?: NsnAwardSummary | null
   byCage?: Map<string, DistressedSupplier> | null
   savedPacketCount?: number
+  mayReadIdentities?: boolean
 }) {
   const r = row(opts.rowOver)
   const a = opts.award === undefined ? summary() : opts.award
@@ -166,6 +167,7 @@ function build(opts: {
     award: a,
     byCage: opts.byCage === undefined ? new Map([['1YYB4', bookSupplier()]]) : opts.byCage,
     savedPacketCount: opts.savedPacketCount ?? 0,
+    mayReadIdentities: opts.mayReadIdentities ?? true,
   })
 }
 
@@ -345,5 +347,71 @@ describe('packageMarkdown: what the operator downloads is the memo plus the meas
     expect(md).toContain('no contact on file') // the unreachable CAGEs say so
     expect(md).toContain('### Named gaps')
     expect(md).toContain('Saved packets for this stock number in Documents: 0')
+  })
+})
+
+/*
+ * ============================================================================================
+ * `supplier.identity.view` ON THE PURSUIT PACKAGE
+ * ============================================================================================
+ * `/api/pursuit-package` and its email sibling gated on `board.quote` and nothing else.
+ * `board.quote` is `sensitive: false`, so `read_only` holds it; `supplier.identity.view` is
+ * `sensitive: true`, so `read_only` does not. Proven end-to-end on live prod by another lane with
+ * controls: a session the server refuses identities to on `/api/suppliers/detail` (403) and on
+ * `/documents` (refusal rendered) was handed two people's names, emails and phone numbers here.
+ *
+ * These assert the SECRET IS ABSENT FROM THE SERIALISED OBJECT, not that a guard is present. A
+ * guard check passes the day someone adds a second field; a shape check over the whole object does
+ * not. This package is fed to a language model, so anything left on it gets spoken.
+ */
+describe('the pursuit package and supplier.identity.view', () => {
+  const contact = () => bookSupplier()
+
+  it('withholds the person, email and phone from a caller without the permission', () => {
+    const pkg = build({ mayReadIdentities: false, byCage: new Map([['1YYB4', contact()]]) })
+    const json = JSON.stringify(pkg)
+    const rows = [...pkg.suppliers.holders, ...pkg.suppliers.approvedSources, ...pkg.suppliers.pastAwardees]
+    for (const r of rows) {
+      if (!r.inBook) continue
+      expect(r.inBook.person).toBeNull()
+      expect(r.inBook.email).toBeNull()
+      expect(r.inBook.phone).toBeNull()
+    }
+    // and nothing reintroduced them elsewhere in the object
+    const c = contact()
+    const secrets = [c.email, c.phone, c.executive, ...c.contacts.map((x) => x.email), ...c.contacts.map((x) => x.name)]
+    for (const secret of secrets) {
+      if (!secret) continue
+      expect(json).not.toContain(secret)
+    }
+  })
+
+  it('POSITIVE CONTROL: the same fixture DOES carry them when the caller holds it', () => {
+    const pkg = build({ mayReadIdentities: true, byCage: new Map([['1YYB4', contact()]]) })
+    const rows = [...pkg.suppliers.holders, ...pkg.suppliers.approvedSources, ...pkg.suppliers.pastAwardees]
+    const withBook = rows.filter((r) => r.inBook)
+    expect(withBook.length).toBeGreaterThan(0)
+    expect(withBook.some((r) => r.inBook!.email || r.inBook!.phone || r.inBook!.person)).toBe(true)
+  })
+
+  /*
+   * ★ THE ONE THAT MATTERS MOST. Withholding must not turn into a FALSE statement.
+   *
+   * `contactChannelsOnFile` was counted by filtering on `email || phone`. Once those are withheld
+   * the filter matches nothing, the count collapses to zero, and the memo's own sentence — "reach
+   * the N suppliers with a contact channel" — starts telling an operator that nobody is reachable.
+   * The gap list had the same defect inverted: every company would be listed as unreachable.
+   *
+   * A count of reachable companies is not an identity, and `/suppliers` already shows exactly that
+   * to every caller: "Show contacts (32)" with the true number, the names behind the permission.
+   */
+  it('does not turn a withheld identity into a false zero', () => {
+    const byCage = new Map([['1YYB4', contact()]])
+    const shown = build({ mayReadIdentities: true, byCage })
+    const hidden = build({ mayReadIdentities: false, byCage })
+    expect(shown.suppliers.contactChannelsOnFile).toBeGreaterThan(0)
+    expect(hidden.suppliers.contactChannelsOnFile).toBe(shown.suppliers.contactChannelsOnFile)
+    // and the gap sentences must not gain a "no channel" claim that is untrue
+    expect(hidden.gaps).toEqual(shown.gaps)
   })
 })

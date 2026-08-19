@@ -25,7 +25,13 @@ export type AssembledPackage =
   | { ok: true; pkg: PursuitPackage }
   | { ok: false; status: 404 | 503; error: string; message: string }
 
-export function assemblePursuitPackage(nsnRaw: string): AssembledPackage {
+/**
+ * `mayReadIdentities` is `supplier.identity.view`, resolved by the ROUTE and handed in. Required
+ * and undefaulted so a caller cannot forget it: both routes that reach this function gated only on
+ * `board.quote`, which `read_only` holds, and shipped supplier names, emails and phone numbers to a
+ * session the server refuses identities to on two other paths.
+ */
+export function assemblePursuitPackage(nsnRaw: string, mayReadIdentities: boolean): AssembledPackage {
   const root = resolveDataRoot()
   if (!root.present) {
     return {
@@ -88,6 +94,6 @@ export function assemblePursuitPackage(nsnRaw: string): AssembledPackage {
 
   return {
     ok: true,
-    pkg: buildPursuitPackage({ row, dossier, award, byCage, savedPacketCount, eligibility }),
+    pkg: buildPursuitPackage({ row, dossier, award, byCage, savedPacketCount, eligibility, mayReadIdentities }),
   }
 }

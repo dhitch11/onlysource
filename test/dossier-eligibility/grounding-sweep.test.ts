@@ -90,7 +90,7 @@ function livePackages(): PursuitPackage[] {
   const { cornerMap } = buildAllDatasets()
   const out: PursuitPackage[] = []
   for (const r of cornerMap.rows.slice(0, LIVE_SAMPLE)) {
-    const a = assemblePursuitPackage(r.nsn)
+    const a = assemblePursuitPackage(r.nsn, true)
     if (a.ok) out.push(a.pkg)
   }
   livePkgCache = out
@@ -124,7 +124,7 @@ const rowSeed = {
 function pkgFor(eligibility?: ReturnType<typeof resolveDossierEligibility>, over: Partial<CornerRow> = {}) {
   const row = { ...rowSeed, ...over } as CornerRow
   const dossier = buildCornerDossier(row, null, null, scoreCorner(row, null, null))
-  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility })
+  return buildPursuitPackage({ row, dossier, award: null, byCage: null, savedPacketCount: 0, eligibility, mayReadIdentities: true })
 }
 
 const index = (niin: string, amc: string, amsc: string, pica: string): AmscIndex => ({
@@ -409,7 +409,7 @@ describe('D. the reviewer’s live failing input, re-run as an assertion', () =>
       ['5340001760600', 'The modeled buy value is $1,760,600.'],
       ['5310001743746', 'The modeled buy value is $1,743,746.'],
     ] as const) {
-      const a = assemblePursuitPackage(nsn)
+      const a = assemblePursuitPackage(nsn, true)
       if (!a.ok) continue
       checked += 1
       expect(groundBrief(`THE ECONOMICS\n${fabricated}`, a.pkg).stripped).toEqual([fabricated])

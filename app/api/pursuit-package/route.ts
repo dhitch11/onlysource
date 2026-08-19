@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requirePermission } from '@/lib/session/authz'
+import { requirePermission, callerCan, readCaller } from '@/lib/session/authz'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { assemblePursuitPackage } from '@/lib/intelligence/brief/assemble-package'
@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
   const denied = await requirePermission('board.quote')
   if (denied) return denied
 
+  /*
+   * `board.quote` says this caller may assemble a quoting decision. It says nothing about whether
+   * they may see WHO the suppliers are — that is `supplier.identity.view`, which is
+   * `sensitive: true` and which `read_only` deliberately does not hold. The package is resolved
+   * WITHOUT the identities rather than resolved and then stripped, because this object is fed to a
+   * language model and anything still in memory at prose time gets spoken.
+   */
+  const mayReadIdentities = callerCan(await readCaller(), 'supplier.identity.view')
+
   if (!aiConfigured()) {
     return Response.json(
       { error: 'ai_unconfigured', message: 'The analyst is not connected in this environment.' },
@@ -43,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
   const nsnRaw = typeof body.nsn === 'string' ? body.nsn : ''
 
-  const assembled = assemblePursuitPackage(nsnRaw)
+  const assembled = assemblePursuitPackage(nsnRaw, mayReadIdentities)
   if (!assembled.ok) {
     return Response.json({ error: assembled.error, message: assembled.message }, { status: assembled.status })
   }
