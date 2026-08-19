@@ -431,16 +431,41 @@ export function readDealerEligibility(
   amsc: string | null | undefined,
 ): DealerEligibility {
   const suffix = amsc ? AMSC[amsc.toUpperCase()] : undefined
-  const methodKnown = amc != null && amc !== '' && Object.values(AMC).includes(amc as never)
 
-  if (!suffix || !methodKnown) {
+  /*
+   * ★ AMC "0" IS A RECOGNISED CODE THAT MEANS NOTHING WAS DETERMINED, AND IT USED TO PASS THIS
+   * GATE. `Object.values(AMC).includes('0')` is true, because `AMC.NOT_ESTABLISHED = '0'` is a
+   * real government code — so `readDealerEligibility('0', 'G')` returned `unknown: false`,
+   * `manufacturing: 'open'`, and the sentence "method 0 directs acquisition to the manufacturer
+   * or prime". It directs nothing. That is AMC 3/4/5. The basis described a determination that
+   * had never been made, on 246 rows today and 1,060,757 at full catalogue scale.
+   *
+   * The comment above this function already states the intent exactly, and the intent was right:
+   * an absent code abstains, an invalid code abstains, both defaults are wrong so neither is
+   * taken. "0" slipped through because the test was RECOGNITION and what it needed was
+   * DETERMINATION. A stated absence is recognised precisely because the publisher took the
+   * trouble to state it.
+   *
+   * So the two absences are now separated in the OUTPUT as well as the logic, because they are
+   * different facts an operator can act on differently: "the government recorded that no
+   * acquisition method was established" is a finding about the item, while "we hold no code" is
+   * a finding about our data.
+   */
+  const methodRecognised = amc != null && amc !== '' && Object.values(AMC).includes(amc as never)
+  const methodNotEstablished = amc === AMC.NOT_ESTABLISHED
+  const methodDetermined = methodRecognised && !methodNotEstablished
+
+  if (!suffix || !methodDetermined) {
     return {
       surplusSupplyOpen: false,
       manufacturing: 'not_established',
       sourceApprovalEligible: false,
-      basis:
-        `acquisition codes incomplete (method ${amc ?? 'absent'}, suffix ${amsc ?? 'absent'}), ` +
-        'eligibility not determined',
+      basis: methodNotEstablished
+        ? `the government records acquisition method 0, NOT ESTABLISHED, for this item ` +
+          `(suffix ${amsc ?? 'absent'}), so no acquisition method has been determined and ` +
+          'eligibility cannot be read from it'
+        : `acquisition codes incomplete (method ${amc ?? 'absent'}, suffix ${amsc ?? 'absent'}), ` +
+          'eligibility not determined',
       unknown: true,
     }
   }

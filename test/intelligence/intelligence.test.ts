@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs'
 
 import { abstain, sealClaim, EvidenceContractViolation, evidenceRank, atOrAboveClass, EQUIVALENCE_GENERATORS } from '@/lib/intelligence/evidence'
 import { parseNsn, parseCage, parseSolicitation, toNiin, formatNsn } from '@/lib/intelligence/niin'
-import { isIdentityGradeReference, readDealerEligibility, PHRASE_CODES, iscIndicatesDeadItem } from '@/lib/intelligence/codebook'
+import { AMC, isIdentityGradeReference, readDealerEligibility, PHRASE_CODES, iscIndicatesDeadItem } from '@/lib/intelligence/codebook'
 import {
   generateSameSourceIdentity,
   generateCrossCompanyCollision,
@@ -217,6 +217,51 @@ describe('codebooks: the filters that stop 184,000 false equivalences', () => {
     const e = readDealerEligibility(null, null)
     expect(e.unknown).toBe(true)
     expect(e.surplusSupplyOpen).toBe(false)
+  })
+
+  it('★ ABSTAINS on AMC 0, the government\'s own code for "not established"', () => {
+    /*
+     * THE DEFECT THIS REPLACED, and it was live. `Object.values(AMC).includes('0')` is TRUE,
+     * because AMC.NOT_ESTABLISHED = '0' is a real government code, so the known-method gate
+     * passed it. readDealerEligibility('0','G') returned unknown:false, manufacturing:'open',
+     * and the sentence "method 0 directs acquisition to the manufacturer or prime" — which
+     * describes AMC 3/4/5 and is a determination that was never made.
+     *
+     * The gate tested RECOGNITION when it needed DETERMINATION. A stated absence is recognised
+     * precisely because the publisher took the trouble to state it.
+     */
+    const e = readDealerEligibility('0', 'G')
+    expect(e.unknown).toBe(true)
+    expect(e.manufacturing).toBe('not_established')
+    expect(e.surplusSupplyOpen).toBe(false)
+    // The basis names the government's own code rather than inventing a direction for it.
+    expect(e.basis).toContain('NOT ESTABLISHED')
+    expect(e.basis).not.toContain('directs acquisition')
+
+    // ★ POSITIVE CONTROL: '0' really is in the enum, which is exactly why a recognition test
+    // could not catch it. If this ever goes false, the fix has been made the wrong way — by
+    // deleting a real government code rather than by refusing to read a determination from it.
+    expect(Object.values(AMC).includes('0' as never)).toBe(true)
+  })
+
+  it('★ separates "the government established nothing" from "we hold no code"', () => {
+    // Two absences, two different findings: one is about the ITEM, one is about OUR DATA. An
+    // operator can act differently on each, so they must not share a sentence.
+    const notEstablished = readDealerEligibility('0', 'G')
+    const weHoldNothing = readDealerEligibility(null, null)
+    expect(notEstablished.unknown).toBe(true)
+    expect(weHoldNothing.unknown).toBe(true)
+    expect(notEstablished.basis).not.toBe(weHoldNothing.basis)
+    expect(weHoldNothing.basis).toContain('incomplete')
+  })
+
+  it('does not disturb the codes that ARE determinations', () => {
+    // The fix must narrow exactly one code and nothing else.
+    expect(readDealerEligibility('1', 'G').unknown).toBe(false)
+    expect(readDealerEligibility('3', 'P').unknown).toBe(false)
+    expect(readDealerEligibility('5', 'G').unknown).toBe(false)
+    // and an unrecognised code still abstains, as it always did
+    expect(readDealerEligibility('9', 'G').unknown).toBe(true)
   })
 
   it('flags the standardization codes that mark an item unprocurable', () => {
