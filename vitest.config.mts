@@ -110,6 +110,37 @@ export default defineConfig({
           fileParallelism: false,
           isolate: false,
           sequence: { groupOrder: 1 },
+          /*
+           * THE PROJECT IS CALLED "HEAVY" AND WAS INHERITING A TIMEOUT SIZED FOR UNIT TESTS.
+           *
+           * `datasets.test.ts > the pill day, the provenance day, the map, the view and the Board
+           * all name ONE day` builds the map, the view AND the board over the real corpus in one
+           * assertion. Measured:
+           *
+           *     alone, machine quiet     1,692ms   passes
+           *     inside the full suite    6,324ms   TIMED OUT at the inherited 5,000ms default
+           *
+           * SO IT IS CONTENTION, NOT COST. The same assertion, on the same data, is fine with
+           * headroom and fails under parallel load. `bid-eligibility` (10/10) and
+           * `engine-authz` (15/15) show the same signature: green alone, red in the suite.
+           *
+           * ⚠️ THE ASSERTIONS ARE NOT TOUCHED AND MUST NOT BE. "Fails in the suite, passes alone"
+           * is the signature of contention over shared state, and the tempting repair — relax
+           * what the test checks until it stops complaining — would trade a real invariant for a
+           * green tick. This project already runs serially (`fileParallelism: false`) and shares
+           * one parse (`isolate: false`); it contends with the OTHER projects, not with itself.
+           *
+           * 30s is roughly 18x the measured cost, which is deliberate: a timeout set just above
+           * the observed number is a timeout that fails again the first time the corpus grows or
+           * the machine is busier. It is a guard against a hang, not a performance budget. If one
+           * of these ever genuinely takes 30s, that is a real finding and it should fail.
+           *
+           * I checked my own recent change first rather than assuming it was innocent: the
+           * end-of-central-directory read added to `discoverFeedDays` costs 1ms across all 25
+           * archived zips, 0.0ms each, and the whole discovery is 48ms cold and 1ms cached.
+           * Not the cause.
+           */
+          testTimeout: 30_000,
         },
       },
     ],
