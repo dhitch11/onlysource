@@ -30,10 +30,10 @@ import type { AmscIndex } from '@/lib/intelligence/eligibility/bid-eligibility'
 
 const IDX: AmscIndex = {
   ok: true,
-  lookup: (n: string) => new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX' }]]).get(n),
-  size: new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX' }]]).size,
+  lookup: (n: string) => new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX', contested: { amc: false, amsc: false, selfContradiction: false } }]]).get(n),
+  size: new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX', contested: { amc: false, amsc: false, selfContradiction: false } }]]).size,
   backing: 'binary' as const,
-  niins: () => [...new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX' }]]).keys()],
+  niins: () => [...new Map([['000000001', { niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 'GX', contested: { amc: false, amsc: false, selfContradiction: false } }]]).keys()],
   publishers: new Map([['GX', { rows: 10000, withAmsc: 10000, rate: 1 }]]),
   provenance: {},
 }

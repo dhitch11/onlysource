@@ -21,7 +21,7 @@ function index(
 ): AmscIndex {
   return {
     ok: true,
-    lookup: (n: string) => new Map(rows.map((r) => [r.niin, { aac: '', ...r }])).get(n),
+    lookup: (n: string) => new Map(rows.map((r) => [r.niin, { aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, ...r }])).get(n),
     size: rows.length,
     backing: 'binary' as const,
     niins: () => rows.map((r) => r.niin),

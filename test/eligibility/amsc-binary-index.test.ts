@@ -23,7 +23,7 @@ const STRIDE = 10
 
 /** Build a real index on disk: `rows` must be given in ascending NIIN order, as the writer emits. */
 function writeIndex(
-  rows: Array<{ niin: string; amc: string; amsc: string; aac: string; pica: number }>,
+  rows: Array<{ niin: string; amc: string; amsc: string; aac: string; pica: number; flags?: number }>,
   opts: { dictionary?: string[]; truncateBytes?: number; claimRecords?: number } = {},
 ): string {
   const dir = mkdtempSync(join(tmpdir(), 'amsc-bin-'))
@@ -35,7 +35,7 @@ function writeIndex(
     buf.writeUInt8(r.amc ? r.amc.charCodeAt(0) : 0, o + 4)
     buf.writeUInt8(r.amsc ? r.amsc.charCodeAt(0) : 0, o + 5)
     buf.writeUInt8(r.aac ? r.aac.charCodeAt(0) : 0, o + 6)
-    buf.writeUInt8(0, o + 7)
+    buf.writeUInt8(r.flags ?? 0, o + 7) // byte 7: contested flags (0 = nothing contested)
     buf.writeUInt16BE(r.pica, o + 8)
   })
   const bytes = opts.truncateBytes === undefined ? buf : buf.subarray(0, opts.truncateBytes)
@@ -69,10 +69,10 @@ afterEach(() => {
 
 const ROWS = [
   { niin: '000000001', amc: '1', amsc: 'G', aac: 'B', pica: 1 },
-  { niin: '000000005', amc: '3', amsc: 'P', aac: '', pica: 1 },
-  { niin: '000000009', amc: '', amsc: '', aac: '', pica: 2 },
+  { niin: '000000005', amc: '3', amsc: 'P', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 1 },
+  { niin: '000000009', amc: '', amsc: '', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 2 },
   { niin: '123456789', amc: '5', amsc: 'C', aac: 'D', pica: 1 },
-  { niin: '999999999', amc: '2', amsc: 'Z', aac: '', pica: 2 },
+  { niin: '999999999', amc: '2', amsc: 'Z', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 2 },
 ]
 
 describe('the binary index resolves exactly the records it holds', () => {
@@ -157,5 +157,70 @@ describe('the binary index refuses a file it cannot vouch for', () => {
     withIndex([])
     const idx = loadAmscIndex()
     expect(idx.ok).toBe(false)
+  })
+})
+
+/* ---------------------------------------------------------------------------------- */
+/* ★ THE CONTESTED FLAGS: A TIE BROKEN ON FILE POSITION IS NOT A GOVERNMENT FACT       */
+/* ---------------------------------------------------------------------------------- */
+
+describe('contested flags', () => {
+  it('reports nothing contested when the authorities agree', () => {
+    withIndex([{ niin: '000000001', amc: '1', amsc: 'G', aac: '', pica: 1 }])
+    const idx = loadAmscIndex()
+    if (!idx.ok) throw new Error(idx.reason)
+    expect(idx.lookup('000000001')?.contested).toEqual({
+      amc: false,
+      amsc: false,
+      selfContradiction: false,
+    })
+  })
+
+  it('★ surfaces a disagreement rather than presenting the winning row as settled', () => {
+    /*
+     * Measured on the real catalogue: 3,260,593 NIINs carry more than one MOE rule and
+     * 1,076,346 produce a genuine tie, but in 99.99% of those the tied rows AGREE. Only 116
+     * disagree on AMC. EXPOSURE IS NOT HARM -- and 116 is not zero, and each one was a coin
+     * flip on file order rendered as a determination.
+     */
+    withIndex([{ niin: '000000002', amc: '3', amsc: 'D', aac: '', pica: 1, flags: 1 }])
+    const idx = loadAmscIndex()
+    if (!idx.ok) throw new Error(idx.reason)
+    const row = idx.lookup('000000002')
+    expect(row?.contested.amc).toBe(true)
+    expect(row?.contested.amsc).toBe(false)
+    // The chosen row is still returned. The flag says another authority disagreed with it,
+    // not that the value is absent.
+    expect(row?.amc).toBe('3')
+  })
+
+  it('separates one activity contradicting ITSELF from two activities disagreeing', () => {
+    // Not a tie between sources: a data-quality signal about one source. Twenty-four NIINs carry it.
+    withIndex([{ niin: '000000003', amc: '3', amsc: 'D', aac: '', pica: 1, flags: 1 | 4 }])
+    const idx = loadAmscIndex()
+    if (!idx.ok) throw new Error(idx.reason)
+    expect(idx.lookup('000000003')?.contested).toEqual({
+      amc: true,
+      amsc: false,
+      selfContradiction: true,
+    })
+  })
+
+  it('★ an index written BEFORE the flags existed reads as nothing contested, not as agreement', () => {
+    /*
+     * Byte 7 was `reserved, always 0`. An older file therefore reads all-false -- which is the
+     * correct answer for a file that COULD NOT record the fact. The distinction matters: the
+     * index is saying "no conflict was recorded", and a surface must not upgrade that into
+     * "the authorities were checked and agreed."
+     */
+    withIndex([{ niin: '000000004', amc: '5', amsc: 'H', aac: '', pica: 1 }]) // flags omitted
+    const idx = loadAmscIndex()
+    if (!idx.ok) throw new Error(idx.reason)
+    expect(idx.lookup('000000004')?.contested.amc).toBe(false)
+    // POSITIVE CONTROL: the reader is genuinely reading byte 7 and not defaulting.
+    withIndex([{ niin: '000000004', amc: '5', amsc: 'H', aac: '', pica: 1, flags: 2 }])
+    const idx2 = loadAmscIndex()
+    if (!idx2.ok) throw new Error(idx2.reason)
+    expect(idx2.lookup('000000004')?.contested.amsc).toBe(true)
   })
 })

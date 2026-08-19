@@ -129,10 +129,10 @@ function pkgFor(eligibility?: ReturnType<typeof resolveDossierEligibility>, over
 
 const index = (niin: string, amc: string, amsc: string, pica: string): AmscIndex => ({
   ok: true,
-  lookup: (n: string) => new Map([[niin, { niin, amc, amsc, aac: '', pica }]]).get(n),
-  size: new Map([[niin, { niin, amc, amsc, aac: '', pica }]]).size,
+  lookup: (n: string) => new Map([[niin, { niin, amc, amsc, aac: '', pica, contested: { amc: false, amsc: false, selfContradiction: false } }]]).get(n),
+  size: new Map([[niin, { niin, amc, amsc, aac: '', pica, contested: { amc: false, amsc: false, selfContradiction: false } }]]).size,
   backing: 'binary' as const,
-  niins: () => [...new Map([[niin, { niin, amc, amsc, aac: '', pica }]]).keys()],
+  niins: () => [...new Map([[niin, { niin, amc, amsc, aac: '', pica, contested: { amc: false, amsc: false, selfContradiction: false } }]]).keys()],
   publishers: new Map([[pica, { rows: 10000, withAmsc: 10000, rate: 1 }]]),
   provenance: {},
 })

@@ -29,9 +29,9 @@ import {
 import type { AmscIndex } from '@/lib/intelligence/eligibility/bid-eligibility'
 
 const FIXTURE_ROWS = new Map([
-    ['017053574', { niin: '017053574', amc: '3', amsc: 'P', aac: '', pica: 'GX' }],
-    ['017053575', { niin: '017053575', amc: '', amsc: '', aac: '', pica: 'ZW' }],
-    ['017053576', { niin: '017053576', amc: '1', amsc: 'G', aac: '', pica: 'GX' }],
+    ['017053574', { niin: '017053574', amc: '3', amsc: 'P', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'GX' }],
+    ['017053575', { niin: '017053575', amc: '', amsc: '', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'ZW' }],
+    ['017053576', { niin: '017053576', amc: '1', amsc: 'G', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'GX' }],
   ])
 
 const IDX: AmscIndex = {

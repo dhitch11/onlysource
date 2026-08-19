@@ -29,13 +29,13 @@ import { resolveBidEligibility, type AmscIndex } from '@/lib/intelligence/eligib
 
 const FIXTURE_ROWS = new Map([
     // The reviewer's own failing input, unchanged.
-    ['000000001', { niin: '000000001', amc: '3', amsc: 'E', aac: '', pica: 'GX' }],
+    ['000000001', { niin: '000000001', amc: '3', amsc: 'E', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'GX' }],
     // Two characters, which is not a code at all, and the same shape.
-    ['000000002', { niin: '000000002', amc: '3', amsc: 'XX', aac: '', pica: 'GX' }],
+    ['000000002', { niin: '000000002', amc: '3', amsc: 'XX', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'GX' }],
     // The negative control: a code the table DOES list, on an identical row.
-    ['000000003', { niin: '000000003', amc: '3', amsc: 'P', aac: '', pica: 'GX' }],
+    ['000000003', { niin: '000000003', amc: '3', amsc: 'P', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'GX' }],
     // A publisher that publishes nothing, which was already abstaining and must keep abstaining.
-    ['000000004', { niin: '000000004', amc: '', amsc: '', aac: '', pica: 'ZW' }],
+    ['000000004', { niin: '000000004', amc: '', amsc: '', aac: '', contested: { amc: false, amsc: false, selfContradiction: false }, pica: 'ZW' }],
   ])
 
 const IDX: AmscIndex = {

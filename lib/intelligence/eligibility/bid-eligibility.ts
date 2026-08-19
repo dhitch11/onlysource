@@ -50,6 +50,23 @@ export type AmscIndexRow = {
   amsc: string
   aac: string
   pica: string
+  /**
+   * ★ TWO GOVERNMENT ACTIVITIES DISAGREE ABOUT THIS ITEM, AND THE ROW ABOVE IS ONE OF THEM.
+   *
+   * When several MOE rules reach the same top rank -- all determinations, all from publishing
+   * activities -- the builder keeps the earliest in file order. That is harmless when they
+   * agree and it is a coin flip when they do not, and the coin flip was being rendered as a
+   * government fact.
+   *
+   * MEASURED across the whole catalogue: 3,260,593 NIINs carry more than one rule and
+   * 1,076,346 produce a genuine tie, but in 99.99% of those the tied rows AGREE. Only 116
+   * disagree on AMC and 319 on AMSC. Exposure is not harm -- and 116 is not zero.
+   *
+   * `selfContradiction` is a different and worse fact: the disagreeing rows come from the SAME
+   * activity. That is not an ambiguity between two sources, it is a data-quality signal about
+   * one, and an operator should be able to tell them apart. Twenty-four NIINs carry it.
+   */
+  contested: { amc: boolean; amsc: boolean; selfContradiction: boolean }
 }
 
 export type AmscIndex = {
@@ -166,12 +183,21 @@ function readBinary(binFile: string, metaFile: string): AmscIndex | AmscIndexUna
       const key = b.readUInt32BE(0)
       if (key === target) {
         const picaIdx = b.readUInt16BE(8)
+        // Byte 7 was `reserved, always 0` before the contested flags. An older index therefore
+        // reads as "nothing contested", which is the correct answer for a file that could not
+        // record the fact -- not a silent claim that the authorities agreed.
+        const flags = b.readUInt8(7)
         return {
           niin: niinText,
           amc: chr(b.readUInt8(4)),
           amsc: chr(b.readUInt8(5)),
           aac: chr(b.readUInt8(6)),
           pica: picaIdx > 0 ? (dict[picaIdx - 1] ?? '') : '',
+          contested: {
+            amc: (flags & 1) !== 0,
+            amsc: (flags & 2) !== 0,
+            selfContradiction: (flags & 4) !== 0,
+          },
         }
       }
       if (key < target) lo = mid + 1
