@@ -379,6 +379,21 @@ export type PricingWireBound = {
   readonly totals: PricingTotals
   /** The budget actually applied, so a surface states it rather than restating a constant. */
   readonly budget: number
+  /**
+   * How many rows the operator CANNOT see on this page. Zero when nothing was withheld.
+   *
+   * ★ RETURNED AS A NUMBER AND AS A SENTENCE, so a surface cannot compose a silent version. The
+   * page previously said "Showing the top 1,200" and, separately, "counted over all 5,488",
+   * leaving the operator to subtract. A silent cap is a lie; a stated one is a fact, and the
+   * count it withholds is the whole fact.
+   */
+  readonly withheld: number
+  /**
+   * The sentence naming what is and is not on the page. Built HERE rather than in the page,
+   * because a sentence composed at the render site from three separate fields is one edit away
+   * from dropping the half that hurts.
+   */
+  readonly disclosure: string
   /** The ordering, in words, so the page can print the sentence rather than reinvent it. */
   readonly orderedBy: string
 }
@@ -410,6 +425,8 @@ export function boundPricingRowsForWire(
     count: rows.filter((r) => r.rung === rung).length,
   }))
 
+  const withheld = Math.max(0, rows.length - Math.max(0, budget))
+
   return {
     shipped: ordered.slice(0, Math.max(0, budget)),
     totals: {
@@ -423,6 +440,14 @@ export function boundPricingRowsForWire(
       byRung,
     },
     budget,
+    withheld,
+    disclosure:
+      withheld === 0
+        ? `All ${rows.length.toLocaleString()} requirements on this board are shown.`
+        : `${withheld.toLocaleString()} of ${rows.length.toLocaleString()} requirements are NOT ` +
+          `shown on this page. It renders the first ${Math.min(rows.length, Math.max(0, budget)).toLocaleString()} ` +
+          'because the whole board is too heavy to serve at once, and every count above is taken ' +
+          'over all of them rather than over the ones displayed.',
     orderedBy:
       'still open first, then by the strength of the basis, then by the size of the quote on ' +
       'that basis',

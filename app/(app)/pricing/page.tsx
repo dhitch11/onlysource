@@ -121,7 +121,17 @@ export default async function PricingPage() {
         </p>
         <p className={styles.registerNote}>
           {bounded
-            ? `The wire is bounded at ${budget.toLocaleString()} rows because the full board serialises to 3.93MB on every visit and this page is not cached. Every number below is counted over all ${totals.all.toLocaleString()} served rows, never over the ${shipped.length.toLocaleString()} shown, so the counts are the board's and not the page's. `
+            ? /*
+               * ★ THE WITHHELD COUNT IS NAMED, and the sentence comes from `./wire` rather than
+               * being composed here. Two reasons, both measured. The page used to say "Showing
+               * the top 1,200" and, separately, "counted over all 5,488", leaving the operator to
+               * subtract 4,288 for themselves; a cap the reader has to derive is the silent
+               * version of a cap. And it asserted the board "serialises to 3.93MB", which is no
+               * longer true of anything: the wire object is about 763 bytes a row, while the
+               * RENDERED page is about 4,644, so the weight is in the markup and not the payload.
+               * A hardcoded measurement in prose goes stale with nothing to catch it.
+               */
+              `${board.bound.disclosure} Every number below is counted over all ${totals.all.toLocaleString()} served rows, never over the ${shipped.length.toLocaleString()} shown, so the counts are the board's and not the page's. `
             : `The wire is bounded at ${budget.toLocaleString()} rows and today's board is inside that bound, so nothing was left out. Every number below is counted over all ${totals.all.toLocaleString()} served rows. `}
           Feed day <span className="mono">{board.feedDay}</span>, judged against{' '}
           <span className="mono">{board.asOf}</span>. There is deliberately no board-wide dollar
