@@ -20,7 +20,7 @@
  */
 import 'server-only'
 import { buildAllDatasets, buildNoQuoteGoldmine, buildDistressed } from '@/lib/intelligence/datasets'
-import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
+import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { buildCornerDossier } from '@/lib/intelligence/brief/dossier'
@@ -247,7 +247,19 @@ function lookupStockNumber(raw: string): ToolOutcome {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
   })
-  const d = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
+  /*
+   * ★ THE CONCIERGE SPEAKS THIS ALOUD, so it must not say a part has never been bought when the
+   * export simply stopped before reaching it. Same verdict the corner page passes; without it
+   * Thomas states "no award history" for 669 stock numbers on voice and chat alike.
+   */
+  const d = buildCornerDossier(
+    row,
+    award,
+    forecast,
+    score,
+    awardIx.ok ? awardIx.window : undefined,
+    awardIx.ok ? awardHistoryState(awardIx, row.nsn) : undefined,
+  )
 
   const p = d.pricing
   const lines = [

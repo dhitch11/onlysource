@@ -82,6 +82,23 @@ export type ClearingPoint = {
    * sufficient, and a field called `winRate` would be read as one.
    */
   readonly upperBoundOnWinning: number
+  /**
+   * ★ A CENSUS, NOT A MEDIAN, AND THE REASON THIS FIELD EXISTS.
+   *
+   * How many stock numbers in the pool were observed clearing at this multiple AT LEAST ONCE.
+   * `upperBoundOnWinning` above is a MEDIAN, and a median of exactly 0 means only that fewer
+   * than half the stock numbers ever cleared here — it does not mean none did. The interface was
+   * reading that zero as "never" and printing "nothing above it was ever observed clearing at
+   * all". Measured on the live index (2,019 stock numbers with priced pairs): at 2x the median is
+   * 0.0000 while **662 stock numbers (32.8%) were observed clearing**, and at 3x the median is
+   * 0.0000 while **363 (18.0%) were**. The claim was false for every one of them, on 4,646 of
+   * 4,800 corner dossiers.
+   *
+   * Only this count may license the word "never". A median may not.
+   */
+  readonly stockNumbersObservedClearing: number
+  /** The denominator for the count above, so a share can be stated without recomputing. */
+  readonly stockNumbersInPool: number
 }
 
 export type ClearingCurve =
@@ -203,8 +220,17 @@ export function clearingCurve(perNsn: readonly PerNsn[], fsc: string | null): Cl
   const points: ClearingPoint[] = CURVE_MULTIPLES.map((multiple, k) => ({
     multiple,
     upperBoundOnWinning: median(pool.map((r) => r.shares[k] as number)),
+    stockNumbersObservedClearing: pool.filter((r) => (r.shares[k] ?? 0) > 0).length,
+    stockNumbersInPool: pool.length,
   }))
-  const cleared = points.filter((p) => p.upperBoundOnWinning > 0)
+  /*
+   * ★ THE CEILING IS A CENSUS QUESTION AND WAS BEING ANSWERED WITH A MEDIAN. Deriving it from
+   * `upperBoundOnWinning > 0` declares a ceiling as soon as fewer than half the stock numbers
+   * clear, and the interface then prints that nothing above it EVER cleared. Measured, 662 stock
+   * numbers cleared above the ceiling this test produced. The ceiling is now the highest multiple
+   * at which anything at all was observed clearing, which is what the sentence claims.
+   */
+  const cleared = points.filter((p) => p.stockNumbersObservedClearing > 0)
   const ceilingMultiple = cleared.length > 0 ? (cleared[cleared.length - 1] as ClearingPoint).multiple : null
 
   return {

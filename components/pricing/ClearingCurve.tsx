@@ -93,7 +93,17 @@ export function ClearingCurve({ curve, recommendedMultiple }: { curve: Curve; re
                 />
               </span>
               <span className={styles.share}>
-                {dead ? 'never' : pct(p.upperBoundOnWinning)}
+                {/*
+                  ★ "never" IS A CENSUS CLAIM AND MUST COME FROM THE CENSUS. `dead` was
+                  `upperBoundOnWinning === 0`, a MEDIAN of zero, which means fewer than half the
+                  stock numbers cleared here — not that none did. At 2x that printed "never" over
+                  662 stock numbers that were observed clearing.
+                */}
+                {p.stockNumbersObservedClearing === 0
+                  ? 'never'
+                  : p.upperBoundOnWinning > 0
+                    ? pct(p.upperBoundOnWinning)
+                    : `median 0%, ${p.stockNumbersObservedClearing.toLocaleString()} of ${p.stockNumbersInPool.toLocaleString()} cleared`}
               </span>
             </li>
           )
@@ -103,7 +113,10 @@ export function ClearingCurve({ curve, recommendedMultiple }: { curve: Curve; re
       {curve.ceilingMultiple !== null ? (
         <p className={styles.ceiling}>
           <strong>{curve.ceilingMultiple}&times; is the ceiling.</strong> Across these stock
-          numbers, nothing above it was ever observed clearing at all.
+          numbers, nothing above it was observed clearing at all. The ceiling is the highest
+          multiple at which ANY stock number in the pool was seen to clear, not the highest at
+          which most were: below it, the figure beside each step is the median, so a step reading
+          0% still holds stock numbers that cleared.
         </p>
       ) : null}
 
