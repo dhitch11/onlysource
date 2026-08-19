@@ -694,6 +694,17 @@
     text-transform: uppercase;
     letter-spacing: var(--track-label);
     color: var(--faint);
+    grid-column: 1;
+    grid-row: 1;
+  }
+  /*
+   * ★ EVERY ELEMENT CHILD IS PINNED TO THE VALUE COLUMN. Without this the Awardee cell, which
+   * holds a text node AND a CAGE span, auto-placed the span into row 2 COLUMN 1 — the label
+   * column — so "520B6" rendered underneath "AWARDEE" as though it were a field name. A grid
+   * cell with more than one child does not stay in its column by wishing.
+   */
+  .table tbody td > * {
+    grid-column: 2;
   }
   /* Right-alignment is a column property. In a card there is no column to align against. */
   .numCol {
