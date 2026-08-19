@@ -55,6 +55,16 @@ const HEAVY_INTELLIGENCE_TESTS = [
   // worker and pay that parse a fifth time, concurrently with them; here it shares their
   // module registry and the parse is already done by the time it runs.
   'test/intelligence/surplus-rollup.test.ts',
+  // A THIRD SCARCE RESOURCE, SAME SHAPE AGAIN. `bid-eligibility.test.ts > determines eligibility
+  // across the catalogue it now covers` reads the real derived AMSC index off disk — a 70MB
+  // binary — and it timed out at 5,000ms in the full suite while passing 10/10 alone. Nothing is
+  // wrong with the assertion: it is a heavy real-data test that had been living in the LIGHT
+  // project, where it forked its own worker and competed with everything else for the same disk.
+  //
+  // ★ THE PROJECT BOUNDARY IS SUPPOSED TO MEAN SOMETHING, so the fix is to put the file where it
+  // belongs rather than to grant it a private timeout in place. A per-test timeout would have made
+  // this one green and left the next real-data test to rediscover the whole thing.
+  'test/eligibility/bid-eligibility.test.ts',
 ]
 
 // The known-bad lint fixtures are deliberately broken source. They are input to the
