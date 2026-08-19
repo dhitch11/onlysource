@@ -386,10 +386,29 @@
    * still came from the later block. Their mobile treatment lives with the originals below.
    */
 
-  /* The frame takes the strip's place in the top-bar flex; the nav scrolls inside it, so
-   * the fade and hint can anchor to the frame's (non-scrolling) edges. */
+  /*
+   * THE FRAME IS A ROW, NOT A STACKING CONTEXT, BECAUSE THE HINT WAS SITTING ON THE NAV.
+   *
+   * The fade and the hint were absolutely positioned over the frame's right edge while the
+   * nav scrolled underneath them, so nav items passed BEHIND the words continuously. That was
+   * always true and was invisible only because the hint wore an opaque background: the pill
+   * was masking the collision, not preventing it. The moment the pill's background came off
+   * for being a "weird bubble", the screen read
+   *
+   *     Sc[roll]Monopoly Map[s] →        two labels occupying the same pixels
+   *
+   * ★ REMOVING A CONTAINER REVEALED A DEFECT THE CONTAINER HAD BEEN HIDING. The bubble was
+   * load-bearing by accident, which is the worst way for something to be load-bearing.
+   *
+   * So the frame lays its three children out in a row and each one owns its space: the nav
+   * takes the remaining width and scrolls inside itself, the fade is a real 24px gradient
+   * strip rather than an overlay, and the words sit after it. Nothing can pass behind
+   * anything. `min-inline-size: 0` on the nav is what lets a flex item shrink below its
+   * content and scroll rather than pushing the row wider.
+   */
   .navFrame {
-    display: block;
+    display: flex;
+    align-items: center;
     position: relative;
     order: 3;
     inline-size: 100%;
@@ -397,7 +416,8 @@
   }
 
   .nav {
-    inline-size: 100%;
+    flex: 1 1 auto;
+    inline-size: auto;
     min-inline-size: 0;
     overflow-x: auto;
     /* Momentum scrolling without a visible bar eating a row of pixels. */
@@ -418,23 +438,23 @@
    * fade plus plain words, rendered from a live measurement only while more destinations sit
    * off-screen to the right. Pointer-transparent, aria-hidden: the information (there is
    * more) is already reachable by scrolling, and the words carry it for sighted users. */
+  /* A real strip in the row, not an overlay. It still fades the last item out on its way to
+   * the words, but nothing scrolls behind it, so it cannot mask a collision the way the
+   * hint's old background did. */
   .navFade {
     display: block;
-    position: absolute;
-    inset-block: 0;
-    inset-inline-end: 0;
-    inline-size: 48px;
+    position: static;
+    flex: none;
+    align-self: stretch;
+    inline-size: 24px;
     pointer-events: none;
     background: linear-gradient(to right, transparent, color-mix(in srgb, var(--bg) 88%, transparent));
   }
 
   .navHint {
     display: inline-block;
-    position: absolute;
-    inset-inline-end: var(--sp-2);
-    inset-block: 0;
-    margin-block: auto;
-    block-size: fit-content;
+    position: static;
+    flex: none;
     pointer-events: none;
     font-size: var(--fs-100);
     font-weight: var(--fw-semibold);
