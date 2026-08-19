@@ -1,0 +1,144 @@
+{
+  "samples": {
+    "/corner/[nsn]": "/corner/1005017317348"
+  },
+  "anon": {
+    "/": {
+      "status": 307,
+      "heading": null
+    },
+    "/admin": {
+      "status": 307,
+      "heading": null
+    },
+    "/board": {
+      "status": 307,
+      "heading": null
+    },
+    "/competitor": {
+      "status": 307,
+      "heading": null
+    },
+    "/corner/[nsn]": {
+      "status": 307,
+      "heading": null
+    },
+    "/design": {
+      "status": 307,
+      "heading": null
+    },
+    "/documents": {
+      "status": 307,
+      "heading": null
+    },
+    "/enter": {
+      "status": 200,
+      "heading": "ONLYSOURCE"
+    },
+    "/goldmine": {
+      "status": 307,
+      "heading": null
+    },
+    "/groups": {
+      "status": 307,
+      "heading": null
+    },
+    "/hubzone": {
+      "status": 307,
+      "heading": null
+    },
+    "/intelligence": {
+      "status": 307,
+      "heading": null
+    },
+    "/monopoly": {
+      "status": 307,
+      "heading": null
+    },
+    "/sales": {
+      "status": 307,
+      "heading": null
+    },
+    "/settings": {
+      "status": 307,
+      "heading": null
+    },
+    "/suppliers": {
+      "status": 307,
+      "heading": null
+    }
+  },
+  "signedIn": {
+    "/": {
+      "status": 200,
+      "heading": "The market, mapped and ranked by money."
+    },
+    "/admin": {
+      "status": 200,
+      "heading": "Admin & Users"
+    },
+    "/board": {
+      "status": 200,
+      "heading": "The Board"
+    },
+    "/competitor": {
+      "status": 200,
+      "heading": null
+    },
+    "/corner/[nsn]": {
+      "status": 200,
+      "heading": null
+    },
+    "/design": {
+      "status": 200,
+      "heading": "Design system"
+    },
+    "/documents": {
+      "status": 200,
+      "heading": "Documents and POs"
+    },
+    "/enter": {
+      "status": 307,
+      "heading": null
+    },
+    "/goldmine": {
+      "status": 200,
+      "heading": "No-Quote Goldmine"
+    },
+    "/groups": {
+      "status": 200,
+      "heading": "Supply Groups"
+    },
+    "/hubzone": {
+      "status": 200,
+      "heading": "HUBZone set-asides"
+    },
+    "/intelligence": {
+      "status": 200,
+      "heading": "Where the money is"
+    },
+    "/monopoly": {
+      "status": 200,
+      "heading": "Monopoly Map"
+    },
+    "/sales": {
+      "status": 200,
+      "heading": "Pipeline"
+    },
+    "/settings": {
+      "status": 200,
+      "heading": "Alerts & notifications"
+    },
+    "/suppliers": {
+      "status": 200,
+      "heading": "Distressed Suppliers"
+    }
+  },
+  "notes": {
+    "heading:null": "means any non-empty heading is acceptable. Use it for a page whose title is DATA-DRIVEN, so the baseline does not go red the day the data changes. It still fails on an error boundary, on a missing heading and on a wrong status.",
+    "volatile": [
+      "/competitor",
+      "/corner/[nsn]"
+    ]
+  }
+}

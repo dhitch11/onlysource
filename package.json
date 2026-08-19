@@ -23,7 +23,10 @@
     "ingest:backfill": "npx tsx scripts/ingest/backfill.mts",
     "gate:reachability:selftest": "node scripts/reachability-census.mjs --selftest",
     "gate:reachability": "node scripts/reachability-census.mjs",
-    "gate:reachability:list": "node scripts/reachability-census.mjs --list"
+    "gate:reachability:list": "node scripts/reachability-census.mjs --list",
+    "sweep:selftest": "node scripts/route-body-sweep.mjs --selftest",
+    "sweep:anon": "node scripts/route-body-sweep.mjs --anon",
+    "sweep": "node scripts/route-body-sweep.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "10.70.0",

@@ -55,6 +55,13 @@ jobs:
       - name: reachability census (no new orphans)
         run: npm run gate:reachability
 
+      # The body sweep itself needs the deployed host and a session, so it belongs to deploy
+      # step 8, not to CI. Its SELF-TEST is pure and belongs here: it proves the detector
+      # still fires on the error-boundary sentence, and fails if either boundary is reworded
+      # out from under it. /competitor served that boundary behind a 200 for three days.
+      - name: route body sweep self-test (prove the boundary detector fires)
+        run: npm run sweep:selftest
+
       - name: typecheck
         run: npm run typecheck
 
