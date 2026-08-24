@@ -1,5 +1,56 @@
 import { defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
+/*
+ * ==========================================================================================
+ * FIND THE INGEST CLUSTER. NEVER CREATE ONE.
+ * ==========================================================================================
+ * `lib/ingest/db.ts` resolves the embedded-Postgres location through its OWN root:
+ *
+ *     DATA_ROOT = process.env.ONLYSOURCE_DATA_ROOT ?? '/Users/user/onlysource-data'
+ *     PG_DIR    = process.env.ONLYSOURCE_PG_DIR   ?? join(DATA_ROOT, 'pg')
+ *
+ * ★ THAT DEFAULT IS A macOS PATH AND IT DOES NOT GO THROUGH `resolveDataRoot()`. On Linux it
+ * cannot exist, so `test/t2-ingest/*` were looking for a database on a different machine.
+ * The symptom was not "no such directory": `onError: () => {}` swallowed the real error, the
+ * server never started, `beforeAll` never assigned a client, and the failure surfaced in
+ * `afterAll` as "Cannot read properties of undefined (reading 'end')". A whole evening went
+ * into ARM64 and blocked-postinstall hypotheses before anyone read this one line.
+ *
+ * ⛔ AND THE MAC DEFAULT IS DELIBERATE, SO IT IS NOT CHANGED HERE. Its own comment states the
+ * reason and the reason is good: "moving a database by renaming a constant would silently init
+ * a second empty cluster." Pointing DATA_ROOT at `resolveDataRoot()` would resolve to the
+ * bundled `<repo>/data`, find no cluster there, and quietly initdb an empty one, which is
+ * exactly the failure that comment exists to prevent. The archive was moved to
+ * `resolveDataRoot()` for the opposite reason; the cluster was deliberately left behind.
+ *
+ * ⚠️ THE TWO VARIABLES ARE ONE LETTER-GROUP APART AND THIS ESTATE KEEPS CONFUSING THEM.
+ *     lib/data-root.ts    reads  ONLYSOURCE_DATA_DIR    (archive, indexes, everything served)
+ *     lib/ingest/db.ts    reads  ONLYSOURCE_DATA_ROOT   (the local pg cluster, only)
+ * `test/support/corpus.ts` and `lib/ingest/series/store.ts:37` each carry a scar from picking
+ * the wrong one. This block sets `ONLYSOURCE_PG_DIR` specifically, which is unambiguous and
+ * cannot be mistaken for the serving root.
+ *
+ * WHAT THIS DOES: if the operator has said nothing, look for an ALREADY INITIALISED cluster in
+ * the two places this estate actually puts one, and point the suite at the first that exists.
+ * A `PG_VERSION` file is the marker of an initialised cluster, so this can only ever ADOPT a
+ * database, never create, move or write one. If neither exists the variable stays unset and the
+ * t2-ingest suites skip loudly and name the cure, which is the honest outcome on a machine that
+ * genuinely has no cluster.
+ */
+if (!process.env.ONLYSOURCE_PG_DIR && !process.env.ONLYSOURCE_DATA_ROOT) {
+  const repo = fileURLToPath(new URL('./', import.meta.url))
+  const candidates = [
+    // The sibling-root convention this estate uses: the repo beside its raw-ingest data.
+    join(repo, '..', 'onlysource-data', 'pg'),
+    // The bundled serving root, in case a cluster was ever initialised alongside it.
+    join(repo, 'data', 'pg'),
+  ]
+  const found = candidates.find((dir) => existsSync(join(dir, 'PG_VERSION')))
+  if (found) process.env.ONLYSOURCE_PG_DIR = found
+}
 
 // MEASURED CAUSE (not a guess -- see the corrected comments in the files themselves):
 // `rg -l "buildAllDatasets|buildForecastIndex|buildPortfolio|readNsnAwards|buildCompetitorCatalog" test/`
