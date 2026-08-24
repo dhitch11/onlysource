@@ -221,13 +221,32 @@ export default async function WorkspacePage() {
               : `Counted on ${spanNote ?? 'no feed'}, from ${cmProv?.sourceArchiveKey ?? 'the daily archive'}.`,
         },
         {
+          /*
+           * ★ THIS TILE CLAIMED "nobody can source" AND THAT WAS NEVER MEASURED. Corrected 2026-08-24.
+           *
+           * `makeSideOnly` counts rows whose solicitation found NO MATCH in the availability
+           * workbook. MEASURED: 479 of 479 of those are solicitations absent from
+           * `no_quote_matches.xlsx` entirely; ZERO were present and carrying no holder. The set is
+           * exactly the set nobody queried, so it can never support a claim about the world.
+           *
+           * The hint now matches the label `app/(app)/goldmine/page.tsx` already uses for the same
+           * count, and the denominator travels with the number in `sourceDetail` rather than being
+           * left to the reader: a total over an unchecked fraction reads as a total over all of it.
+           *
+           * ★ AND THE LABEL SAID "wins", WHICH IS AN OUTCOME NOBODY MEASURED. A win is a thing
+           * that happened. These are buys the government posted that drew no quote, which is a
+           * lane, not a result. The honest noun is the one the product already uses for this
+           * exact set: `goldmine/page.tsx` counts "make-side buys". Every other tile on this
+           * dashboard labels what it counted ("candidate corners", "NSNs with award history"),
+           * so this one now does too.
+           */
           n: (nq?.makeSideOnly ?? 0).toLocaleString(),
-          label: 'no-quote make-side wins',
-          hint: 'government buys nobody quoted, nobody can source',
+          label: 'no-quote make-side buys',
+          hint: 'government buys nobody quoted, no supplier matched',
           href: '/goldmine',
           hot: true,
           helpId: 'capability.no_quote',
-          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · ${feedNote}`,
+          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'}. That is an absence of a match over the suppliers the availability data covers, not a census of the world. · ${feedNote}`,
         },
         {
           /*

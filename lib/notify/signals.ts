@@ -40,7 +40,23 @@ export type Signal = {
 export const SIGNAL_KINDS: Array<{ kind: SignalKind; label: string; describe: string }> = [
   { kind: 'award_clock', label: 'Award-cutoff deadline', describe: 'The 3:00 PM ET machine-award cutoff, every business day. Miss it and the buy is decided without you.' },
   { kind: 'perfect_storm', label: 'Perfect-storm corners', describe: 'Corners that line up on every measured leg at once: one silent source, on the forecast, machine-award, and a rising price.' },
-  { kind: 'no_quote', label: 'No-quote make-side', describe: 'Government buys that drew zero quotes and nobody can source: you win by making the part.' },
+  /*
+   * ★ "NOBODY CAN SOURCE" WAS NEVER MEASURED, AND THIS LABEL USED TO SAY IT. Corrected 2026-08-24.
+   *
+   * The make-side set is the rows where the solicitation found no match in the availability
+   * workbook. MEASURED over that set: 479 of 479 are solicitations ABSENT from
+   * `no_quote_matches.xlsx` entirely, and ZERO were present and carrying no holder. Availability
+   * join coverage over distinct solicitations is 350 of 803 looked up, 453 never looked up.
+   *
+   * So the set is exactly the set we did not query. Not one of those rows was checked and found
+   * empty, which is the only thing that could support "nobody can source".
+   *
+   * The honest claim is an ABSENCE OF A MATCH over the suppliers the availability data covers.
+   * `lib/thomas/tools.ts` already refuses the overclaim in the concierge's own voice, and
+   * `app/(app)/goldmine/page.tsx` already labels the same count "no supplier matched". This
+   * string and the dashboard tile were the last two surfaces still stating it as measured.
+   */
+  { kind: 'no_quote', label: 'No-quote make-side', describe: 'Government buys that drew zero quotes where no supplier matched in the availability data: likely built rather than sourced. That is an absence of a match over the suppliers that data covers, not proof nobody holds the part.' },
   { kind: 'escalation', label: 'Biggest price ramps', describe: 'The cornered parts where the sole source has pushed the price up the most.' },
   { kind: 'forecast', label: 'Forward demand', describe: 'How many candidate corners the government has put on its own forward-buy list.' },
 ]
