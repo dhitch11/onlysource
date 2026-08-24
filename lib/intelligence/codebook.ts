@@ -472,9 +472,39 @@ export function readDealerEligibility(
 
   const competitive = AMC_OPEN_TO_DEALERS.includes(amc as string)
   return {
-    // Surplus supply of the approved article is not barred by a restricted suffix. The gate
-    // there is traceability, which this lane does not own and must not pretend to answer.
-    surplusSupplyOpen: competitive || suffix.manufacturing !== 'open',
+    /*
+     * ★ A FIELD INHERITED FROM A PARENT ROW IS NOT A MEASUREMENT OF THE CHILD, and its cousin:
+     * a predicate can be well formed, type correct, covered by a passing regression test, and
+     * still answer a different question than the one its name asks. Fixed 2026-08-24 (H10).
+     *
+     * THE DEFECT, and it was live: `competitive || suffix.manufacturing !== 'open'`.
+     * On the NON-competitive branch that returns FALSE exactly when the suffix is OPEN, which
+     * is backwards, and it made the LEAST restricted items read as the MOST restricted. The
+     * consumer in `scoring/quote-signals.ts` rendered those rows as
+     * "Restricted. Method 3 with suffix Z closes this to anyone outside the named source."
+     * on an item whose suffix Z means "a commercial, non developmental, off the shelf item".
+     *
+     * MEASURED BLAST RADIUS, over the corner map's NIINs coded through the FLIS amsc-index:
+     * 309 of 2,149 coded rows = 14.38% on the 2026-08-14 window, in exactly six cells,
+     * 3/L 3/Z 5/L 4/Z 4/L 5/Z. The 2026-08-20 record measured the same six cells at 14.31%
+     * over a larger, now-expired feed window (4,023 of 28,117). Re-derive with
+     * `scripts/derive-surplus-cells.mts`, which asserts STRUCTURALLY (which cells may move)
+     * rather than on a count that moves with the window.
+     *
+     * THE CORRECTED TRUTH TABLE, and it is a constant on purpose. No acquisition code bars a
+     * dealer from supplying NEW SURPLUS of the ORIGINALLY APPROVED ARTICLE. A competitive
+     * method (1/2) names dealers and distributors among potential sources; a restrictive
+     * suffix constrains new MANUFACTURING, not resale of an article that was already approved.
+     * The real gate is TRACEABILITY (DLAD C04/L04, CDAP 4.2.24 "complete line of ownership"),
+     * which this module does not own and must not pretend to answer.
+     *
+     * So on any DETERMINED pair the answer is open. The only honest `false` is the abstention
+     * above, where no acquisition method was determined at all, and that branch returns before
+     * this one. A constant here is not a shrug: it is the finding. The two questions this type
+     * keeps apart, surplus supply and new-source manufacturing, have genuinely different
+     * answers, and `manufacturing` below is the one that varies.
+     */
+    surplusSupplyOpen: true,
     manufacturing: suffix.manufacturing,
     sourceApprovalEligible: suffix.sourceApprovalEligible,
     basis: competitive

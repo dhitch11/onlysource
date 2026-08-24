@@ -214,12 +214,34 @@ export function readQuoteSignals(
         0.85,
         `acquisition method ${summary.amc} with suffix ${summary.amsc}`,
       ),
+      /*
+       * ★ THREE STATES, BECAUSE THERE ARE THREE, AND ONE OF THEM USED TO BE A FALSEHOOD.
+       *
+       * This ternary used to branch on `eligibility.surplusSupplyOpen`, and its ELSE arm read
+       * "Restricted. Method 3 with suffix Z closes this to anyone outside the named source."
+       * That arm fired on 14.38% of coded rows and every one of them was WRONG in the same
+       * direction: suffix Z means "a commercial, non developmental, off the shelf item" and
+       * suffix L means the annual buy value is below the screening threshold. Neither closes
+       * anything. The defect was in `codebook.ts` (fixed 2026-08-24, H10) and this was the
+       * surface that spoke it.
+       *
+       * With that predicate corrected to a constant, branching on it again would leave a dead
+       * arm behind, so the branch is now on `manufacturing`, which is the field that actually
+       * varies. The third state is REAL and was never rendered: a directed buy carrying NO
+       * data-rights bar. It is neither the corner nor a closed door, and it says so.
+       */
       reading: competitive
         ? `Open buy. Method ${summary.amc} names dealers and distributors among potential sources, so a quote stands on its own. ${openSentence(eligibility.basis.split('; ')[1])}`.trim()
-        : eligibility.surplusSupplyOpen
+        : eligibility.manufacturing !== 'open'
           ? `Closed to new manufacture, open to the approved article. Method ${summary.amc} directs the buy to the manufacturer or prime, and suffix ${summary.amsc} means no new source can be qualified to make it. That is what makes surplus of the approved article the only way in, and why holding it is worth something.`
-          : `Restricted. Method ${summary.amc} with suffix ${summary.amsc} closes this to anyone outside the named source.`,
-      direction: eligibility.surplusSupplyOpen ? 'favourable' : 'unfavourable',
+          : `Directed buy, but nothing here bars a new source. Method ${summary.amc} sends the buy to the manufacturer or prime, and suffix ${summary.amsc} places no technical data restriction on making it. ${openSentence(eligibility.basis.split('; ')[1])} The limit on this one is procedural, not technical, so it is not the kind of corner that holds.`.trim(),
+      /*
+       * NEUTRAL, not favourable and not unfavourable. It used to render UNFAVOURABLE on every
+       * one of these rows, which was the falsehood above wearing a direction. It is not the
+       * corner thesis either: an item nothing bars a new source from making is the opposite of
+       * a position worth controlling. The honest answer is that this signal does not point.
+       */
+      direction: competitive || eligibility.manufacturing !== 'open' ? 'favourable' : 'neutral',
       limitation:
         'A restricted suffix bars a new source from MANUFACTURING the item. It does not by itself bar supplying surplus of the originally approved article; that gate is traceability, and this build does not answer it.',
     })
