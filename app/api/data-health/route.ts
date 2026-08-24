@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { FRESHNESS_QUERY, PG_DATABASE, PG_HOST, PG_PORT, PG_USER, client } from '@/lib/ingest/db'
 import { NAMED_STATES, type NamedState } from '@/lib/ingest/types'
 import { resolveServedFeedDay } from '@/lib/intelligence/feed-day'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
+import { resolveDataRoot } from '@/lib/data-root'
 
 /**
  * THE FRESHNESS CONTRACT. Every surface in the app can say when its data was last updated
@@ -174,6 +176,74 @@ function describeArchive(): {
   }
 }
 
+/**
+ * THE CORPORATE-FAMILY INDEX, REPORTED BECAUSE ITS ABSENCE IS SILENT AND EXPENSIVE.
+ *
+ * ⛔ WHY THIS EXISTS. `cage-index.json` is the file the award-silence leg resolves against, and
+ * that leg is worth 15 points on every scored row. It is NOT IN GIT: `/data/` is gitignored and
+ * carries zero tracked files, so it does not travel with a deploy. `deploy-swap.sh` does
+ * `git reset --hard origin/main`, which cannot create it. The index must already be on the host.
+ *
+ * If it is missing, `loadCageFamilyIndex()` returns `ok:false` and every consumer WITHHOLDS,
+ * which is the correct fail-closed behaviour and is exactly the problem: a correct fail-closed
+ * design and a genuinely broken index are INDISTINGUISHABLE from the outside. Nothing throws,
+ * nothing 500s, no badge changes, and every score is quietly 15 points light. The product would
+ * report a cracked scoreboard as an honest one.
+ *
+ * There are two ways to land in that state and neither announces itself:
+ *   1. the file was never copied to the host, or was deleted, or a rebuild wrote it elsewhere;
+ *   2. the data root moved. `lib/data-root.ts` reads ONLYSOURCE_DATA_DIR, while `lib/ingest/db.ts`
+ *      reads ONLYSOURCE_DATA_ROOT. Two different variables, one letter-group apart, and this
+ *      codebase already carries two scars from confusing them (see test/support/corpus.ts and
+ *      lib/ingest/series/store.ts:37). Point ONLYSOURCE_DATA_DIR at the raw-ingest root and every
+ *      score silently loses its silence leg.
+ *
+ * So this names the root that actually resolved and whether the index loaded, and it states the
+ * consequence in words rather than leaving an operator to infer it from a boolean.
+ */
+function describeScoringIndex(): {
+  readonly basis: 'cage_family_index'
+  readonly loaded: boolean
+  readonly file: string
+  readonly dataRoot: string
+  readonly dataRootEnvVar: 'ONLYSOURCE_DATA_DIR'
+  readonly dataRootFromEnv: boolean
+  readonly explanation: string
+} {
+  const state = loadCageFamilyIndex()
+  const root = resolveDataRoot()
+  const dataRootFromEnv = process.env.ONLYSOURCE_DATA_DIR != null
+  const common = {
+    basis: 'cage_family_index' as const,
+    file: state.file,
+    dataRoot: root.root,
+    dataRootEnvVar: 'ONLYSOURCE_DATA_DIR' as const,
+    dataRootFromEnv,
+  }
+  if (!state.ok) {
+    return {
+      ...common,
+      loaded: false,
+      explanation:
+        `The corporate-family index did not load, so the award-silence leg is WITHHOLDING on ` +
+        `every scored row and every CornerScore on this host is 15 points light. This is not a ` +
+        `scoring opinion, it is a missing input. Reason: ${state.reason} ` +
+        `Looked for it at ${state.file}, under data root ${root.root}` +
+        (dataRootFromEnv
+          ? ', which came from the ONLYSOURCE_DATA_DIR environment variable. Check that variable ' +
+            'points at the SERVING data root and not at the raw-ingest root.'
+          : ', which is the built-in default because ONLYSOURCE_DATA_DIR is not set.'),
+    }
+  }
+  return {
+    ...common,
+    loaded: true,
+    explanation:
+      `The corporate-family index loaded from ${state.file}, so the award-silence leg can be ` +
+      `grounded and is scoring rather than withholding.`,
+  }
+}
+
 export async function GET(): Promise<NextResponse> {
   const connection = client()
   try {
@@ -208,6 +278,14 @@ export async function GET(): Promise<NextResponse> {
          * unknown.
          */
         archive: describeArchive(),
+        /*
+         * Reported on the offline path TOO, and deliberately. The ingest Postgres has never been
+         * reachable on the droplet, so this endpoint returns 503 there every time. If the scoring
+         * index were only reported on the success path, it would be reported on production NEVER,
+         * which is the same as not building it. It is a different question from ingest freshness
+         * and it can be answered without a database.
+         */
+        scoring: describeScoringIndex(),
         // A connection error from `pg` frequently carries an EMPTY message, which would leave
         // an operator with "offline" and no reason at 6am. Fall back through the error's code
         // and name, and always state WHICH database was unreachable. Never the password.
@@ -272,6 +350,8 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       state: overall,
       sources,
+      archive: describeArchive(),
+      scoring: describeScoringIndex(),
       vocabulary: NAMED_STATES,
       note:
         'The daily government feed is T+1 by the publisher design: records append to the current ' +

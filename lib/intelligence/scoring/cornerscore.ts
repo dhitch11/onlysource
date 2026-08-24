@@ -21,6 +21,7 @@ import type { CornerRow } from "@/lib/intelligence/corner";
 import type { NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 import type { ForecastSummary } from "@/lib/intelligence/forecast/dla-forecast";
 import type { AwardeeVerdict } from "@/lib/intelligence/suppliers/classify";
+import type { CageFamilyIndex } from "./cage-family";
 import {
   measured,
   prior,
@@ -88,6 +89,22 @@ export type ScoreSourceState = {
   awardIndexLoaded?: boolean;
   /** True when the NSN-Now forecast/RFQ index was loaded and this NSN was looked up in it. */
   forecastIndexLoaded?: boolean;
+  /**
+   * The corporate-family resolver, when the caller loaded one.
+   *
+   * ★ PASSED IN RATHER THAN IMPORTED, so `scoreCorner` stays pure. It is a function of its
+   * arguments and does no I/O, which is what makes it trivially testable and callable per row.
+   *
+   * ⛔ ABSENT MEANS THE SILENCE LEG WITHHOLDS. It does NOT mean "fall back to comparing one
+   * CAGE string": single-CAGE comparison IS the defect. A caller that has no index has not
+   * established silence, and an unestablished signal is not paid.
+   */
+  cageFamily?: CageFamilyIndex | null;
+  /**
+   * The instant "expired" is judged against. Defaults to today. Exposed so a test can pin it:
+   * an assertion whose expected value drifts with the wall clock is not an assertion.
+   */
+  asOfIso?: string;
 };
 
 /**
@@ -149,22 +166,161 @@ export function scoreCorner(
     reasons.push({ leg: "competition", plain: `${row.approvedSourceCount} approved sources: this is competitive, not a corner`, points: 0, calibration: "measured" });
   }
 
-  // ---- SOURCE SILENCE: the award-silent signal (a measurement, never a death claim). ----
+  /* ------------------------------------------------------------------------------------
+   * SOURCE SILENCE: the award-silent signal (a measurement, never a death claim).
+   *
+   * ★ THIS LEG COMPARED ONE CAGE STRING AND WAS WRONG BY +15 ON A LIVE CALL. Fixed 2026-08-24.
+   *
+   * On NSN 5340-01-608-5969 the approved source is CAGE 49956, RAYTHEON COMPANY DIV CORP of
+   * Arlington VA, the registration that holds the drawing and never contracts. Every one of the
+   * six awards went to CAGE 54X10, RAYTHEON COMPANY of Fairdale KY, the plant. The maker never
+   * went silent. The row scored +15 for that silence AND +10 for "every one of 6 past awards
+   * went to a single company (54X10)" in the same breath, which is a contradiction the moment
+   * you know both CAGEs are Raytheon.
+   *
+   * A registration is not a plant. Two things sharing a name are not the same thing, and its
+   * converse bit us here: two things NOT sharing a CAGE can be one company.
+   *
+   * SO SILENCE NOW MEANS: no award on this stock number went to ANY CAGE in the approved
+   * source's corporate family. That is POSITIVE, measured evidence of activity, read off the
+   * award rows this dossier already holds, rather than an inference from a list.
+   *
+   * THE FORKS, ALL RULED EXPLICITLY, ALL FAILING CLOSED:
+   *   - no resolver loaded          -> withhold, and say so in dataGaps
+   *   - approved CAGE absent        -> withhold, and log the miss (a counted, greppable line)
+   *   - a family member won here    -> withhold, and say who won
+   *   - resolver says distinct      -> pay, this is a real silence
+   * ------------------------------------------------------------------------------------ */
   if (row.silentSourceCount > 0) {
-    add(15);
-    reasons.push({
-      leg: "competition",
-      facet: "award silence",
-      plain: "the approved source has no recorded prime award in two years (a silence signal, not a death notice)",
-      points: 15,
-      calibration: "measured",
-    });
+    const family = sources.cageFamily ?? null;
+    const approved = row.approvedSources.filter((c) => (c ?? "").trim() !== "");
+    const winners = [
+      ...new Set((award?.awards ?? []).map((a) => (a.cage ?? "").trim().toUpperCase()).filter((c) => c !== "")),
+    ];
+
+    if (!family) {
+      dataGaps.push(
+        "the corporate CAGE index is not loaded, so award silence cannot be checked against the approved source's corporate family and this leg withholds its points rather than crediting a silence it cannot ground",
+      );
+      reasons.push({
+        leg: "competition",
+        facet: "award silence",
+        plain:
+          "the approved source is on the award-silence list, but the corporate CAGE index is not loaded, so this cannot be separated from a sibling registration still winning awards. No points credited.",
+        points: 0,
+        calibration: "measured",
+      });
+    } else {
+      // Which approved CAGEs could not be grounded at all, and which winners are family.
+      const ungrounded: string[] = [];
+      const familyWinners: string[] = [];
+      for (const src of approved) {
+        const r = family.resolve(src);
+        if (r.state === "absent") {
+          ungrounded.push(src);
+          /*
+           * A counted, greppable line. The fork is ruled (no credit) and the miss is VISIBLE,
+           * because a fail-closed branch nobody can see firing is indistinguishable from a
+           * branch that never fires.
+           */
+          // eslint-disable-next-line no-console
+          console.warn(`silence-leg: CAGE ${src} absent from cage-index, silence credit withheld`);
+          continue;
+        }
+        for (const w of winners) {
+          if (family.sameFamily(src, w).verdict === "same_family") familyWinners.push(w);
+        }
+      }
+
+      if (ungrounded.length > 0) {
+        dataGaps.push(
+          `approved source CAGE ${ungrounded.join(", ")} is absent from the corporate CAGE index, so its award silence cannot be grounded and this leg withholds its points`,
+        );
+        reasons.push({
+          leg: "competition",
+          facet: "award silence",
+          plain: `the approved source CAGE ${ungrounded.join(", ")} is not in the corporate index, so a sibling registration winning awards cannot be ruled out. No points credited.`,
+          points: 0,
+          calibration: "measured",
+        });
+      } else if (familyWinners.length > 0) {
+        const who = [...new Set(familyWinners)].join(", ");
+        reasons.push({
+          leg: "competition",
+          facet: "award silence",
+          plain: `the approved source has no prime award of its own, but the same corporate family won this stock number under CAGE ${who}. The maker is active, so no silence bonus is credited.`,
+          points: 0,
+          calibration: "measured",
+        });
+      } else {
+        add(15);
+        reasons.push({
+          leg: "competition",
+          facet: "award silence",
+          plain:
+            "no CAGE in the approved source's corporate family has a recorded prime award on this stock number (a silence signal, not a death notice)",
+          points: 15,
+          calibration: "measured",
+        });
+      }
+    }
   }
 
   // ---- AWARD PATH: machine award on price alone is the shape a corner monetizes through. ----
   if (row.automatedSolicitation === true) {
     add(10);
     reasons.push({ leg: "path", plain: "awarded by machine on price alone (T/U ninth character)", points: 10, calibration: "measured" });
+  }
+
+  /* ------------------------------------------------------------------------------------
+   * LONG-TERM CONTRACT EXPIRY. Rendered as a FACT, scored at ZERO. Added 2026-08-24 (H10).
+   *
+   * ★ A FIELD INHERITED FROM A PARENT ROW IS NOT A MEASUREMENT OF THE CHILD, and the LTC date
+   * is the most parent-shaped field on the sheet: it describes the VEHICLE, not the delivery
+   * order the row happens to be. So it is read at the stock-number grain off the award summary,
+   * never as a per-order fact, and it is never multiplied by the number of orders under it.
+   *
+   * ⛔ WHY ZERO AND NOT A NUMBER, WITH THE MEASUREMENT ATTACHED. The handoff set the ship bar
+   * BEFORE the result was seen: n >= 200 treatment NSNs with a post-expiry buy, and a >= 5pp
+   * treatment-over-control gap holding across BOTH outcome definitions.
+   * Measured 2026-08-24 by `scripts/h10/backtest-ltc.mts` over the 10-year served corpus
+   * (2016-01-03 to 2026-01-29, 42,698 award rows, 21,898 carrying an LTC date):
+   *
+   *   TREATMENT  buys after LTC expiry     81 NSNs    707 buys   newFamily 53.04%  competed 84.58%
+   *   CONTROL A  same NSNs, vehicle live  305 NSNs 12,738 buys   newFamily 10.83%  competed 18.40%
+   *   CONTROL B  sole NSNs, no LTC date   784 NSNs 10,502 buys   newFamily 39.89%  competed 94.90%
+   *
+   * TWO REASONS THE BAR IS NOT MET, and neither is "the effect looks small":
+   *   1. n = 82 treatment NSNs against a bar of 200, and the CORPUS CANNOT REACH 200 - dropping
+   *      the sole-source filter entirely still yields only 172. The ceiling is the data, not the
+   *      predicate (verified by `scripts/h10/probe-ltc-population.mts`, because a threshold
+   *      sitting above its own input reports a defect in working code).
+   *   2. THE "COMPETED INSTRUMENT" OUTCOME IS CONFOUNDED AND CANNOT DISCRIMINATE. While a
+   *      vehicle is live, buys flow under it as delivery orders BY CONSTRUCTION, so Control A's
+   *      18.40% is a tautology rather than a finding. Control B settles it: sole-source items
+   *      with no LTC at all compete at 94.90%, HIGHER than the treatment group's 84.58%. A true
+   *      fact that is true in both worlds is not evidence.
+   *
+   * The newFamily cut does look directionally real (+13.15pp over Control B, the honest control),
+   * and that is exactly why it is written down rather than spent: it is a reason to re-measure
+   * when the corpus grows, not a licence to pay points now. A preset without its record is how
+   * the 3x rule shipped behind a "High confidence" label.
+   * ------------------------------------------------------------------------------------ */
+  {
+    const ltc = award?.ltcExpirationIso ?? null;
+    if (ltc) {
+      const asOf = sources.asOfIso ?? new Date().toISOString().slice(0, 10);
+      const lapsed = ltc < asOf;
+      reasons.push({
+        leg: "path",
+        facet: "ltc expiry",
+        plain: lapsed
+          ? `long-term contract expired ${ltc}; the vehicle has lapsed (recorded, not scored: the backtest did not clear its ship bar, n=82 against a bar of 200)`
+          : `long-term contract expires ${ltc} (recorded, not scored)`,
+        points: 0,
+        calibration: "measured",
+      });
+    }
   }
 
   // ---- PRICE ANCHOR (m): MEASURED where we have award history; the rent signal is escalation. ----

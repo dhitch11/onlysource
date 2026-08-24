@@ -21,6 +21,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { readQuoteSignals } from '@/lib/intelligence/scoring/quote-signals'
 
 const argv = process.argv.slice(2)
@@ -35,6 +36,7 @@ const root = resolveDataRoot()
 const { cornerMap, feed } = buildAllDatasets()
 const awardIx = buildNsnAwardIndex()
 const fcIx = buildForecastIndex()
+const cageIx = loadCageFamilyIndex()
 
 const out: unknown[] = []
 for (const raw of nsns) {
@@ -49,6 +51,7 @@ for (const raw of nsns) {
   const score = scoreCorner(row, award, forecast, {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
+    cageFamily: cageIx.ok ? cageIx.index : null,
   })
   const signals =
     award && awardIx.ok

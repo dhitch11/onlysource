@@ -17,6 +17,8 @@ import { buildAllDatasets, checkDataAvailability } from '@/lib/intelligence/data
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
+import { buildAwardeeClassifierFromLive } from '@/lib/intelligence/suppliers/classify/live'
 
 /*
  * TIMEOUT BUDGET 120s -- CORRECTED 2026-08-17. An earlier version of this comment blamed
@@ -70,6 +72,19 @@ describe('the memoized monopoly view over the real files', () => {
     const fcIx = buildForecastIndex()
     const awardBy = awardIx.ok ? awardIx.byNsn : null
     const fcBy = fcIx.ok ? fcIx.byNsn : null
+    /*
+     * THE RECOMPUTE MUST SCORE THROUGH THE VIEW'S OWN INPUTS, NOT A SUBSET OF THEM.
+     *
+     * This assertion exists to catch the view drifting from the builders, so a recompute that
+     * quietly passes a different `sources` object cannot do that job. It previously called
+     * scoreCorner with three arguments while the view passed four plus the awardee verdict, and
+     * the two agreed only because the top-scoring row happened not to exercise the difference.
+     * The moment the corporate-family resolver was wired into the view, the same row scored 94
+     * here and 77 there, and the failure was in this recompute, not in the view.
+     */
+    const cageIx = loadCageFamilyIndex()
+    const live = buildAwardeeClassifierFromLive()
+    const awardee = live.ok ? live.classifier : null
 
     let priced = 0
     let candidatePriced = 0
@@ -100,7 +115,14 @@ describe('the memoized monopoly view over the real files', () => {
       if (isCandidate && forecast?.onForecast) forecastCount += 1
       if (isCandidate && (award?.holders.length ?? 0) > 0) availCount += 1
       if (isCandidate) {
-        const s = scoreCorner(r, award, forecast)
+        const lastAwardee = awardee && award?.latest?.cage ? awardee.classify(award.latest.cage) : null
+        const s = scoreCorner(
+          r,
+          award,
+          forecast,
+          { awardIndexLoaded: awardIx.ok, forecastIndexLoaded: fcIx.ok, cageFamily: cageIx.ok ? cageIx.index : null },
+          lastAwardee,
+        )
         if (s.scoreV0 > topScore) topScore = s.scoreV0
       }
     }

@@ -23,6 +23,7 @@ import { buildAllDatasets, buildNoQuoteGoldmine, buildDistressed } from '@/lib/i
 import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { buildCornerDossier } from '@/lib/intelligence/brief/dossier'
 import { buildPortfolio } from '@/lib/intelligence/portfolio'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -241,11 +242,13 @@ function lookupStockNumber(raw: string): ToolOutcome {
   }
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast, {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
+    cageFamily: cageIx.ok ? cageIx.index : null,
   })
   /*
    * ★ THE CONCIERGE SPEAKS THIS ALOUD, so it must not say a part has never been bought when the

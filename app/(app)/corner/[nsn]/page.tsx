@@ -9,6 +9,7 @@ import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
 import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { buildCornerDossier, priceSeries } from '@/lib/intelligence/brief/dossier'
 import { dispositionLabel } from '@/lib/intelligence/scoring/evidence-state'
 import { PriceSparkline } from '@/components/ui/PriceSparkline'
@@ -135,11 +136,13 @@ export default async function CornerPage({
 
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast, {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
+    cageFamily: cageIx.ok ? cageIx.index : null,
   })
   const dossier = buildCornerDossier(
     row,

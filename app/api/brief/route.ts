@@ -5,6 +5,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { generate, aiConfigured } from '@/lib/ai/anthropic'
 import { groundBrief } from '@/lib/ai/grounding'
 import { log } from '@/lib/log'
@@ -69,11 +70,13 @@ export async function POST(req: NextRequest) {
   }
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast, {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
+    cageFamily: cageIx.ok ? cageIx.index : null,
   })
 
   const dossier: CornerDossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)

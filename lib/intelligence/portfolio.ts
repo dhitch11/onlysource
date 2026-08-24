@@ -3,6 +3,7 @@ import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { isRisingPrice } from '@/lib/intelligence/rising-price'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import type { CornerFunnel, CornerMap, CornerRow } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
@@ -148,6 +149,7 @@ export function buildPortfolio(): Portfolio {
   if (hit) return hit
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const awardBy = awardIx.ok ? awardIx.byNsn : null
   const fcBy = fcIx.ok ? fcIx.byNsn : null
 
@@ -162,7 +164,7 @@ export function buildPortfolio(): Portfolio {
         r,
         award,
         forecast,
-        scoreCorner(r, award, forecast, { awardIndexLoaded: awardIx.ok, forecastIndexLoaded: fcIx.ok }),
+        scoreCorner(r, award, forecast, { awardIndexLoaded: awardIx.ok, forecastIndexLoaded: fcIx.ok, cageFamily: cageIx.ok ? cageIx.index : null }),
       ),
     )
   }

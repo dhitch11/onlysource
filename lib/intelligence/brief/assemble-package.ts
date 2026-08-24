@@ -3,6 +3,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { readPackets } from '@/lib/compliance/packets-store'
 import { resolveDossierEligibility } from '@/lib/intelligence/eligibility/dossier-eligibility'
@@ -60,11 +61,13 @@ export function assemblePursuitPackage(nsnRaw: string, mayReadIdentities: boolea
 
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const award = awardIx.ok ? awardIx.byNsn.get(key) ?? null : null
   const forecast = fcIx.ok ? fcIx.byNsn.get(key) ?? null : null
   const score = scoreCorner(row, award, forecast, {
     awardIndexLoaded: awardIx.ok,
     forecastIndexLoaded: fcIx.ok,
+    cageFamily: cageIx.ok ? cageIx.index : null,
   })
   const dossier = buildCornerDossier(row, award, forecast, score, awardIx.ok ? awardIx.window : undefined)
 

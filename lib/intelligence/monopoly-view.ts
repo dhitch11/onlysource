@@ -2,6 +2,7 @@ import { buildAllDatasets, cachePerIdentityDay, type ServedFeedMeta, type Served
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
+import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import type { CornerRow, CornerMap, CornerFunnel } from '@/lib/intelligence/corner'
 import type { NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import type { ForecastSummary } from '@/lib/intelligence/forecast/dla-forecast'
@@ -207,6 +208,7 @@ export function buildMonopolyView(): MonopolyView {
   const awardIndex = buildNsnAwardIndex()
   const awardByNsn = awardIndex.ok ? awardIndex.byNsn : null
   const forecastIndex = buildForecastIndex()
+  const cageIx = loadCageFamilyIndex()
   const forecastByNsn = forecastIndex.ok ? forecastIndex.byNsn : null
 
   // Counted from the FULL records, then slimmed for the wire: the counts and the rendered
@@ -263,7 +265,7 @@ export function buildMonopolyView(): MonopolyView {
       r,
       award,
       forecast,
-      { awardIndexLoaded: awardIndex.ok, forecastIndexLoaded: forecastIndex.ok },
+      { awardIndexLoaded: awardIndex.ok, forecastIndexLoaded: forecastIndex.ok, cageFamily: cageIx.ok ? cageIx.index : null },
       lastAwardee,
     )
     return {
