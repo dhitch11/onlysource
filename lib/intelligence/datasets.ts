@@ -249,16 +249,36 @@ export type NoQuoteDataset = {
   rows: NoQuoteRow[]
   provenance: { solicitations: SeedProvenance; availability: SeedProvenance }
   summary: {
-    solicitations: number
+    /**
+     * ⛔ ROWS, AND THE WORD MATTERS. THIS WAS CALLED `solicitations` AND IT WAS NOT ONE.
+     *
+     * A row here is a solicitation LINE ITEM: one stock number on one dated version of one
+     * solicitation. It is not a solicitation, and the two differ by more than rounding.
+     * Measured over this corpus 2026-08-24: 839 rows against 803 distinct solicitation
+     * numbers. 34 rows carry `***REVISED***`, an amendment that keeps the solicitation
+     * number and moves the close date, so the amendment and the row it supersedes are two
+     * rows of one solicitation. 36 solicitation numbers appear on more than one row, and
+     * only 3 of those are a genuine multi-part buy carrying more than one NSN.
+     *
+     * The old name overstated distinct solicitations by 36 on every surface that read it,
+     * including a sentence the assistant speaks to an operator. A field inherited from a
+     * parent row is not a measurement of the child, and a count of children is not a count
+     * of parents.
+     */
+    lineItems: number
+    /** Distinct solicitation NUMBERS, on the same normalised key the availability join uses. */
+    distinctSolicitations: number
     withHolder: number
-    /** The make-side set: nobody holds it, so somebody has to build it. */
+    /** The make-side set: no supplier matched, so somebody likely has to build it. */
     makeSideOnly: number
     availabilityRows: number
   }
 }
 
 /**
- * The 839 solicitations that drew no quotes at all, joined to who shows material.
+ * The 839 solicitation LINE ITEMS that drew no quotes at all, joined to who shows material.
+ * 839 rows across 803 distinct solicitation numbers, measured 2026-08-24. See the note on
+ * `summary.lineItems` for why those two numbers differ and why the distinction is not pedantic.
  *
  * The split is the product. A no-quote solicitation where somebody DOES hold material is a
  * sourcing problem worth an hour. One where nobody holds material anywhere is the make-side
@@ -306,7 +326,15 @@ export function buildNoQuoteGoldmine(seeds: SeedPaths = SEED_PATHS): NoQuoteData
     rows,
     provenance: { solicitations: solicitations.provenance, availability: availability.provenance },
     summary: {
-      solicitations: rows.length,
+      lineItems: rows.length,
+      /*
+       * Counted on the SAME normalised key the availability join uses above, so "distinct
+       * solicitation" means one thing in this file rather than two. Counting the raw string
+       * instead would let a stray hyphen or space split one solicitation into two.
+       */
+      distinctSolicitations: new Set(
+        rows.map((r) => r.solicitation.toUpperCase().replace(/[-\s]/g, '')),
+      ).size,
       withHolder: rows.filter((r) => !r.noHolderFound).length,
       makeSideOnly: rows.filter((r) => r.noHolderFound).length,
       availabilityRows: availability.rows.length,

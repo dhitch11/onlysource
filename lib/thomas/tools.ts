@@ -420,7 +420,16 @@ function goldmineSnapshot(limit: number): ToolOutcome {
 
   return {
     text: [
-      `LIVE NO-QUOTE GOLDMINE. Solicitations that drew no quote at all: ${s.solicitations}. Somebody holds material: ${s.withHolder}. MAKE-SIDE, no supplier matched in the availability data: ${s.makeSideOnly}. That is the absence of a match over the suppliers that data covers, NOT a census of the world: do not say nobody holds it anywhere.`,
+      /*
+       * ⛔ TWO NUMBERS, BOTH NAMED, BECAUSE THEY ARE DIFFERENT QUESTIONS.
+       * This sentence used to say "Solicitations that drew no quote at all: 839", where 839 is
+       * the ROW count. A row is one stock number on one dated version of one solicitation, and
+       * there are only 803 distinct solicitation numbers behind those 839 rows. The assistant
+       * was stating a count of children as a count of parents, out loud, to an operator, on a
+       * federal quote. Both figures are given so it can answer either question without doing
+       * arithmetic of its own.
+       */
+      `LIVE NO-QUOTE GOLDMINE. Solicitation LINE ITEMS that drew no quote at all: ${s.lineItems}, across ${s.distinctSolicitations} DISTINCT solicitation numbers. A line item is one stock number on one dated version of one solicitation, so an amendment and the row it supersedes are two line items of one solicitation. Never report the line-item count as a count of solicitations. Somebody holds material: ${s.withHolder}. MAKE-SIDE, no supplier matched in the availability data: ${s.makeSideOnly}. That is the absence of a match over the suppliers that data covers, NOT a census of the world: do not say nobody holds it anywhere.`,
       `Size of buy across the make-side rows that carry both a quantity and a last sold price: ${money(makeValue)}, computed over ${priced} of ${make.length} make-side rows. The rest do not carry both figures, so they are not in that total.`,
       ...top.map(
         (r, i) =>
@@ -430,7 +439,8 @@ function goldmineSnapshot(limit: number): ToolOutcome {
       'REMINDER: every figure above is already computed. Do not re-sum, extend, or extrapolate any of them.',
     ].join('\n'),
     numbers: harvest(
-      s.solicitations,
+      s.lineItems,
+      s.distinctSolicitations,
       s.withHolder,
       s.makeSideOnly,
       s.availabilityRows,

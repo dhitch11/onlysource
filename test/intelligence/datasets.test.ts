@@ -386,15 +386,37 @@ describe('intelligence datasets over the real files', () => {
   describe('the no-quote goldmine splits sourcing from make-side', () => {
     const nq = buildNoQuoteGoldmine()
 
-    it('carries the 839 solicitations the corpus names', () => {
-      expect(nq.summary.solicitations).toBe(839)
+    it('carries the 839 line items the corpus names', () => {
+      expect(nq.summary.lineItems).toBe(839)
       expect(nq.summary.availabilityRows).toBe(2439)
     })
 
-    it('splits into holder-exists and nobody-holds-it, and they sum', () => {
+    /*
+     * ★ THE TWO NUMBERS MUST STAY DIFFERENT, AND THAT IS THE POINT OF THIS TEST.
+     *
+     * `lineItems` was called `solicitations` and it is not one. A row is one stock number on
+     * one dated version of one solicitation, so an amendment carrying `***REVISED***` and the
+     * row it supersedes are two line items of a single solicitation. Measured on this corpus:
+     * 839 rows, 803 distinct solicitation numbers, a gap of 36.
+     *
+     * This asserts the GAP, not just the two values, because the failure worth catching is the
+     * two collapsing back into one. If a future change makes `distinctSolicitations` equal
+     * `lineItems`, either the corpus genuinely lost every amendment or somebody wired the field
+     * back to `rows.length`, and both need a human to look.
+     */
+    it('counts distinct solicitations apart from line items, and they do not agree', () => {
+      expect(nq.summary.distinctSolicitations).toBe(803)
+      expect(nq.summary.distinctSolicitations).toBeLessThan(nq.summary.lineItems)
+      expect(nq.summary.lineItems - nq.summary.distinctSolicitations).toBe(36)
+    })
+
+    it('splits into holder-exists and nobody-holds-it, and they sum to the LINE ITEMS', () => {
       expect(nq.summary.withHolder).toBe(360)
       expect(nq.summary.makeSideOnly).toBe(479)
-      expect(nq.summary.withHolder + nq.summary.makeSideOnly).toBe(nq.summary.solicitations)
+      // Deliberately the line-item count: the split is per row, so it cannot sum to a count of
+      // solicitations. Asserting it against `distinctSolicitations` would be the same category
+      // error this rename exists to remove.
+      expect(nq.summary.withHolder + nq.summary.makeSideOnly).toBe(nq.summary.lineItems)
     })
 
     it('joins holders on a normalized solicitation number', () => {
