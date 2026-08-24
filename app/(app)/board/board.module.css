@@ -45,6 +45,22 @@
   padding: var(--sp-3) var(--sp-4);
   background: var(--panel);
 }
+/*
+ * ⛔ A FLEX ITEM DEFAULTS TO min-width:auto AND REFUSES TO SHRINK BELOW ITS CONTENT.
+ *
+ * Measured in a real browser at 390: the unstyled div holding the Note laid out 353px wide
+ * starting at x=52, so this strip ran to 405 inside a 390 viewport. It never presented as a
+ * horizontal scrollbar because `body` carries overflow-x:hidden, so the 15px was not scrolled
+ * to, it was CLIPPED. Silently, on the one element whose entire job is to disclose what the
+ * numbers on this page are missing. A truncated honesty strip is worse than a missing one.
+ *
+ * min-width:0 lets the text wrap instead of forcing the row wider than the screen. It is on the
+ * children rather than on .truth itself because .truth is the flex CONTAINER; the item is what
+ * refuses to shrink. `.truthDot` is flex:none at a fixed 9px, so this cannot affect it.
+ */
+.truth > * {
+  min-width: 0;
+}
 .truth p {
   font-size: var(--fs-200);
   color: var(--dim);

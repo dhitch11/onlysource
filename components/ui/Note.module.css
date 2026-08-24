@@ -134,6 +134,25 @@
     /* 44px touch target on a coarse pointer, without growing it on a mouse. */
     padding: var(--sp-2) var(--sp-3);
     min-height: 36px;
+    /*
+     * ⛔ THE PILL MUST NOT BE WIDER THAN THE SCREEN IT SITS ON.
+     * Measured at 390 on /board: this control laid out 326px wide starting at x=66, so it ran
+     * to 392 in a 390 viewport. `flex: none` above is correct on a wide screen, where the pill
+     * should never be squeezed, but combined with the wider mobile padding here it also refused
+     * to fit. `body` carries overflow-x:hidden, so the spill was CLIPPED rather than scrolled,
+     * which takes the right edge off the one control this component exists to make pressable.
+     */
+    max-width: 100%;
+    min-width: 0;
+  }
+  .toggleText {
+    /*
+     * The label may wrap on a narrow screen. `nowrap` is right on a wide one, where a two-line
+     * pill would look broken, but at 390 an unwrappable uppercase phrase is what pushed the row
+     * past the viewport. A label on two lines is still readable and still pressable. A label
+     * with its last word cut off is neither.
+     */
+    white-space: normal;
   }
 }
 
