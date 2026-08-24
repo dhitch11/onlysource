@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
 import { readQuoteSignals, tallyQuoteSignals } from '@/lib/intelligence/scoring/quote-signals'
 import type { AwardRecord, FeedWindow, NsnAwardSummary } from '@/lib/intelligence/awards/nsn-now'
 import { rollUpSurplus } from '@/lib/intelligence/awards/surplus'
@@ -24,27 +25,42 @@ import { rollUpSurplus } from '@/lib/intelligence/awards/surplus'
 
 const WINDOW: FeedWindow = { firstAwardIso: '2016-01-04', lastAwardIso: '2026-02-01', years: 10 }
 
-const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord => ({
-  nsn: '5325015619853',
-  awardDateIso: null,
-  quantity: null,
-  unitPrice: null,
-  company: 'ACME',
-  cage: '58794',
-  finalPrice: null,
-  effectiveUnitPrice: null,
-  amc: null,
-  amsc: null,
-  offers: null,
-  deliveryDays: null,
-  setAside: null,
-  firstArticle: null,
-  ltcExpirationIso: null,
-  surplus: null,
-  solicitation: null,
-  closeDateIso: null,
-  ...over,
-})
+/*
+ * ★ THE FIXTURE DERIVES `instrument` AND `offersDescribeThisAward` RATHER THAN DECLARING THEM.
+ *
+ * Both are computed fields (see `lib/intelligence/awards/parent-child.ts`). A fixture that
+ * hardcodes a derived value can assert a state the real parser would never produce, so a test
+ * passing `deliveryOrder: 'F001'` gets a genuinely classified record and cannot accidentally
+ * describe a delivery order whose offers still count as its own.
+ */
+const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord => {
+  const base = {
+    nsn: '5325015619853',
+    awardDateIso: null,
+    quantity: null,
+    unitPrice: null,
+    company: 'ACME',
+    cage: '58794',
+    finalPrice: null,
+    effectiveUnitPrice: null,
+    amc: null,
+    amsc: null,
+    offers: null,
+    deliveryDays: null,
+    setAside: null,
+    firstArticle: null,
+    ltcExpirationIso: null,
+    surplus: null,
+    solicitation: null,
+    closeDateIso: null,
+  deliveryOrder: null,
+    instrument: 'unreadable' as const,
+    offersDescribeThisAward: false,
+    ...over,
+  }
+  const rec: AwardRecord = { ...base, instrument: classifyInstrument(base) }
+  return { ...rec, offersDescribeThisAward: offersDescribeThisAward(rec) }
+}
 
 const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
   const base: NsnAwardSummary = {
@@ -59,6 +75,11 @@ const summary = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
     amc: null,
     amsc: null,
     latestOffers: null,
+    // Derived in the real builder from the award instruments; the fixture states the honest
+    // default and any test that needs the other value sets it explicitly.
+    latestOffersDescribeThatAward: false,
+    deliveryOrderOnly: false,
+    earliestOrderIso: null,
     minOffers: null,
     latestDeliveryDays: null,
     longestDemandGapYears: null,
@@ -87,20 +108,20 @@ describe('the sentinel is discarded, and the clean columns are read', () => {
    * of all rows. It is discarded at parse time; this asserts the signal layer agrees.
    */
   it('reads a real bid count', () => {
-    const sig = find(summary({ latestOffers: 2 }), 'competition')
+    const sig = find(summary({ latestOffers: 2, latestOffersDescribeThatAward: true }), 'competition')
     expect(sig.leg.state).toBe('MEASURED')
     expect(sig.leg.value).toBe(2)
     expect(sig.direction).toBe('favourable')
   })
 
   it('a single bidder is the strongest competition reading available', () => {
-    const sig = find(summary({ latestOffers: 1 }), 'competition')
+    const sig = find(summary({ latestOffers: 1, latestOffersDescribeThatAward: true }), 'competition')
     expect(sig.leg.evidenceWeight).toBeGreaterThan(0.8)
     expect(sig.reading).toContain('One bidder')
   })
 
   it('a contested award reads as against, so the direction is not just "we found a number"', () => {
-    expect(find(summary({ latestOffers: 12 }), 'competition').direction).toBe('unfavourable')
+    expect(find(summary({ latestOffers: 12, latestOffersDescribeThatAward: true }), 'competition').direction).toBe('unfavourable')
   })
 
   it('abstains when the parser discarded the value, rather than inventing a zero', () => {
@@ -111,7 +132,65 @@ describe('the sentinel is discarded, and the clean columns are read', () => {
   })
 
   it('names the sentinel discard in its limitation, so a missing 29 is explained not mysterious', () => {
-    expect(find(summary({ latestOffers: 3 }), 'competition').limitation).toContain('sentinel')
+    expect(find(summary({ latestOffers: 3, latestOffersDescribeThatAward: true }), 'competition').limitation).toContain('sentinel')
+  })
+
+  /* ------------------------------------------------------------------------------------ */
+  /* H10 / DEFECT 1. These four tests above now pass `latestOffersDescribeThatAward: true`   */
+  /* explicitly, and that is the fix, not an accommodation of it. A bid count is only a fact */
+  /* about the award it sits on when that award was competed in its own right. The three     */
+  /* tests below are the branches that used to be one branch.                                */
+  /* ------------------------------------------------------------------------------------ */
+
+  it('★ a delivery-order-only history renders the STRONGER truth, not a bid count', () => {
+    const sig = find(
+      summary({ latestOffers: 3, latestOffersDescribeThatAward: false, deliveryOrderOnly: true, earliestOrderIso: '2016-04-11' }),
+      'competition',
+    )
+    expect(sig.leg.state).toBe('MEASURED')
+    expect(sig.reading).toContain('Delivery orders only since the parent IDIQ award')
+    expect(sig.reading).toContain('No competition has occurred on this item')
+    // The measured lower bound is offered as a bound, and the parent's date is not invented.
+    expect(sig.reading).toContain('2016-04-11')
+    expect(sig.limitation).toContain('they do not date it')
+    // ★ AND THE NUMBER IS GONE. The whole defect was a count reaching a sentence it did not
+    // describe, so the sentence must not contain it.
+    expect(sig.reading).not.toContain('3 bidders')
+    expect(sig.reading).not.toContain('bidders')
+    // Favourable, and correctly so: no competition since the parent is a stronger corner
+    // signal than light competition, which is what made this defect so easy to miss.
+    expect(sig.direction).toBe('favourable')
+  })
+
+  it('★ omits the bound rather than estimating it when no order date is on record', () => {
+    const sig = find(
+      summary({ latestOffers: 3, latestOffersDescribeThatAward: false, deliveryOrderOnly: true, earliestOrderIso: null }),
+      'competition',
+    )
+    expect(sig.reading).toContain('No competition has occurred on this item')
+    expect(sig.reading).not.toContain('earliest order')
+    expect(sig.reading).not.toContain('null')
+  })
+
+  it('★ an inherited count ABSTAINS and says why, rather than falling silent', () => {
+    /*
+     * A mixed history whose LATEST award is a call against a vehicle. The count is visible in
+     * the export, so a reader who can see it is told what it is instead of wondering where it
+     * went. UNAVAILABLE, never a zero: a zero is a score and this is a refusal to score.
+     */
+    const sig = find(
+      summary({
+        latestOffers: 4,
+        latestOffersDescribeThatAward: false,
+        deliveryOrderOnly: false,
+        latest: award({ contractNo: 'SPE7MX15D0070', deliveryOrder: 'F001', offers: 4, solicitation: 'S1' }),
+      }),
+      'competition',
+    )
+    expect(sig.leg.state).toBe('UNAVAILABLE')
+    expect(sig.direction).toBe('neutral')
+    expect(sig.reading).toContain('belongs to the parent contract')
+    expect(sig.reading).not.toContain('bidders')
   })
 
   it('reads a long term contract expiry', () => {

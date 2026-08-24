@@ -174,7 +174,16 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           </li>
           <li>
             <b>{count(pull.acquisition.singleBidAwards)}</b> of the {count(pull.acquisition.awardsWithOffersRead)}{' '}
-            awards that carry an offers count went out with a single bidder.
+            awards whose offer count describes that award went out with a single bidder.
+            {pull.acquisition.awardsWithInheritedOffers > 0 ? (
+              <>
+                {' '}
+                A further <b>{count(pull.acquisition.awardsWithInheritedOffers)}</b> carry an offer count
+                inherited from a parent contract, or with no solicitation at all, and are not counted here.
+                A bid count on an order against a standing contract describes the competition that created
+                the contract, not the order.
+              </>
+            ) : null}
           </li>
           <li>
             The Surplus cell is blank on <b>{count(pull.acquisition.surplusUnreadAwards)}</b> of their awards, so

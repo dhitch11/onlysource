@@ -145,7 +145,45 @@ export function readQuoteSignals(
    * Keeping the history in this comment deliberately. The lesson is not "the column was fine", it
    * is that a check written the same way as the code it checks will confirm the code's own bug.
    */
-  if (summary.latestOffers != null && summary.latestOffers > 0) {
+  /*
+   * ★ THE SENTENCE THIS BLOCK USED TO EMIT WAS FALSE ON EVERY DELIVERY-ORDER ROW, AND IT WAS
+   * FALSE IN THE FAVOURABLE DIRECTION, which is the direction nobody checks.
+   *
+   * It read `summary.latestOffers` and said "3 bidders on the last award. Competition is light."
+   * On the worked example, a sole-source Raytheon bracket, the last six awards were all calls
+   * against IDIQ SPE7MX15D0070 and the 3 described a competition held when that vehicle was
+   * awarded. The truth was ZERO competition on this item since then, which is a BETTER corner
+   * signal than the one that shipped.
+   *
+   * So the gate is now `latestOffersDescribeThatAward`, which requires a standalone instrument
+   * AND a solicitation. See `awards/parent-child.ts` for the measurement.
+   */
+  if (summary.deliveryOrderOnly) {
+    /*
+     * The stronger truth the defect was hiding. This is a MEASUREMENT of an absence of
+     * competition, not a bid count, so its leg carries the order count rather than an offers
+     * value, and no number from the Offers column reaches this sentence.
+     */
+    const sinceClause = summary.earliestOrderIso
+      ? ` The earliest order against it in this feed is dated ${summary.earliestOrderIso}.`
+      : ''
+    signals.push({
+      id: 'competition',
+      label: 'Competition on this item',
+      leg: measured(
+        summary.awards.length,
+        0.8,
+        `every one of the ${summary.awards.length} recorded award${summary.awards.length === 1 ? '' : 's'} is an order against a standing contract`,
+      ),
+      reading:
+        'Delivery orders only since the parent IDIQ award. No competition has occurred on this item ' +
+        `since the parent was awarded.${sinceClause}`,
+      direction: 'favourable',
+      limitation:
+        'The parent contract award itself is not in this feed, so how long ago it was competed is not ' +
+        'read here. The order dates bound it, they do not date it.',
+    })
+  } else if (summary.latestOffers != null && summary.latestOffers > 0 && summary.latestOffersDescribeThatAward) {
     const n = summary.latestOffers
     signals.push({
       id: 'competition',
@@ -162,6 +200,29 @@ export function readQuoteSignals(
       direction: n <= 3 ? 'favourable' : 'unfavourable',
       limitation:
         'Offers counts bids received, not bidders capable of supplying. A low count can also mean a short solicitation window. One sentinel value is discarded at parse time, so a genuine 29-bid award reads as unavailable rather than as 29.',
+    })
+  } else if (summary.latestOffers != null && summary.latestOffers > 0) {
+    /*
+     * AN OFFERS VALUE THAT IS PRESENT AND IS NOT A FACT ABOUT THIS AWARD. It ABSTAINS, and it
+     * names why rather than falling silent, because a reader who can see the number in an export
+     * deserves to be told what it is instead of wondering where it went.
+     */
+    const why =
+      summary.latest?.instrument === 'delivery_order'
+        ? 'the most recent award is an order against a standing contract, so that count belongs to the parent contract, not to this order'
+        : (summary.latest?.solicitation ?? '').trim() === ''
+          ? 'the most recent award carries an offer count but no solicitation at all, so there was nothing to bid on and the count describes a different award'
+          : 'the most recent award carries an offer count that cannot be tied to a competition on this award'
+    signals.push({
+      id: 'competition',
+      label: 'Bids on the last award',
+      leg: unavailable(why),
+      reading:
+        `The export shows ${summary.latestOffers} on the last award row, but ${why}. Competition on this ` +
+        'award is not read from it.',
+      direction: 'neutral',
+      limitation:
+        'A bid count inherited from a parent contract is not a measurement of the order it is printed on.',
     })
   } else {
     signals.push({

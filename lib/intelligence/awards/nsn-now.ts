@@ -24,6 +24,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { readWorkbookSheets, usDateToIso, distinctWorkbookPaths, type SeedProvenance } from '@/lib/intelligence/seed/xlsx'
+import { classifyInstrument, offersDescribeThisAward, type AwardInstrument } from './parent-child'
 import { dataPath } from '@/lib/data-root'
 import { SHEET_ROW_CAP } from '@/lib/ingest/batch-export/workbook'
 import {
@@ -92,6 +93,24 @@ export type AwardRecord = {
   surplus: string | null
   solicitation: string | null
   closeDateIso: string | null
+
+  /**
+   * ★ THE COLUMN THAT DECIDES WHAT `offers` IS A FACT ABOUT, AND IT WAS NEVER PARSED.
+   *
+   * The Procurement sheet has carried a `Delivery Order` cell all along, populated on 21,917 of
+   * the 42,698 deduped rows. Without it, a call against a standing IDIQ is indistinguishable
+   * from a competed buy, and `offers` on the former is the PARENT contract's bid count wearing
+   * the child's row. See `awards/parent-child.ts` for the measurement and the cross-check.
+   */
+  deliveryOrder: string | null
+  /** Derived, once, by the one shared classifier, so no consumer invents a second reading. */
+  instrument: AwardInstrument
+  /**
+   * TRUE only when `offers` is a bid count on THIS award: a standalone instrument AND a
+   * solicitation present. False on every delivery order and on the 13,299 rows carrying a bid
+   * count with nothing to bid on.
+   */
+  offersDescribeThisAward: boolean
 }
 
 export type AvailabilityRecord = {
@@ -233,8 +252,40 @@ export type NsnAwardSummary = {
   /** Acquisition codes as most recently recorded against an award. Feeds `readDealerEligibility`. */
   amc: string | null
   amsc: string | null
-  /** Offers on the most recent dated award. 1 = a single bidder took it. */
+  /**
+   * Offers as RECORDED on the most recent dated award. Kept raw and unfiltered on purpose: it
+   * is what the export says, and a surface that wants the raw cell should be able to get it.
+   *
+   * ⛔ DO NOT RENDER THIS AS A BID COUNT ON THAT AWARD WITHOUT CHECKING
+   * `latestOffersDescribeThatAward` FIRST. On a delivery order it is the PARENT contract's bid
+   * count, from a competition possibly a decade earlier, and on 13,299 rows corpus-wide it sits
+   * beside no solicitation at all. See `awards/parent-child.ts`.
+   */
   latestOffers: number | null
+  /**
+   * TRUE only when `latestOffers` is a bid count on the LATEST award itself: a standalone
+   * instrument with a solicitation present. This is the gate the shipped competition signal
+   * never had, and its absence produced "3 bidders on the last award. Competition is light."
+   * on a sole-source Raytheon bracket where the truth was zero competition since 2015.
+   */
+  latestOffersDescribeThatAward: boolean
+  /**
+   * TRUE when EVERY recorded award on this stock number is a call against a standing vehicle.
+   *
+   * ★ AND IT INVERTS THE READ. Delivery-order-only history does not mean "light competition".
+   * It means NO competition has occurred on this item since the parent was awarded, which is a
+   * STRONGER corner signal, not a weaker one. The shipped wording sold the operator the mild
+   * version of a fact whose true version was better. Being wrong in the favourable direction is
+   * still being wrong, and it is the direction nobody checks.
+   */
+  deliveryOrderOnly: boolean
+  /**
+   * The earliest dated order observed against a parent vehicle, or null. A measured LOWER BOUND
+   * on how long this item has gone uncompeted, offered as exactly that. It is NOT the parent's
+   * award date: parent rows are essentially absent from this corpus and no date is estimated in
+   * their place.
+   */
+  earliestOrderIso: string | null
   /** The thinnest competition ever recorded on this NSN. */
   minOffers: number | null
   /** Delivery days on the most recent award. Short means the government needed it. */
@@ -561,7 +612,13 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
         // here would silently read null on every row.
         solicitation: txt(r['Solcitation']) ?? txt(r['Solicitation']),
         closeDateIso: usDateToIso(r['Close Date'] ?? '') ?? null,
+        deliveryOrder: txt(r['Delivery Order']),
+        // Filled immediately below, once the record exists to classify.
+        instrument: 'unreadable',
+        offersDescribeThisAward: false,
       }
+      rec.instrument = classifyInstrument(rec)
+      rec.offersDescribeThisAward = offersDescribeThisAward(rec)
       const key = `${nsn}|${rec.contractNo}|${rec.awardDateIso}|${rec.unitPrice}|${rec.cage}`
       if (seenAward.has(key)) continue
       seenAward.add(key)
@@ -698,6 +755,10 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       amc,
       amsc,
       latestOffers: latest?.offers ?? null,
+      latestOffersDescribeThatAward: latest?.offersDescribeThisAward ?? false,
+      deliveryOrderOnly: sorted.length > 0 && sorted.every((a) => a.instrument === 'delivery_order'),
+      earliestOrderIso:
+        dated.find((a) => a.instrument === 'delivery_order')?.awardDateIso ?? null,
       minOffers: offersSeen.length ? Math.min(...offersSeen) : null,
       latestDeliveryDays: latest?.deliveryDays ?? null,
       longestDemandGapYears,
@@ -725,6 +786,11 @@ export function buildNsnAwardIndex(): NsnAwardIndex | NsnAwardUnavailable {
       amc: sources.find((s) => s.amc)?.amc ?? null,
       amsc: sources.find((s) => s.amsc)?.amsc ?? null,
       latestOffers: null,
+      // A stock number with no award rows has no instrument to classify. These are the honest
+      // zeros for "we hold no award", never a claim that competition did or did not happen.
+      latestOffersDescribeThatAward: false,
+      deliveryOrderOnly: false,
+      earliestOrderIso: null,
       minOffers: null,
       latestDeliveryDays: null,
       longestDemandGapYears: null,

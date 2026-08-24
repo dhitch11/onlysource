@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
 import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
@@ -42,27 +43,42 @@ const baseRow = (over: Partial<CornerRow> = {}): CornerRow => ({
  * helper defaults the new fields to null, which is exactly what an export row that omits them
  * produces, and lets each test override only the field it is actually about.
  */
-const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord => ({
-  nsn: "5325015619853",
-  awardDateIso: null,
-  quantity: null,
-  unitPrice: null,
-  company: "ACME",
-  cage: "58794",
-  finalPrice: null,
-  effectiveUnitPrice: null,
-  amc: null,
-  amsc: null,
-  offers: null,
-  deliveryDays: null,
-  setAside: null,
-  firstArticle: null,
-  ltcExpirationIso: null,
-  surplus: null,
-  solicitation: null,
-  closeDateIso: null,
-  ...over,
-});
+/*
+ * ★ THE FIXTURE DERIVES `instrument` AND `offersDescribeThisAward` RATHER THAN DECLARING THEM.
+ *
+ * Both are computed fields (see `lib/intelligence/awards/parent-child.ts`). A fixture that
+ * hardcodes a derived value can assert a state the real parser would never produce, so a test
+ * passing `deliveryOrder: 'F001'` gets a genuinely classified record and cannot accidentally
+ * describe a delivery order whose offers still count as its own.
+ */
+const award = (over: Partial<AwardRecord> & { contractNo: string }): AwardRecord => {
+  const base = {
+    nsn: "5325015619853",
+    awardDateIso: null,
+    quantity: null,
+    unitPrice: null,
+    company: "ACME",
+    cage: "58794",
+    finalPrice: null,
+    effectiveUnitPrice: null,
+    amc: null,
+    amsc: null,
+    offers: null,
+    deliveryDays: null,
+    setAside: null,
+    firstArticle: null,
+    ltcExpirationIso: null,
+    surplus: null,
+    solicitation: null,
+    closeDateIso: null,
+  deliveryOrder: null,
+    instrument: 'unreadable' as const,
+    offersDescribeThisAward: false,
+    ...over,
+  }
+  const rec: AwardRecord = { ...base, instrument: classifyInstrument(base) }
+  return { ...rec, offersDescribeThisAward: offersDescribeThisAward(rec) }
+};
 
 const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
   const base: NsnAwardSummary = {
@@ -81,6 +97,11 @@ const awardWith = (over: Partial<NsnAwardSummary> = {}): NsnAwardSummary => {
   amc: null,
   amsc: null,
   latestOffers: null,
+    // Derived in the real builder from the award instruments; the fixture states the honest
+    // default and any test that needs the other value sets it explicitly.
+    latestOffersDescribeThatAward: false,
+    deliveryOrderOnly: false,
+    earliestOrderIso: null,
   minOffers: null,
   latestDeliveryDays: null,
   longestDemandGapYears: null,

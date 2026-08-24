@@ -71,6 +71,7 @@
  * workbook whose answers are known by construction rather than only against the real file.
  */
 import { existsSync, readdirSync } from 'node:fs'
+import { offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
 import path from 'node:path'
 
 import { readWorkbookSheets, usDateToIso, type ParsedSheet, type SeedProvenance, listWorkbookFiles } from '@/lib/intelligence/seed/xlsx'
@@ -205,8 +206,15 @@ export type AcquisitionRead = {
   amsc: Array<{ code: string; awards: number }>
   /** Awards the government directed at the manufacturer or a prime (AMC 3, 4, 5). */
   directFromManufacturerAwards: number
+  /** Awards that went out with exactly one bid, counted ONLY where the count describes them. */
   singleBidAwards: number
+  /** Awards whose offer count is a fact about that award: standalone instrument, solicitation present. */
   awardsWithOffersRead: number
+  /**
+   * Awards carrying an offer count that belongs to a PARENT contract (or to no solicitation at
+   * all). Reported, not dropped: this is the count that used to be silently included.
+   */
+  awardsWithInheritedOffers: number
   /** Awards whose Surplus cell was blank. Blank is UNREAD, never "not surplus". */
   surplusUnreadAwards: number
   surplusYesAwards: number
@@ -498,6 +506,10 @@ export function computeDedicatedPull(input: PullInput): DedicatedPull {
     value: number | null
     unitPrice: number | null
     offers: number | null
+    /* The three cells that decide what `offers` is a fact ABOUT. See `awards/parent-child.ts`. */
+    deliveryOrder: string | null
+    contractNo: string | null
+    solicitation: string | null
     amc: string
     amsc: string
     surplus: string
@@ -522,6 +534,10 @@ export function computeDedicatedPull(input: PullInput): DedicatedPull {
       value: awardValue(row),
       unitPrice: numberOrNull(cell(row, 'Unit Price')),
       offers: numberOrNull(cell(row, 'Offers')),
+      // Needed to know what `offers` is a fact ABOUT. See `awards/parent-child.ts`.
+      deliveryOrder: cell(row, 'Delivery Order') || null,
+      contractNo: cell(row, 'Contract No') || null,
+      solicitation: cell(row, 'Solcitation') || cell(row, 'Solicitation') || null,
       amc: cell(row, 'AMC'),
       amsc: cell(row, 'AMSC'),
       surplus: cell(row, 'Surplus'),
@@ -753,6 +769,7 @@ export function computeDedicatedPull(input: PullInput): DedicatedPull {
   let directFromManufacturerAwards = 0
   let singleBidAwards = 0
   let awardsWithOffersRead = 0
+  let awardsWithInheritedOffers = 0
   let surplusUnreadAwards = 0
   let surplusYesAwards = 0
   for (const a of subjectAwards) {
@@ -761,9 +778,24 @@ export function computeDedicatedPull(input: PullInput): DedicatedPull {
     amc.set(amcKey, (amc.get(amcKey) ?? 0) + 1)
     amsc.set(amscKey, (amsc.get(amscKey) ?? 0) + 1)
     if (a.amc === '3' || a.amc === '4' || a.amc === '5') directFromManufacturerAwards += 1
+    /*
+     * ★ THE SAME FALSIFIED CLAIM AS THE DOSSIER'S, ON A SECOND SURFACE. Fixed 2026-08-24 (H10).
+     *
+     * This counted every populated `Offers` cell as a bid count on that award, so a company
+     * whose awards are all delivery orders against one IDIQ had the PARENT contract's bid count
+     * counted once per order, and the page said "N of their M awards went out with a single
+     * bidder". `awardsWithOffersRead` now counts only awards whose offer count actually
+     * describes them, and `awardsWithInheritedOffers` names what was excluded rather than
+     * silently shrinking the denominator, because a number that quietly got smaller is how a
+     * reader concludes the data got worse.
+     */
     if (a.offers != null) {
-      awardsWithOffersRead += 1
-      if (a.offers === 1) singleBidAwards += 1
+      if (offersDescribeThisAward(a)) {
+        awardsWithOffersRead += 1
+        if (a.offers === 1) singleBidAwards += 1
+      } else {
+        awardsWithInheritedOffers += 1
+      }
     }
     if (a.surplus === '') surplusUnreadAwards += 1
     else if (/^y|^true|^surplus/i.test(a.surplus)) surplusYesAwards += 1
@@ -872,6 +904,7 @@ export function computeDedicatedPull(input: PullInput): DedicatedPull {
       directFromManufacturerAwards,
       singleBidAwards,
       awardsWithOffersRead,
+      awardsWithInheritedOffers,
       surplusUnreadAwards,
       surplusYesAwards,
     },
