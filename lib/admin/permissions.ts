@@ -38,6 +38,30 @@ export type Permission = {
   description: string
   plane: Plane
   /**
+   * ⛔ DOES HOLDING THIS LET SOMEBODY CHANGE SOMETHING? A SEPARATE AXIS FROM `sensitive`.
+   *
+   * `sensitive` is a READ concept: it marks what is costly to SEE. It says nothing about what
+   * is costly to DO, and until 2026-08-24 the read-only role was derived from `sensitive`
+   * alone. That correctly withheld every sensitive read and then silently granted every
+   * non-sensitive WRITE.
+   *
+   * MEASURED, END TO END, ON A REAL SIGN-IN, NOT INFERRED FROM THE MODEL: an account holding
+   * `read_only`, whose role is displayed to a human as "Read-only", posted to
+   * `/api/suppliers/contacted` and received HTTP 200 with `{"contacted":["1ABC5"]}`. The
+   * supplier was marked contacted. The same session was correctly refused 403 on
+   * `/api/admin/users`, which is the control: the enforcement layer was working exactly as
+   * written. The permission SET was wrong, not the check.
+   *
+   * The role is sold as the seat for an auditor, a lender, or somebody new. By the old
+   * derivation it also held `board.quote` ("Prepare and submit quotes"), `supplier.pursue`
+   * ("Contact and chase suppliers", which gates five write routes including outreach drafting
+   * and sending), and `data.import` ("Upload spreadsheets and commit rows").
+   *
+   * So the axis is explicit now rather than inferred. A permission that changes state carries
+   * `mutating: true` and no read-only role can hold it, whatever its sensitivity.
+   */
+  mutating: boolean
+  /**
    * Reading this is itself the sensitive act, so exercising it emits an audit event.
    * Document bodies, supplier identities, margins and credentials all sit here.
    */
@@ -53,22 +77,22 @@ export type Permission = {
  */
 export const PERMISSIONS: readonly Permission[] = [
   // ---- operator plane: the daily pursuit and quoting work ----
-  { key: 'board.view', label: 'View the board', description: 'See the daily requirements board.', plane: 'operator', sensitive: false },
-  { key: 'board.quote', label: 'Quote', description: 'Prepare and submit quotes against requirements.', plane: 'operator', sensitive: false },
-  { key: 'supplier.pursue', label: 'Pursue suppliers', description: 'Contact and chase suppliers for material.', plane: 'operator', sensitive: false },
-  { key: 'supplier.identity.view', label: 'See supplier identities', description: 'See which supplier a quote or lot came from.', plane: 'operator', sensitive: true },
-  { key: 'margin.view', label: 'See margins', description: 'See cost, margin and pricing on a quote.', plane: 'operator', sensitive: true },
-  { key: 'document.view', label: 'Open documents', description: 'Open drawings, specifications and traceability packets.', plane: 'operator', sensitive: true },
-  { key: 'data.import', label: 'Import data', description: 'Upload spreadsheets and commit rows.', plane: 'operator', sensitive: false },
-  { key: 'data.export', label: 'Export data', description: 'Download the current view as a file.', plane: 'operator', sensitive: true },
+  { key: 'board.view', label: 'View the board', description: 'See the daily requirements board.', mutating: false, plane: 'operator', sensitive: false },
+  { key: 'board.quote', label: 'Quote', description: 'Prepare and submit quotes against requirements.', mutating: true, plane: 'operator', sensitive: false },
+  { key: 'supplier.pursue', label: 'Pursue suppliers', description: 'Contact and chase suppliers for material.', mutating: true, plane: 'operator', sensitive: false },
+  { key: 'supplier.identity.view', label: 'See supplier identities', description: 'See which supplier a quote or lot came from.', mutating: false, plane: 'operator', sensitive: true },
+  { key: 'margin.view', label: 'See margins', description: 'See cost, margin and pricing on a quote.', mutating: false, plane: 'operator', sensitive: true },
+  { key: 'document.view', label: 'Open documents', description: 'Open drawings, specifications and traceability packets.', mutating: false, plane: 'operator', sensitive: true },
+  { key: 'data.import', label: 'Import data', description: 'Upload spreadsheets and commit rows.', mutating: true, plane: 'operator', sensitive: false },
+  { key: 'data.export', label: 'Export data', description: 'Download the current view as a file.', mutating: false, plane: 'operator', sensitive: true },
 
   // ---- admin plane: the privileged console at /internal/* ----
-  { key: 'users.manage', label: 'Manage users', description: 'Invite, add, deactivate and assign roles.', plane: 'admin', sensitive: false },
-  { key: 'roles.manage', label: 'Manage roles', description: 'Create roles and change which permissions they hold.', plane: 'admin', sensitive: false },
-  { key: 'connections.manage', label: 'Manage connections', description: 'Add and replace data-source credentials. Never reveals a stored secret.', plane: 'admin', sensitive: true },
-  { key: 'audit.read', label: 'Read the audit log', description: 'Read the organization audit log and export it.', plane: 'admin', sensitive: true },
-  { key: 'org.manage', label: 'Manage the organization', description: 'Change organization settings and holdings.', plane: 'admin', sensitive: false },
-  { key: 'breakglass.use', label: 'Use break-glass view', description: 'View the app as another user to reproduce a defect. Read-only, logged, expiring.', plane: 'admin', sensitive: true },
+  { key: 'users.manage', label: 'Manage users', description: 'Invite, add, deactivate and assign roles.', mutating: true, plane: 'admin', sensitive: false },
+  { key: 'roles.manage', label: 'Manage roles', description: 'Create roles and change which permissions they hold.', mutating: true, plane: 'admin', sensitive: false },
+  { key: 'connections.manage', label: 'Manage connections', description: 'Add and replace data-source credentials. Never reveals a stored secret.', mutating: true, plane: 'admin', sensitive: true },
+  { key: 'audit.read', label: 'Read the audit log', description: 'Read the organization audit log and export it.', mutating: false, plane: 'admin', sensitive: true },
+  { key: 'org.manage', label: 'Manage the organization', description: 'Change organization settings and holdings.', mutating: true, plane: 'admin', sensitive: false },
+  { key: 'breakglass.use', label: 'Use break-glass view', description: 'View the app as another user to reproduce a defect. Read-only, logged, expiring.', mutating: false, plane: 'admin', sensitive: true },
 ]
 
 const BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]))
@@ -141,8 +165,32 @@ export const ROLES: readonly Role[] = [
     key: 'read_only',
     name: 'Read-only',
     plane: 'operator',
-    // Every non-sensitive operator permission, and nothing marked sensitive.
-    permissions: OPERATOR_PERMISSIONS.filter((k) => !BY_KEY.get(k)?.sensitive),
+    /*
+     * ⛔ TWO TESTS, NOT ONE. IT MUST BE UNABLE TO SEE, AND UNABLE TO DO.
+     *
+     * This read `!sensitive` alone until 2026-08-24, which is a READ test standing in for both
+     * questions. It withheld every sensitive read correctly and granted every non-sensitive
+     * WRITE, so a role displayed to a human as "Read-only" held `board.quote`,
+     * `supplier.pursue` and `data.import`. Proven live, not argued: a real account on this
+     * role signed in through the form and POSTed `/api/suppliers/contacted` to a 200, while
+     * the same session was correctly refused 403 on `/api/admin/users`.
+     *
+     * Adding `!mutating` is the fix at the GENERATOR rather than at the next symptom. The same
+     * shape has already cost this product once: `lib/intelligence/brief/package.ts:157` records
+     * two people's names, emails and phone numbers reaching a read_only session on live
+     * production. That leak was closed at its own surface, correctly, but the derivation that
+     * produced it was left standing and this is that derivation.
+     *
+     * ⚠️ THE RESULT IS DELIBERATELY SMALL: `board.view`, and nothing else. Every other operator
+     * permission is either sensitive to read or changes something. That is the honest content
+     * of the promise this role's NAME makes. If a customer needs an auditor who can also export,
+     * that is a new role holding `data.export`, added as data, and it should be named for what
+     * it can do rather than quietly widening the one called "Read-only".
+     */
+    permissions: OPERATOR_PERMISSIONS.filter((k) => {
+      const p = BY_KEY.get(k)
+      return p !== undefined && !p.sensitive && !p.mutating
+    }),
     builtin: true,
   },
 ]
