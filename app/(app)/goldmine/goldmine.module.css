@@ -245,3 +245,115 @@
   .metricStrip { animation: gold-fade-up 0.5s 0.08s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
   .card { animation: gold-fade-up 0.5s 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 }
+
+/* ==========================================================================================
+ * THE SEARCH BOX. Deliberately the same affordance as the shared grid's, because an operator
+ * should not have to learn two search boxes in one product: same icon, same clear button at the
+ * same offset, same focus ring, same suppression of Safari's duplicate clear glyph.
+ *
+ * These rules are a local copy rather than an import because CSS Modules scope to a file and
+ * this page's tables are hand-rolled rather than rendered by the shared grid. Where a value
+ * exists as a token it is the token, so the two cannot drift on a palette change.
+ *
+ * The `/` hint from the shared grid is deliberately NOT copied: this page renders two of these
+ * boxes and a single global hotkey would have to pick one.
+ * ========================================================================================== */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 30rem;
+  /* A flex item will not shrink below its content without this, and that is exactly how a
+     control pushes a page sideways at 390. Measured on this estate tonight on another card. */
+  min-width: 0;
+  margin-bottom: var(--sp-2);
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--sp-3);
+  display: flex;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 2.25rem 0 2.4rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+}
+.search::placeholder {
+  color: var(--faint);
+}
+.search:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+  border-color: var(--accent-2);
+}
+/* Safari draws its own clear affordance inside type=search. Ours is keyboard reachable and
+   labelled; two side by side is a defect. */
+.search::-webkit-search-decoration,
+.search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchClear {
+  position: absolute;
+  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: var(--fs-500);
+  line-height: var(--lh-000);
+  cursor: pointer;
+}
+/* Grows the HIT AREA to 32px square without drawing a larger control. The glyph reads at 22px
+   and the WCAG target floor is 24, and those two facts do not have to be the same rectangle. */
+.searchClear::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+.searchClear:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.searchClear:focus-visible {
+  outline: var(--focus);
+  outline-offset: 1px;
+}
+
+/* The count the operator is owed while a filter is on. Quiet, but never absent: a list that is
+   filtered and does not say so is a number that lies by omission. */
+.searchStatus {
+  margin: 0 0 var(--sp-3);
+  color: var(--dim);
+  font-size: var(--fs-100);
+  line-height: var(--lh-200);
+}

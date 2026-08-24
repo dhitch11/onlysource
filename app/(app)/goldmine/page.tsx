@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { requireGateSession } from '@/lib/session/require-gate'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
@@ -10,43 +9,18 @@ import {
   type SizeOfBuy,
 } from '@/lib/intelligence/opportunities/size-of-buy'
 import { systemClock } from '@/lib/time/clock'
-import { StatusChip } from '@/components/ui/StatusChip'
-import { Scrollable } from '@/components/ui/Scrollable'
-import { PursueButton } from '@/components/sales/PursueButton'
 import { readDeals } from '@/lib/sales/deals-store'
 import { normalizeDealRef } from '@/lib/sales/pipeline'
+import { Section, type Enriched } from './GoldmineTables'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import styles from './goldmine.module.css'
-import rt from '@/components/ui/responsive-table.module.css'
 
 export const metadata: Metadata = { title: 'No-Quote Goldmine · ONLYSOURCE' }
 export const dynamic = 'force-dynamic'
 
-const usd = (n: number | null): string =>
-  n == null ? '—' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const usd0 = (n: number): string => `$${Math.round(n).toLocaleString()}`
 
-const SHOWN = 60
 
-type Enriched = {
-  nsn: string
-  digits: string
-  description: string
-  solicitation: string
-  quantity: number | null
-  lastSoldPrice: number | null
-  closeDate: string | null
-  /** The modeled size of this buy, or the stated reason there is not one. Never a zero. */
-  size: SizeOfBuy
-  recent: boolean
-  holders: Array<{ name: string; unitsAvailable: number | null; basePrice: number | null }>
-  /**
-   * The React key for this row, computed ONCE over the whole dataset so it is unique across
-   * every table on the page. See the block above `all` for why NSN plus solicitation is not
-   * enough on this corpus.
-   */
-  key: string
-}
 
 const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000
 
@@ -238,8 +212,8 @@ export default async function GoldminePage() {
         blurb="The supplier match found no one holding material for these, so the likely way to fill the order is to make the part. Read it as the strongest lead we can derive, not as a census: it means no match in the availability workbook this page joins, over the suppliers that run covered, and a holder outside it would not appear here."
         sized={makeSide.sized}
         unsized={makeSide.unsized}
-        linkable={cornerDigits}
-        pursued={pursued}
+        linkable={[...cornerDigits]}
+        pursued={[...pursued]}
       />
 
       {/* ---------------------------------------------------------- sourcing: someone holds */}
@@ -248,210 +222,10 @@ export default async function GoldminePage() {
         blurb="A supplier shows stock against these, so the job is finding and moving material, not making it. Faster to win, smaller edge."
         sized={sourcing.sized}
         unsized={sourcing.unsized}
-        linkable={cornerDigits}
-        pursued={pursued}
+        linkable={[...cornerDigits]}
+        pursued={[...pursued]}
         showHolders
       />
     </main>
-  )
-}
-
-function Section({
-  title,
-  blurb,
-  sized,
-  unsized,
-  linkable,
-  pursued,
-  showHolders = false,
-}: {
-  title: string
-  blurb: string
-  /** Rows we could put a dollar figure on, already ranked largest first. */
-  sized: Enriched[]
-  /** Rows we could not, already ranked by the quantity the government published. */
-  unsized: Enriched[]
-  linkable: Set<string>
-  /** Normalized deal refs already in the pipeline. */
-  pursued: Set<string>
-  showHolders?: boolean
-}) {
-  const total = sized.length + unsized.length
-  if (total === 0) {
-    return (
-      <section className={styles.card}>
-        <h2 className={styles.cardTitle}>{title}</h2>
-        <p className={styles.empty}>Nothing in this class on today&rsquo;s file.</p>
-      </section>
-    )
-  }
-  const shownSized = sized.slice(0, SHOWN)
-  const shownUnsized = unsized.slice(0, SHOWN)
-  return (
-    <section className={styles.card}>
-      <h2 className={styles.cardTitle}>{title}</h2>
-      <p className={styles.cardSub}>{blurb}</p>
-
-      {sized.length > 0 ? (
-        <>
-          <OpportunityTable rows={shownSized} linkable={linkable} pursued={pursued} showHolders={showHolders} />
-          {/* "top 60 of 418" is itself a partial count while 61 more buys sit in the block
-              below, so the two numbers are stated together rather than left to be reconciled. */}
-          <p className={styles.tableFoot}>
-            Showing the top {shownSized.length.toLocaleString()} of {sized.length.toLocaleString()} by
-            size of buy. &ldquo;Size of buy&rdquo; is the last unit price times the quantity asked
-            for, a rough figure, not a quote.
-            {unsized.length > 0
-              ? ` A further ${unsized.length.toLocaleString()} ${unsized.length === 1 ? 'buy' : 'buys'} in this class could not be sized at all; they are listed below.`
-              : ''}
-          </p>
-        </>
-      ) : (
-        <p className={styles.empty}>
-          No buy in this class carries both a last sold price and a quantity, so none of them can be
-          sized. They are all listed below.
-        </p>
-      )}
-
-      {/*
-       * THE UNKNOWN CLASS, SHOWN RATHER THAN SORTED INTO THE DARK.
-       *
-       * These rows are the reason the zero was a defect: each one is a real solicitation with a
-       * real government quantity, and the missing last sold price is a fact about the file, not a
-       * fact about the buy. They rank among themselves by that published quantity, which is the
-       * one magnitude the government did state. Nothing here is estimated to fill the gap.
-       */}
-      {unsized.length > 0 ? (
-        <>
-          <h3 className={styles.eyebrow}>
-            Size unknown: {unsized.length.toLocaleString()}{' '}
-            {unsized.length === 1 ? 'buy' : 'buys'}
-          </h3>
-          {/* The sentence covers all three ways a size can be missing, because the class does.
-              On the current file every one of them is the same case, a real quantity with no
-              recorded price, but copy that names only today's case becomes a lie on the day the
-              feed changes and nobody re-reads it. */}
-          <p className={styles.cardSub}>
-            For these the government file is missing one of the two legs a size needs, the last
-            sold price or the quantity, so there is nothing to multiply. That is a gap in the
-            record, not a small buy, so they are listed here in full rather than ranked as though
-            they were worth nothing. Ordered by the quantity the government asked for, largest
-            first, with any row that states no quantity at the end.
-          </p>
-          <OpportunityTable rows={shownUnsized} linkable={linkable} pursued={pursued} showHolders={showHolders} />
-          <p className={styles.tableFoot}>
-            Showing {shownUnsized.length.toLocaleString()} of {unsized.length.toLocaleString()} by
-            quantity asked for. Pursuing one of these starts a deal with no value rather than an
-            invented one.
-          </p>
-        </>
-      ) : null}
-    </section>
-  )
-}
-
-/**
- * One table of solicitations. Shared by both blocks in a section so the columns, the dash for an
- * absent value and the pursuit wire are written once and cannot drift apart between them.
- */
-function OpportunityTable({
-  rows,
-  linkable,
-  pursued,
-  showHolders,
-}: {
-  rows: Enriched[]
-  linkable: Set<string>
-  pursued: Set<string>
-  showHolders: boolean
-}) {
-  return (
-    <>
-    <Scrollable className={`${styles.tableWrap} ${rt.cards} ${rt.capped}`}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Stock number</th>
-            <th>Part</th>
-            <th className={styles.numCol}>Qty</th>
-            <th className={styles.numCol}>Last price</th>
-            <th className={styles.numCol}>Size of buy</th>
-            <th>Close date</th>
-            {showHolders ? <th>Holders</th> : null}
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              <td className="mono" data-label="Stock number">
-                {linkable.has(r.digits) ? (
-                  <Link href={`/corner/${r.digits}` as never} className={styles.nsnLink}>
-                    {r.nsn}
-                  </Link>
-                ) : (
-                  <span className={styles.nsnPlain}>{r.nsn}</span>
-                )}
-              </td>
-              <td className={styles.partCell} title={r.description} data-label="Part">
-                {r.description}
-              </td>
-              <td className={`mono ${styles.numCol}`} data-label="Qty">{r.quantity?.toLocaleString() ?? '—'}</td>
-              <td className={`mono ${styles.numCol}`} data-label="Last price">{usd(r.lastSoldPrice)}</td>
-              <td className={`mono ${styles.numCol} ${styles.sizeCol}`} data-label="Size of buy">
-                {r.size.known ? usd0(r.size.usd) : '—'}
-              </td>
-              <td className={styles.closeCell} data-label="Close date">
-                {r.closeDate ? (
-                  <span className={styles.closeRow}>
-                    <span className="mono">{r.closeDate}</span>
-                    {r.recent ? <StatusChip tone="verified">Recent</StatusChip> : null}
-                  </span>
-                ) : (
-                  '—'
-                )}
-              </td>
-              {showHolders ? (
-                <td className={styles.holderCell} data-label="Holders">
-                  {r.holders.slice(0, 2).map((h) => h.name).join(', ')}
-                  {r.holders.length > 2 ? ` +${r.holders.length - 2}` : ''}
-                </td>
-              ) : null}
-              <td data-label="Action">
-                {/* The pursuit wire, on rows whose corner dossier exists (the same rows whose
-                    stock number links in). The deal carries the modeled buy value only when the
-                    government line supplied both legs; otherwise it carries none, and the
-                    pipeline says "no value" rather than inventing one. */}
-                {linkable.has(r.digits) ? (
-                  <PursueButton
-                    nsn={r.nsn}
-                    niin={r.digits.length === 13 ? r.digits.slice(4) : null}
-                    item={r.description === 'not described on this line' ? '' : r.description}
-                    valueUsd={r.size.known ? r.size.usd : null}
-                    initiallyInPipeline={pursued.has(normalizeDealRef(r.nsn))}
-                  />
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Scrollable>
-      {/*
-       * The cap is CSS and it only bites below the card breakpoint, so this sentence has to be
-       * here at every width and invisible at most of them. A cap the reader cannot see is the
-       * silent version of a cap, and this page already prints its own counts — hiding rows
-       * underneath a sentence that says "showing 60" would make the page state a number it is
-       * not showing.
-       */}
-      {rows.length > 10 ? (
-        <p className={rt.cappedNote}>
-          Showing the first 10 of {rows.length.toLocaleString()} here to keep this readable on a
-          narrow screen. Turn your phone sideways or open this on a wider screen for all{' '}
-          {rows.length.toLocaleString()}. Nothing is removed: your browser&rsquo;s own find still
-          reaches every row.
-        </p>
-      ) : null}
-    </>
   )
 }
