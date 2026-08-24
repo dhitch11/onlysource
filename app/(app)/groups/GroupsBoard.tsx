@@ -35,11 +35,12 @@
  * that look identical and send the reader to different remedies.
  */
 
-import { useId, useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { ExplainButton } from '@/components/ui/ExplainButton'
 import { Scrollable } from '@/components/ui/Scrollable'
 import rt from '@/components/ui/responsive-table.module.css'
 import { StatusChip } from '@/components/ui/StatusChip'
+import { haystackOf, matchesTerms, termsOf } from '@/components/ui/row-search'
 import { count } from './format'
 import type { GroupOption, GroupRowView } from './presentation'
 import styles from './groups.module.css'
@@ -56,32 +57,65 @@ export interface GroupsBoardProps {
 export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
   const [fsg, setFsg] = useState<string>(ALL)
   const [onlyCandidates, setOnlyCandidates] = useState(false)
+  const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   const selectId = useId()
   const checkId = useId()
+  const searchId = useId()
+  const searchRef = useRef<HTMLInputElement | null>(null)
 
   const withCandidates = useMemo(() => rows.filter((r) => r.candidates > 0).length, [rows])
 
+  const terms = useMemo(() => termsOf(query.trim()), [query])
+  /*
+   * THE HAYSTACK IS THE FOUR IDENTIFIERS THIS BOARD ACTUALLY PRINTS: the class code and its
+   * name, the supply group code and its name. Nothing else.
+   *
+   * The evidence chip, the rate and the three counts are deliberately OUT. They are what this
+   * board already filters and orders by, and folding an enumeration into a search box is the one
+   * way to make it worse than none: typing "measured" would return most of the board and the
+   * operator would learn the box is noise. That rule is `components/ui/row-search`'s, and this
+   * file uses that module rather than its own `.includes` so a second word narrows here exactly
+   * as it does on every other grid in the product.
+   */
   const shown = useMemo(
     () =>
       rows.filter(
-        (r) => (fsg === ALL || r.fsg === fsg) && (!onlyCandidates || r.candidates > 0),
+        (r) =>
+          (fsg === ALL || r.fsg === fsg) &&
+          (!onlyCandidates || r.candidates > 0) &&
+          (terms.length === 0 ||
+            matchesTerms(
+              haystackOf([r.fsc, r.className.name, r.fsg, r.groupName.name]),
+              terms,
+            )),
       ),
-    [rows, fsg, onlyCandidates],
+    [rows, fsg, onlyCandidates, terms],
   )
 
   const groupLabel = options.find((o) => o.fsg === fsg)?.label ?? null
-  const filtersOn = fsg !== ALL || onlyCandidates
+  const searching = terms.length > 0
+  const filtersOn = fsg !== ALL || onlyCandidates || searching
+  /*
+   * The empty state names the control that is ACTUALLY excluding everything, and now three
+   * controls can be. Naming the wrong one sends the operator to clear a filter that was not the
+   * cause, and the board still looks broken afterwards.
+   */
+  const active: string[] = []
+  if (fsg !== ALL) active.push(`the supply group filter (${groupLabel ?? fsg})`)
+  if (onlyCandidates) active.push('the candidate filter')
+  if (searching) active.push(`the search for \u201c${query.trim()}\u201d`)
   const culprit =
-    fsg !== ALL && onlyCandidates
-      ? 'the supply group filter together with the candidate filter'
-      : fsg !== ALL
-        ? `the supply group filter (${groupLabel ?? fsg})`
-        : 'the candidate filter'
+    active.length === 0
+      ? 'this view'
+      : active.length === 1
+        ? active[0]!
+        : `${active.slice(0, -1).join(', ')} together with ${active[active.length - 1]!}`
 
   const clearAll = () => {
     setFsg(ALL)
     setOnlyCandidates(false)
+    setQuery('')
     setOpen(null)
   }
 
@@ -112,6 +146,55 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
 
       {/* ------------------------------------------------------------------- the controls */}
       <div className={styles.controls}>
+        <div className={styles.control}>
+          <label className={styles.controlLabel} htmlFor={searchId}>
+            Find a class
+          </label>
+          <div className={styles.searchWrap}>
+            <span className={styles.searchIcon} aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="7" cy="7" r="4.5" />
+                <path d="M10.5 10.5 14 14" strokeLinecap="round" />
+              </svg>
+            </span>
+            <input
+              id={searchId}
+              ref={searchRef}
+              type="search"
+              className={styles.search}
+              /* The box says what it searches. One that does not gets read as "search
+                 everything" and its first miss reads as missing data. */
+              placeholder="Search class code, class name or supply group"
+              value={query}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setOpen(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && query !== '') {
+                  e.preventDefault()
+                  setQuery('')
+                }
+              }}
+            />
+            {query !== '' ? (
+              <button
+                type="button"
+                className={styles.searchClear}
+                onClick={() => {
+                  setQuery('')
+                  searchRef.current?.focus()
+                }}
+                aria-label="Clear the search"
+              >
+                &times;
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         <div className={styles.control}>
           <label className={styles.controlLabel} htmlFor={selectId}>
             Supply group
@@ -153,9 +236,10 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
           </label>
         </div>
 
-        <p className={styles.showing}>
+        <p className={styles.showing} role="status" aria-live="polite">
           Showing <b>{count(shown.length)}</b> of <b>{count(rows.length)}</b> classes
           {filtersOn ? ' after filtering' : ''}.
+          {searching ? ' The search runs over all of them, not just the ones on screen.' : ''}
         </p>
       </div>
 
@@ -239,13 +323,24 @@ export function GroupsBoard({ rows, options, sampleFloor }: GroupsBoardProps) {
        * class size — and that is what makes hiding the TAIL correct here. On a page ordered
        * oldest-first the same rule would keep the least useful rows and drop the rest.
        */}
+      {/*
+       * ★ THIS SENTENCE USED TO END "nothing is removed, and your browser's own find still
+       * reaches every row." IT WAS FALSE, and measured false at 390 on the sister page that
+       * uses this same `.capped` rule: the cap is `display: none` on rows 11 and beyond, and a
+       * `display: none` row is in the MARKUP but not in the RENDERED TEXT LAYER, which is what
+       * find-in-page reads. Measured with `document.body.innerText`, which is layout-aware,
+       * against a positive control on a visible row's text in the same string.
+       *
+       * The repair is not softer wording, it is giving the sentence something TRUE to point at.
+       * The search box above filters the FULL class list rather than the rendered rows, so every
+       * class really is reachable at this width now.
+       */}
       {shown.length > 10 ? (
         <p className={rt.cappedNote}>
           Showing the first 10 of {shown.length.toLocaleString()} classes here to keep this
           readable on a narrow screen. These are the strongest by evidence, then candidate count.
-          Turn your phone sideways or open this on a wider screen for all{' '}
-          {shown.length.toLocaleString()}; nothing is removed, and your browser&rsquo;s own find
-          still reaches every row.
+          Use the search box above to reach any of the others, or turn your phone sideways or open
+          this on a wider screen for all {shown.length.toLocaleString()}.
         </p>
       ) : null}
     </section>

@@ -79,8 +79,6 @@ export function hasSearchAffordance(src: string): boolean {
  * this list rather than sitting here forever saying something untrue.
  */
 const KNOWN_UNSEARCHABLE: Record<string, string> = {
-  'app/(app)/groups/GroupsBoard.tsx':
-    '171 rows in one table, measured 2026-08-24. Needs a box. Reported to @OS-PRESIDENT, not yet assigned.',
   'app/(app)/competitor/page.tsx':
     '151 rows across 7 tables with DedicatedPullView, measured 2026-08-24. Needs a box. Reported, not yet assigned.',
   'app/(app)/competitor/DedicatedPullView.tsx':

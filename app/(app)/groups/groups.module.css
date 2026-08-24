@@ -888,3 +888,88 @@
     text-align: left;
   }
 }
+
+/* ==========================================================================================
+ * THE SEARCH BOX. The same affordance as every other search box in this product, deliberately:
+ * same icon, same clear button at the same offset, same focus ring, same suppression of
+ * Safari's duplicate clear glyph. An operator should not have to learn two of these.
+ *
+ * A local copy rather than an import because CSS Modules scope to a file and this board renders
+ * its own table rather than the shared grid. Every value that exists as a token is the token, so
+ * the copies cannot drift apart on a palette change.
+ * ========================================================================================== */
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* A flex item will not shrink below its content without this, and that is exactly how a
+     control pushes a page sideways at 390. */
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--sp-3);
+  display: flex;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 2.25rem 0 2.4rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--line-control);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-200);
+}
+.search::placeholder {
+  color: var(--faint);
+}
+.search:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+  border-color: var(--accent-2);
+}
+/* Safari draws its own clear affordance inside type=search. Ours is keyboard reachable and
+   labelled; two side by side is a defect. */
+.search::-webkit-search-decoration,
+.search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchClear {
+  position: absolute;
+  right: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: var(--fs-500);
+  line-height: var(--lh-000);
+  cursor: pointer;
+}
+/* Grows the HIT AREA to 32px square without drawing a larger control. */
+.searchClear::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+.searchClear:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.searchClear:focus-visible {
+  outline: var(--focus);
+  outline-offset: 1px;
+}
