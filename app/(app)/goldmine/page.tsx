@@ -136,7 +136,13 @@ export default async function GoldminePage() {
    * key falls back to the row's position in the SOURCE array rather than the rendered order, so
    * it stays stable when the tables are filtered and split below.
    *
-   * ★ THIS IS DELIBERATELY A LOCAL COPY OF THE RULE <DataGrid /> USES, NOT AN IMPORT OF IT.
+   * ★ THIS IS DELIBERATELY A LOCAL COPY OF THE RULE THE SHARED GRID COMPONENT USES, NOT AN
+   * IMPORT OF IT. (Written without the JSX spelling of that component's name on purpose: the
+   * searchable-grid gate in test/suppliers finds grid callers by grepping app/ for an opening
+   * `<`-tag, and this file rendering none, a prose mention of one made the gate report a
+   * hand-rolled table as an unsearchable grid. The gate's own header records two earlier
+   * false positives of exactly that shape and says an allow-list entry per prose mention is
+   * how a gate stops meaning anything, so the prose moved instead of the gate.)
    * `buildRowKeys` lives in `components/ui/DataGrid.tsx`, which carries "use client", and this
    * page is a server component. Importing it typechecked cleanly and then failed in the browser
    * with "Attempted to call buildRowKeys() from the server but buildRowKeys is on the client",
@@ -171,7 +177,18 @@ export default async function GoldminePage() {
   const nqSource = `Counted from ${nqProv.solicitations.path.split('/').pop()} joined to ${nqProv.availability.path.split('/').pop()}`
 
   const metrics: Array<{ display: string; label: string; hint: string; hot: boolean; helpId?: string; sourceDetail?: string }> = [
-    { display: noQuote.summary.solicitations.toLocaleString(), label: 'solicitations, zero quotes', hint: 'nobody sent the government a price', hot: false, helpId: 'capability.no_quote', sourceDetail: nqSource },
+    /*
+     * ★ THE NUMBER WAS NEVER WRONG. THE WORD WAS. 839 is a true count of ROWS, and a row is a
+     * solicitation LINE ITEM: measured over this corpus there are 839 rows against 803 distinct
+     * solicitation numbers, because 36 solicitations appear on more than one row (33 of them a
+     * `***REVISED***` amendment beside the original it supersedes, 3 a genuine multi-part buy).
+     *
+     * The headline stays the ROW count on purpose. The two tiles beside it, make-side and
+     * sourcing, are per-row and sum to it; a headline of 803 would leave an operator doing
+     * arithmetic that does not work. So the row count is named correctly and the distinct count
+     * is stated beside it rather than dropped.
+     */
+    { display: noQuote.summary.lineItems.toLocaleString(), label: 'solicitation line items, zero quotes', hint: `nobody sent the government a price · ${noQuote.summary.distinctSolicitations.toLocaleString()} distinct solicitations`, hot: false, helpId: 'capability.no_quote', sourceDetail: nqSource },
     { display: noQuote.summary.makeSideOnly.toLocaleString(), label: 'no supplier matched', hint: 'the make-side: likely built, not sourced', hot: true },
     { display: noQuote.summary.withHolder.toLocaleString(), label: 'someone holds material', hint: 'a sourcing job, an hour of work', hot: false },
     {
