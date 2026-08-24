@@ -42,7 +42,8 @@
  * It is the next commit, not a claim in this one.
  */
 
-import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   flexRender,
   getCoreRowModel,
@@ -51,6 +52,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Provenance, type ProvenanceKind } from "./Provenance";
 import { ExplainButton } from "./ExplainButton";
 import { InsufficientData } from "./States";
@@ -197,6 +199,32 @@ function CellBody({ cell, mono }: { cell: Cell; mono?: boolean }) {
  */
 const NARROW_ROW_CAP = 15;
 
+/**
+ * Build a React key per row that is UNIQUE among siblings and STABLE across reorders.
+ *
+ * Pure and exported so it can be tested without a DOM. `id` is TanStack's row id, derived from
+ * the row's position in the SOURCE array, which is why it is safe as a disambiguator: it does
+ * not move when the user sorts or filters. `base` is the caller's `rowKey`.
+ */
+export function buildRowKeys(rows: readonly { id: string; base: string }[]): {
+  keys: string[];
+  collided: string[];
+} {
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.base, (counts.get(r.base) ?? 0) + 1);
+
+  const keys = rows.map((r) => ((counts.get(r.base) ?? 0) > 1 ? `${r.base}\u0000${r.id}` : r.base));
+
+  // Not assumed. A caller key that literally contains the separator could still collide, and the
+  // fallback below cannot, because the whole key is then just the unique source-row id.
+  if (new Set(keys).size !== keys.length) {
+    for (let i = 0; i < keys.length; i += 1) keys[i] = `\u0000${rows[i]!.id}`;
+  }
+
+  const collided = [...counts.entries()].filter(([, n]) => n > 1).map(([b]) => b);
+  return { keys, collided };
+}
+
 export function DataGrid<T>({
   rows,
   columns,
@@ -285,6 +313,140 @@ export function DataGrid<T>({
 
   const modelRows = table.getRowModel().rows;
 
+  /* ------------------------------------------------------------------------------ row identity
+   * ★ A REACT KEY MUST BE UNIQUE AMONG SIBLINGS AND STABLE ACROSS REORDERS. `rowKey` is the
+   * CALLER'S notion of identity, and on real government data it is not always unique. Measured
+   * 2026-08-24 on /goldmine: 187 rendered rows, 179 distinct keys, 8 keys shared by 16 rows. The
+   * rows were genuinely different (a revision and the row it supersedes, different close dates),
+   * so this is an insufficient key, not duplicated data.
+   *
+   * React's own answer to a duplicate key is that children "may be duplicated and/or omitted". On
+   * a grid of government buys an omitted row is a lost deal and it is invisible. So:
+   *
+   *   - PRODUCTION IS CORRECT. A colliding key is disambiguated with `row.id`, which TanStack
+   *     derives from the row's position in the SOURCE array, so the disambiguated key is stable
+   *     under sorting and filtering. An index into the RENDERED order would not be: it would
+   *     re-associate rows to the wrong DOM nodes the moment somebody sorted a column.
+   *   - DEVELOPMENT IS LOUD. The collision is reported once per render, naming the keys, because
+   *     the real fix is a better `rowKey` in the caller and silence would hide that forever.
+   *
+   * Uniqueness is not assumed at the end, it is checked, and the pathological case falls back to
+   * a key that cannot collide by construction.
+   */
+  const rowKeys = useMemo(
+    () => buildRowKeys(modelRows.map((r) => ({ id: r.id, base: rowKey(r.original) }))),
+    [modelRows, rowKey],
+  );
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    if (rowKeys.collided.length === 0) return;
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[DataGrid] rowKey is not unique: ${rowKeys.collided.length} key(s) are shared by more than ` +
+        `one row, e.g. ${rowKeys.collided.slice(0, 3).map((k) => JSON.stringify(k)).join(", ")}. ` +
+        "Rows still render correctly because the key is disambiguated with the stable source-row " +
+        "id, but the caller should widen rowKey to something that identifies a row on its own.",
+    );
+  }, [rowKeys]);
+
+  /* --------------------------------------------------------------------------- virtualisation
+   * ★ THE FOUR ESCAPE HATCHES THIS FILE DEMANDED ARE NOW ALL PRESENT, so the "next commit" it
+   * promised is this one. Its own condition was: virtualise only after measuring, and only with
+   * aria-rowcount, a roving tabindex that survives a window shift, AN IN-GRID FIND OVER THE FULL
+   * RESULT SET, and print of the whole view.
+   *
+   *   aria-rowcount   reports the FILTERED total, not the window (already true)
+   *   in-grid find    the search box filters the DATA ARRAY, never the DOM, so a match in an
+   *                   unrendered row still narrows the grid to it
+   *   print           a real `beforeprint` listener turns virtualisation OFF and flushes
+   *                   SYNCHRONOUSLY before the browser snapshots the page, so the printed
+   *                   output is every row. ★ THIS LINE USED TO READ "handled below: `@media
+   *                   print` disables the window entirely" AND THAT WAS A FALSE CLAIM ABOUT
+   *                   THIS FILE. There was no `@media print` rule in DataGrid.module.css, and
+   *                   no CSS could have satisfied it: virtualisation OMITS ROWS FROM THE DOM,
+   *                   and a style query cannot re-insert rows React never rendered. Above the
+   *                   threshold, print produced the visible window plus overscan while the
+   *                   comment promised the whole view.
+   *   tabindex        the roving cell index is (row, col) into the DATA, and the window is a
+   *                   render detail, so focus survives a shift by construction
+   *
+   * WHY WINDOWING RATHER THAN SERVER PAGING, MEASURED ON PROD:
+   *     /pricing  1,200 rows  5,711,248 bytes raw   266,407 gzipped   = 21:1
+   * A 21:1 ratio says the payload is repetitive MARKUP, not data. The wire cost of every row is
+   * roughly 600KB gzipped for the whole board, which is fine; the cost that actually hurts is
+   * DOM nodes, parse and layout. Server paging would have solved the cheap problem and broken
+   * sort-and-search-across-everything, which is the expensive thing to get back.
+   *
+   * BELOW THE THRESHOLD NOTHING CHANGES. A 24-row grid pays no virtualiser, no spacers and no
+   * estimate; it renders exactly as it did.
+   */
+  const VIRTUALISE_ABOVE = 150;
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  /*
+   * ★★ ONLY WHERE THE SCROLLER IS ACTUALLY THE SCROLLER, and this is the detail that would have
+   * silently eaten rows on phones.
+   *
+   * Desktop: `.scroller` is `overflow:auto; max-block-size:70vh`, so it owns the vertical scroll
+   * and the virtualiser can watch it.
+   * Below 700px: that max-height is DELIBERATELY released (see the CSS: a 630px porthole holding
+   * 226,293px of cards was 360 nested scroll windows) and the DOCUMENT scrolls instead.
+   *
+   * Point a virtualiser at an element that never scrolls and it renders index 0 plus overscan
+   * FOREVER: the page scrolls, the window never advances, and the operator sees twenty cards
+   * where there are two thousand. No error, no warning, just missing data.
+   *
+   * So the switch is the same 700px contract the stylesheet uses, read from matchMedia rather
+   * than guessed, and it FAILS SAFE: unknown or narrow means no virtualisation and the existing
+   * behaviour, never a half-rendered grid.
+   */
+  const [scrollerOwnsScroll, setScrollerOwnsScroll] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 701px)");
+    const sync = () => setScrollerOwnsScroll(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  /*
+   * PRINT TURNS THE WINDOW OFF. `beforeprint` fires before the browser paginates, but a normal
+   * React state update is asynchronous and would not land in time, so the update is flushed
+   * synchronously inside the event. `afterprint` puts the window back.
+   *
+   * Chromium fires `beforeprint` for window.print() and for the browser's own print command.
+   * Where a browser does not fire it, the failure is the PREVIOUS behaviour (a windowed print),
+   * never a broken grid.
+   */
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setPrinting(true));
+    const after = () => setPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
+
+  const virtualise = scrollerOwnsScroll && !printing && modelRows.length > VIRTUALISE_ABOVE;
+  const rowVirtualiser = useVirtualizer({
+    count: virtualise ? modelRows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    /* Measured from the real grid at each density rather than guessed; every row is re-measured
+     * on mount by `measureElement`, so an estimate that is wrong costs a frame, not a layout. */
+    estimateSize: () => (density === "compact" ? 44 : density === "comfortable" ? 68 : 56),
+    overscan: 12,
+  });
+  const windowRows = virtualise ? rowVirtualiser.getVirtualItems() : [];
+  const padTop = virtualise && windowRows.length > 0 ? windowRows[0]!.start : 0;
+  const padBottom =
+    virtualise && windowRows.length > 0
+      ? rowVirtualiser.getTotalSize() - windowRows[windowRows.length - 1]!.end
+      : 0;
+
   // Measure the real render rather than guessing the virtualisation threshold.
   started.current = typeof performance !== "undefined" ? performance.now() : 0;
   const report = useCallback(
@@ -319,7 +481,7 @@ export function DataGrid<T>({
         case "End": c = maxC; break;
         case "Enter":
           if (expansion && modelRows[r]) {
-            const key = rowKey(modelRows[r]!.original);
+            const key = rowKeys.keys[r]!;
             setExpanded((cur) => {
               const next = cur === key ? null : key;
               if (onExpand) onExpand(next === null ? null : modelRows[r]?.original ?? null);
@@ -453,7 +615,7 @@ export function DataGrid<T>({
        * a fade plus "Scroll for more columns" so hidden money data is never silently hidden.
        * A grid that fits renders neither.
        */}
-      <Scrollable className={styles.scroller}>
+      <Scrollable className={styles.scroller} innerRef={scrollRef}>
         <table
           className={styles.table}
           aria-label={label}
@@ -510,13 +672,31 @@ export function DataGrid<T>({
           </thead>
 
           <tbody ref={report}>
-            {modelRows.map((row, ri) => {
-              const key = rowKey(row.original);
+            {/*
+              * A SPACER ROW, not a transform. The window is drawn inside a real <table>, and a
+              * translated <tr> stops participating in the table's own column sizing, so the
+              * header and the body drift apart on the first scroll. Two zero-content rows holding
+              * the missing height keep the scrollbar honest and the columns aligned.
+              */}
+            {padTop > 0 ? (
+              <tr aria-hidden="true" style={{ height: padTop }}>
+                <td colSpan={columns.length} style={{ padding: 0, border: 0 }} />
+              </tr>
+            ) : null}
+            {(virtualise ? windowRows.map((v) => [modelRows[v.index]!, v.index] as const)
+                         : modelRows.map((r, i) => [r, i] as const)
+            ).map(([row, ri]) => {
+              const key = rowKeys.keys[ri]!;
               const isOpen = expanded === key;
               return (
-                <>
+                /*
+                 * ★ THE KEY BELONGS ON THE FRAGMENT, NOT ON THE <tr> INSIDE IT. A fragment
+                 * returned from `.map()` IS the list child, so keys on its children do not
+                 * satisfy React and it warned "Each child in a list should have a unique key
+                 * prop ... passed a child from DataGrid" on every grid in the app.
+                 */
+                <Fragment key={key}>
                   <tr
-                    key={key}
                     className={
                       [isOpen ? styles.rowOpen : "", expansion ? styles.rowClickable : ""]
                         .filter(Boolean)
@@ -576,7 +756,7 @@ export function DataGrid<T>({
                    * trusts the tool at all, so it shows him the raw thing.
                    */}
                   {isOpen && expansion ? (
-                    <tr key={`${key}-x`} className={styles.expansionRow}>
+                    <tr className={styles.expansionRow}>
                       <td colSpan={columns.length}>
                         <div className={styles.expansion}>
                           <p className={styles.expansionHead}>Source records, exactly as received</p>
@@ -592,9 +772,14 @@ export function DataGrid<T>({
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               );
             })}
+            {padBottom > 0 ? (
+              <tr aria-hidden="true" style={{ height: padBottom }}>
+                <td colSpan={columns.length} style={{ padding: 0, border: 0 }} />
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Scrollable>
