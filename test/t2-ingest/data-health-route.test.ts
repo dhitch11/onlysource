@@ -13,9 +13,67 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import EmbeddedPostgres from 'embedded-postgres'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { PG_DIR, PG_PASSWORD, PG_PORT, PG_USER } from '../../lib/ingest/db'
 
+/**
+ * ==========================================================================================
+ * THIS FILE FAILED ALL NIGHT AND SAID "Unknown Error: undefined". Fixed 2026-08-24.
+ * ==========================================================================================
+ * `PG_DIR` does not resolve through `lib/data-root.ts`, so it has none of the `<cwd>/data`
+ * fallback the rest of the product relies on. `lib/ingest/db.ts` reads `ONLYSOURCE_DATA_ROOT`
+ * and falls back to a macOS path, while everything else reads `ONLYSOURCE_DATA_DIR`. On a
+ * machine where the cluster lives anywhere else, this suite was pointing at nothing.
+ *
+ * ★ AND `onError: () => {}` THREW THE EXPLANATION AWAY, so an absent path presented as a 60
+ * second hang. An absence presenting as a wrong answer, inside the suite whose own subject is
+ * a data-health surface that must never fail open. The irony is the point: the note below
+ * exists so this file can never again be the thing it is testing against.
+ *
+ * ⛔ THE FIRST BLOCK MUST NEVER SKIP. "With the ingest database UNREACHABLE" needs no cluster,
+ * by construction, and it is the most valuable assertion in the file: a data-health route that
+ * returns an empty green list instead of `offline` turns an outage into a badge saying all
+ * quiet. Only the second block is gated, so a machine without a cluster still proves the
+ * negative path.
+ *
+ * Measured 2026-08-24: against the real cluster all 4 tests pass in 429ms. If this suite skips
+ * on a machine that HAS the data, that is a configuration bug to fix, not a state to accept.
+ */
+
+/**
+ * Probes `PG_VERSION`, a FILE, exactly as `test/support/corpus.ts` probes a file rather than a
+ * directory: an empty directory exists on more machines than a populated one.
+ */
+const PG_PRESENT = existsSync(join(PG_DIR, 'PG_VERSION'))
+
+/** Suffix for the suite name, so the run output says WHY and what to do about it. */
+const PG_NOTE = PG_PRESENT
+  ? ''
+  : ` [SKIPPED: no ingest cluster at ${PG_DIR} — set ONLYSOURCE_PG_DIR, or ONLYSOURCE_DATA_ROOT to the directory holding pg/]`
+
+
+/*
+ * ★ AND THE NOTE IS PRINTED, NOT JUST ATTACHED TO A SUITE NAME.
+ *
+ * MEASURED: a suite-name suffix (the `CORPUS_NOTE` idiom in `test/support/corpus.ts`) is only
+ * rendered by `--reporter=verbose`. On a default run the skip is a bare down-arrow and the cure
+ * is invisible, which is the same silence this file was written to end. So it also goes to
+ * stderr once, at module load, where every reporter shows it.
+ */
+if (!PG_PRESENT) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `\n  [t2-ingest] SKIPPING the ingest-database suites: no cluster at ${PG_DIR}\n` +
+      `             This machine has the tests but not the database. They are not broken.\n` +
+      `             Point ONLYSOURCE_PG_DIR at an initialised cluster (a directory holding PG_VERSION),\n` +
+      `             or ONLYSOURCE_DATA_ROOT at the directory that holds pg/, and they will run.\n`,
+  )
+}
+
+/** Whatever Postgres actually said, captured so it can be attached to the throw. */
+let startupError: string | null = null
 let server: EmbeddedPostgres | null = null
 
 async function startPostgres(): Promise<void> {
@@ -26,13 +84,26 @@ async function startPostgres(): Promise<void> {
     port: PG_PORT,
     persistent: true,
     onLog: () => {},
-    onError: () => {},
+    // SURFACE IT, NEVER SWALLOW IT. This was `() => {}` and it cost a night.
+    onError: (error: unknown) => {
+      startupError = error instanceof Error ? error.message : String(error)
+    },
   })
-  await server.start()
+  try {
+    await server.start()
+  } catch (error) {
+    const why = startupError ?? (error instanceof Error ? error.message : String(error))
+    server = null
+    throw new Error(
+      `the ingest cluster at ${PG_DIR} exists but would not start: ${why}. ` +
+        `Set ONLYSOURCE_PG_DIR to a working cluster, or ONLYSOURCE_DATA_ROOT to the directory holding pg/.`,
+    )
+  }
 }
 
+/** Teardown must not explode because setup did, or one clear failure becomes two confusing ones. */
 async function stopPostgres(): Promise<void> {
-  if (server) await server.stop()
+  if (server) await server.stop().catch(() => {})
   server = null
 }
 
@@ -51,7 +122,7 @@ describe('with the ingest database UNREACHABLE (the negative path, tested first)
   }, 30_000)
 })
 
-describe('with the ingest database up and holding the real ingested rows', () => {
+describe.skipIf(!PG_PRESENT)(`with the ingest database up and holding the real ingested rows${PG_NOTE}`, () => {
   beforeAll(async () => {
     await startPostgres()
   }, 60_000)
