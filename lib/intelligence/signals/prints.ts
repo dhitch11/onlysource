@@ -12,8 +12,8 @@
  * =====================================================================================
  * WHAT THIS IS NOT, AND WHY THE DISTINCTION IS THE ENTIRE POINT
  * =====================================================================================
- * WE DO NOT HOLD THE DECODER FOR THIS COLUMN. The publisher documents its coding system in
- * a file called `Codes on NSN-Now.docx` which has never been sent to us. So what we know is:
+ * WE DO NOT HOLD A DECODER FOR THIS COLUMN, AND WE HAVE NOT ESTABLISHED THAT ONE EXISTS.
+ * So what we know is:
  *
  *     a flag is PRESENT on this row
  *
@@ -23,8 +23,41 @@
  *
  * Those are different claims and this module only ever makes the first one. It does not say
  * "drawing available", it does not say "blueprint available", and nothing it returns may be
- * rendered as either. Getting that one document turns a 30%-covered unknown into a
- * 30%-covered fact, and it is the single cheapest upgrade available to this product.
+ * rendered as either.
+ *
+ * ==========================================================================================
+ * ⛔ THIS HEADER USED TO NAME A DECODER DOCUMENT. THE CLAIM WAS FALSE. Corrected 2026-08-24.
+ * ==========================================================================================
+ * It read: "The publisher documents its coding system in a file called `Codes on NSN-Now.docx`
+ * which has never been sent to us", and it promised that obtaining that one document "turns a
+ * 30%-covered unknown into a 30%-covered fact... the single cheapest upgrade available to this
+ * product." Both sentences were wrong in a load-bearing way, and the module carried the same
+ * claim in a SHIPPED string and on its returned index, not only in this comment.
+ *
+ * MEASURED from the file itself, two copies in the estate's own Downloads folder, md5
+ * `df29f34b08fa7740c96a5c436ad51bb2`, identical. From `docProps/core.xml`:
+ *
+ *     dc:creator          David Goodreau
+ *     cp:lastModifiedBy   David Goodreau
+ *     dcterms:created     2025-12-31T21:59Z      modified 2026-01-06T03:14Z      revision 1
+ *
+ * And from `word/document.xml`: 477 words, `AMC` 14 times, `AMSC` 9 times, the string `Prints`
+ * ZERO times, closing "you want, I can: Decode a specific AMC/AMSC combo from your export".
+ *
+ * It is the owner's own notes on AMC and AMSC, written six weeks before this platform existed.
+ * It is not the publisher's, it does not describe this column, and it was never withheld from
+ * us: it was in our own Downloads folder the whole time, twice. The belief traces to a filename.
+ *
+ * THERE IS NO EVIDENCE NSN-NOW PUBLISHES A CODE LIST FOR `Prints` AT ALL. So the honest state
+ * is not "a document exists and we lack it", which is an actionable gap with a known cure. It
+ * is "we do not know what this column means and we do not know that anyone has written it
+ * down", which is a weaker claim and the true one.
+ *
+ * ★ THE MODULE'S DECISION DOES NOT CHANGE, AND IT GETS STRONGER. Presence-only, tri-state,
+ * unwired, contributing to no score. That was right when it rested on a false premise and it is
+ * more right now: a gap whose cure is one email is a gap worth carrying; a gap with no known
+ * cure is a gap that must never be leaned on. Do not wire this module on the strength of a
+ * document arriving, because nobody has established that there is one to arrive.
  *
  * ---------------------------------------------------------------------------------------
  * AND A BLANK IS NOT A ZERO. THIS IS THE RULE THAT KILLED THE PREVIOUS ATTEMPT.
@@ -54,7 +87,8 @@
  * =====================================================================================
  * NOT A SCORE INPUT, BY CONSTRUCTION
  * =====================================================================================
- * Until the decoder is in hand this signal contributes to NO score, rank or ranking weight.
+ * While the meaning of this flag is unestablished, and it may stay unestablished, this signal
+ * contributes to NO score, rank or ranking weight.
  * `PrintsRecord` therefore carries no numeric weight field of any kind, and the suite has a
  * control that fails if one is added, because a number on this record is an invitation to
  * multiply it into a score before anyone has established what it means.
@@ -125,20 +159,44 @@ export const NSN_COLUMN_HEADER = 'NSN Number'
 export const PRINTS_FLAG_STATES = ['flag_present', 'present_without_flag', 'not_in_export'] as const
 export type PrintsFlagState = (typeof PRINTS_FLAG_STATES)[number]
 
-/** The publisher document that would decode this column. We do not have it. */
-export const PRINTS_DECODER_DOCUMENT = 'Codes on NSN-Now.docx'
+/**
+ * The publisher document that would decode this column, when one is known to exist.
+ *
+ * ⛔ NULL, AND NULL IS THE MEASUREMENT. This held `'Codes on NSN-Now.docx'` and shipped that
+ * name on the index and inside the operator-facing qualifier below. That file is the owner's
+ * own AMC/AMSC notes and never mentions this column (see the header for the docProps and word
+ * counts). No publisher code list for `Prints` has been established to exist.
+ *
+ * It is `null` rather than an empty string on purpose: an empty string renders as a document
+ * with no name, and a caller that concatenates it produces a sentence naming nothing. `null` is
+ * the one value a renderer cannot accidentally print, which is the same reason the flag itself
+ * is a tri-state rather than a boolean.
+ */
+export const PRINTS_DECODER_DOCUMENT: string | null = null
 
 /**
  * The decoder status, carried on the index so a surface cannot render the flag without
- * having had the chance to read that it is undecoded. When the document arrives this becomes
- * a versioned reference to it and the statements below change with it, in one place.
+ * having had the chance to read that it is undecoded.
+ *
+ * `'absent'` is still correct and is unchanged: we hold no decoder. What changed is why. It no
+ * longer means "a known document exists and has not reached us"; it means we hold no code list
+ * and have not established that the publisher issues one. If a real decoder is ever obtained,
+ * this becomes a versioned reference to it and the statements below change with it, in one place.
  */
 export const PRINTS_DECODER_STATUS = 'absent' as const
 
-/** The qualifier that must travel with every rendering of this signal. */
+/**
+ * The qualifier that must travel with every rendering of this signal.
+ *
+ * ⛔ IT USED TO NAME A FILE, AND THIS IS A STRING AN OPERATOR READS, NOT A COMMENT. It said the
+ * meaning was "not yet confirmed against the code list the publisher maintains, which is
+ * documented in Codes on NSN-Now.docx and which we do not hold." That asserted three things we
+ * could not support: that the publisher maintains a code list, that it is written down, and
+ * that the writing down is that file. The sentence now claims only what was measured.
+ */
 export const PRINTS_MEANING_UNCONFIRMED =
-  'The meaning of this flag is not yet confirmed against the code list the publisher ' +
-  `maintains, which is documented in ${PRINTS_DECODER_DOCUMENT} and which we do not hold.`
+  'The meaning of this flag is not confirmed. We hold no code list for this column, and we ' +
+  'have not established that the publisher issues one.'
 
 /**
  * The exact sentence a person reads for each state.
@@ -242,7 +300,8 @@ export type PrintsIndex = {
   ok: true
   /** 'absent' until the publisher's code list is in hand. Read this before rendering. */
   decoderStatus: typeof PRINTS_DECODER_STATUS
-  decoderDocument: string
+  /** Null until a publisher document is known to exist. Never a placeholder name. */
+  decoderDocument: string | null
   meaningQualifier: string
   byNiin: Map<Niin, PrintsRecord>
   sources: PrintsSourceReport[]
