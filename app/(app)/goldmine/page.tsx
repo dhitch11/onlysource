@@ -40,6 +40,12 @@ type Enriched = {
   size: SizeOfBuy
   recent: boolean
   holders: Array<{ name: string; unitsAvailable: number | null; basePrice: number | null }>
+  /**
+   * The React key for this row, computed ONCE over the whole dataset so it is unique across
+   * every table on the page. See the block above `all` for why NSN plus solicitation is not
+   * enough on this corpus.
+   */
+  key: string
 }
 
 const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000
@@ -94,7 +100,7 @@ export default async function GoldminePage() {
   // render as plain text so no row ever links to a dead page.
   const cornerDigits = new Set(cornerMap.rows.map((r) => r.nsn.replace(/[^0-9]/g, '')))
 
-  const enrich = (r: (typeof noQuote.rows)[number]): Enriched => {
+  const enrich = (r: (typeof noQuote.rows)[number], key: string): Enriched => {
     const closeMs = r.closeDate ? Date.parse(r.closeDate) : NaN
     return {
       nsn: r.nsn,
@@ -107,10 +113,47 @@ export default async function GoldminePage() {
       size: sizeOfBuy(r.lastSoldPrice, r.quantity),
       recent: Number.isFinite(closeMs) && closeMs <= nowMs && closeMs >= nowMs - NINETY_DAYS,
       holders: r.holders,
+      key,
     }
   }
 
-  const all = noQuote.rows.map(enrich)
+  /*
+   * ★ NSN PLUS SOLICITATION DOES NOT IDENTIFY A ROW IN THIS CORPUS, and this page keyed on
+   * exactly that pair until 2026-08-24. MEASURED over all 839 no-quote rows: 33 keys were
+   * shared by 66 rows, and EVERY ONE of them is a `***REVISED***` amendment sitting beside the
+   * original it supersedes, same NSN, same solicitation number, same quantity, with the close
+   * date moved (e.g. SPE2DH-26-T-1766, 2026-02-17 and 2026-02-20).
+   *
+   * React's answer to a duplicate key is that children "may be duplicated and/or omitted", and
+   * a row omitted from the No-Quote Goldmine is a buy nobody sees go.
+   *
+   * So the close date joins the key, and it is not a field bolted on until a warning stopped:
+   * an amendment IS a new dated version of the same solicitation line, so the date is the fact
+   * that distinguishes them. Measured on the same 839 rows: adding it takes the collisions to
+   * ZERO, and there are ZERO whole-row duplicates, so no row is indistinguishable from another.
+   *
+   * A residual guard still stands. If a future feed ever collides even on the three fields, the
+   * key falls back to the row's position in the SOURCE array rather than the rendered order, so
+   * it stays stable when the tables are filtered and split below.
+   *
+   * ★ THIS IS DELIBERATELY A LOCAL COPY OF THE RULE <DataGrid /> USES, NOT AN IMPORT OF IT.
+   * `buildRowKeys` lives in `components/ui/DataGrid.tsx`, which carries "use client", and this
+   * page is a server component. Importing it typechecked cleanly and then failed in the browser
+   * with "Attempted to call buildRowKeys() from the server but buildRowKeys is on the client",
+   * rendering zero rows. The shared home for this rule is a server-safe module; that file is
+   * outside this lane's write set, so the rule is repeated here rather than moved.
+   */
+  const bases = noQuote.rows.map(
+    (r) => `${r.nsn.replace(/[^0-9]/g, '')}:${r.solicitation}:${r.closeDate ?? ''}`,
+  )
+  const seen = new Map<string, number>()
+  for (const b of bases) seen.set(b, (seen.get(b) ?? 0) + 1)
+  const all = noQuote.rows.map((r, i) =>
+    // The residual guard disambiguates with `i`, the row's index in the SOURCE array. That is
+    // stable when the tables below filter and split these rows, which an index into a RENDERED
+    // list would not be.
+    enrich(r, (seen.get(bases[i]!) ?? 0) > 1 ? `${bases[i]!}#${i}` : bases[i]!),
+  )
   const makeSideRows = all.filter((r) => r.holders.length === 0)
   const sourcingRows = all.filter((r) => r.holders.length > 0)
   const makeSide = partitionBySizeKnown(makeSideRows)
@@ -323,7 +366,7 @@ function OpportunityTable({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={`${r.digits}:${r.solicitation}`}>
+            <tr key={r.key}>
               <td className="mono" data-label="Stock number">
                 {linkable.has(r.digits) ? (
                   <Link href={`/corner/${r.digits}` as never} className={styles.nsnLink}>
