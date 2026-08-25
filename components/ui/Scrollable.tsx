@@ -55,9 +55,17 @@ export function useScrollHint<T extends HTMLElement>() {
 export function Scrollable({
   className,
   children,
+  innerRef,
 }: {
   className?: string;
   children: React.ReactNode;
+  /**
+   * The scrolling element itself, handed back to the caller.
+   *
+   * Added for DataGrid's virtualiser, which has to WATCH the element that actually scrolls. It
+   * is additive and optional: every existing call site is unchanged and unaffected.
+   */
+  innerRef?: React.MutableRefObject<HTMLDivElement | null>;
 }) {
   const { ref, more } = useScrollHint<HTMLDivElement>();
   return (
@@ -83,7 +91,14 @@ export function Scrollable({
      */
     <div className={styles.frame}>
       <div className={styles.scrollArea}>
-        <div ref={ref} className={className}>
+        <div
+          ref={(el) => {
+            // Both refs get the same element: the hint's own, and the caller's if it asked.
+            (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            if (innerRef) innerRef.current = el;
+          }}
+          className={className}
+        >
           {children}
         </div>
         {more ? <div className={styles.fade} aria-hidden="true" /> : null}
