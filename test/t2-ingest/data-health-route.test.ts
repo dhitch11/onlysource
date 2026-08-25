@@ -51,7 +51,7 @@ const PG_PRESENT = existsSync(join(PG_DIR, 'PG_VERSION'))
 /** Suffix for the suite name, so the run output says WHY and what to do about it. */
 const PG_NOTE = PG_PRESENT
   ? ''
-  : ` [SKIPPED: no ingest cluster at ${PG_DIR} — set ONLYSOURCE_PG_DIR, or ONLYSOURCE_DATA_ROOT to the directory holding pg/]`
+  : ` [SKIPPED: no ingest cluster at ${PG_DIR}. Set ONLYSOURCE_PG_DIR, or ONLYSOURCE_DATA_ROOT to the directory holding pg/]`
 
 
 /*
