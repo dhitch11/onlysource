@@ -1,8 +1,31 @@
+'use client'
+
+/*
+ * ★ WHY THIS IS A CLIENT COMPONENT, AND WHAT IT COSTS.
+ *
+ * Every long table below is CAPPED and prints its own "Showing X of Y". Measured on the live
+ * page 2026-08-24, the Ys were the story: 159 makers, 321 parts, 110 rivals, 81 holders. 671
+ * rows exist and 146 render, so 525 rows were unreachable by ANY means: no search, no sort, no
+ * pagination, and at 390 the CSS cap cuts each table to its first ten on top of that.
+ *
+ * 261 of them are stock numbers a named competitor actually won, on the page built to say what
+ * that competitor won. An operator looking for one and not finding it reads that as the
+ * competitor not having won it. THAT IS A FALSE ABSENCE and it is invisible.
+ *
+ * A search box needs client state, so the tables moved to the client and the row data crosses
+ * the boundary. That is a real payload increase and it is the trade the shared grid already
+ * makes elsewhere in this product, where /suppliers holds 3,471 rows and /pricing 1,201 client
+ * side for exactly this reason. The DOM stays bounded because the cap is still applied, AFTER
+ * the filter rather than instead of it.
+ */
+
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 
 import { Money } from '@/components/ui/Money'
 import { StatusChip } from '@/components/ui/StatusChip'
 import { Scrollable } from '@/components/ui/Scrollable'
+import { haystackOf, matchesTerms, termsOf } from '@/components/ui/row-search'
 import type { BookMatch, DedicatedPull, MakerRow, SubjectPart } from '@/lib/intelligence/competitor/rural-route'
 
 import styles from './competitor.module.css'
@@ -88,7 +111,133 @@ const STOCK_COLS = {
   ourBook: "Our book",
 } as const
 
-export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull; cornerDigits: Set<string> }) {
+
+/* ------------------------------------------------------------------ the search, written once */
+
+/**
+ * ONE BOX, FOUR TABLES. Written once because four hand-rolled copies is how two tables on the
+ * same page come to disagree about what a second word means. The matching itself is not written
+ * here at all: it is `components/ui/row-search`, the same module every grid in the product uses.
+ *
+ * `fields` returns the identifiers the operator can SEE on the row. Never a count, never a
+ * money figure, never an enumeration the table already groups by: a hit the reader cannot
+ * explain is worse than a miss.
+ */
+function useRowSearch<T>(rows: readonly T[], fields: (row: T) => ReadonlyArray<string | null | undefined>) {
+  const [query, setQuery] = useState('')
+  const terms = useMemo(() => termsOf(query.trim()), [query])
+  const matched = useMemo(
+    () => (terms.length === 0 ? rows : rows.filter((r) => matchesTerms(haystackOf(fields(r)), terms))),
+    // `fields` is recreated by every caller each render; the rows and the terms are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, terms],
+  )
+  return { query, setQuery, terms, matched, searching: terms.length > 0 }
+}
+
+function SearchBox({
+  id,
+  label,
+  placeholder,
+  query,
+  setQuery,
+}: {
+  id: string
+  label: string
+  placeholder: string
+  query: string
+  setQuery: (q: string) => void
+}) {
+  const ref = useRef<HTMLInputElement | null>(null)
+  return (
+    <div className={styles.searchWrap}>
+      <label className={styles.srOnly} htmlFor={id}>
+        {label}
+      </label>
+      <span className={styles.searchIcon} aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5 14 14" strokeLinecap="round" />
+        </svg>
+      </span>
+      <input
+        id={id}
+        ref={ref}
+        type="search"
+        className={styles.search}
+        placeholder={placeholder}
+        value={query}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && query !== '') {
+            e.preventDefault()
+            setQuery('')
+          }
+        }}
+      />
+      {query !== '' ? (
+        <button
+          type="button"
+          className={styles.searchClear}
+          onClick={() => {
+            setQuery('')
+            ref.current?.focus()
+          }}
+          aria-label="Clear the search"
+        >
+          &times;
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+/** The count an operator is owed while a filter is on: both numbers, always. */
+function MatchLine({ matched, total, noun, searching }: { matched: number; total: number; noun: string; searching: boolean }) {
+  return (
+    <p className={styles.searchStatus} role="status" aria-live="polite">
+      {searching
+        ? matched === 0
+          ? `Nothing matches that. The search runs over all ${count(total)} ${noun}, not just the ones listed.`
+          : `${count(matched)} of ${count(total)} ${noun} match. The search runs over all of them, not just the ones listed.`
+        : `${count(total)} ${noun} in total. The box searches every one of them, including the ones below the cut.`}
+    </p>
+  )
+}
+
+export function DedicatedPullView({
+  pull,
+  cornerDigits,
+}: {
+  pull: DedicatedPull
+  /*
+   * AN ARRAY, NOT A SET, AND DELIBERATELY. This crosses the server-to-client boundary now, and
+   * an array serialises on every runtime this app targets without depending on the framework's
+   * handling of a Set. It is rebuilt into a Set once below, so the per-row lookup stays O(1).
+   *
+   * The failure this avoids is silent: a Set that did not survive would arrive empty, every
+   * stock number would render as plain text instead of a link to its corner dossier, and the
+   * page would look completely normal. Measured on this route the intersection is 0 either way,
+   * so the bug would not have shown here and would have waited for a competitor where it is not.
+   */
+  cornerDigits: string[]
+}) {
+  const cornerSet = useMemo(() => new Set(cornerDigits), [cornerDigits])
+  /*
+   * Four searches, one per capped table. Each runs over the FULL list and the cap is applied to
+   * the RESULT, never to the input: a box that filtered the 40 makers already on screen would
+   * answer "nothing found" for one of the other 119.
+   *
+   * Each haystack is the identifiers that table PRINTS. Company and CAGE where a firm is named,
+   * stock number and description where a part is. Never the award counts or the money: those
+   * are measurements the table already orders by, and folding them in turns the box into noise.
+   */
+  const makersSearch = useRowSearch(pull.makers, (m) => [m.company, m.cage])
+  const partsSearch = useRowSearch(pull.parts, (x) => [x.nsn, x.niin, x.description])
+  const rivalsSearch = useRowSearch(pull.rivals, (r) => [r.company, r.cage])
+  const holdersSearch = useRowSearch(pull.spotMarket.holders, (h) => [h.company, h.cage])
   const { role, attribution, snapshot, bookSummary } = pull
   const subjectName = pull.subject.company ?? `CAGE ${pull.subject.cage}`
 
@@ -212,6 +361,10 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           />
           <MetricMoney amount={attribution.noRecordValue} label="maker unknown" hint={`${count(attribution.noRecordNsns)} stock numbers with no approved-source row at all`} />
         </div>
+        <SearchBox id="cmp-makers" label="Find a maker" placeholder="Search maker name or CAGE"
+          query={makersSearch.query} setQuery={makersSearch.setQuery} />
+        <MatchLine matched={makersSearch.matched.length} total={pull.makers.length}
+          noun="makers" searching={makersSearch.searching} />
         <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
@@ -224,7 +377,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
               </tr>
             </thead>
             <tbody>
-              {pull.makers.slice(0, MAKERS_SHOWN).map((m) => (
+              {makersSearch.matched.slice(0, MAKERS_SHOWN).map((m) => (
                 <tr key={m.cage}>
                   <td data-label={MAKER_COLS.maker}>
                     <span className={styles.makerName}>{m.company ?? 'company name absent'}</span>
@@ -282,7 +435,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           </table>
         </Scrollable>
         <p className={styles.tableFoot}>
-          Showing {count(Math.min(MAKERS_SHOWN, pull.makers.length))} of {count(pull.makers.length)}, ordered by
+          Showing {count(Math.min(MAKERS_SHOWN, makersSearch.matched.length))} of {count(makersSearch.matched.length)}{makersSearch.searching ? ' matching' : ''}, ordered by
           the dollars that trace to them alone, then by their shared ceiling.
         </p>
       </section>
@@ -379,6 +532,10 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           on their newest award say about how a new source could reach it. The route reading comes from the
           government codebook and abstains where a code is missing rather than guessing at an answer.
         </p>
+        <SearchBox id="cmp-parts" label="Find a stock number" placeholder="Search stock number or part"
+          query={partsSearch.query} setQuery={partsSearch.setQuery} />
+        <MatchLine matched={partsSearch.matched.length} total={pull.parts.length}
+          noun="stock numbers" searching={partsSearch.searching} />
         <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
@@ -394,14 +551,14 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
               </tr>
             </thead>
             <tbody>
-              {pull.parts.slice(0, PARTS_SHOWN).map((p) => (
-                <PartRow key={p.nsn} part={p} isCorner={cornerDigits.has(p.niin) || cornerDigits.has(p.nsn.replace(/[^0-9]/g, ''))} />
+              {partsSearch.matched.slice(0, PARTS_SHOWN).map((p) => (
+                <PartRow key={p.nsn} part={p} isCorner={cornerSet.has(p.niin) || cornerSet.has(p.nsn.replace(/[^0-9]/g, ''))} />
               ))}
             </tbody>
           </table>
         </Scrollable>
         <p className={styles.tableFoot}>
-          Showing {count(Math.min(PARTS_SHOWN, pull.parts.length))} of {count(pull.parts.length)}, largest awarded
+          Showing {count(Math.min(PARTS_SHOWN, partsSearch.matched.length))} of {count(partsSearch.matched.length)}{partsSearch.searching ? ' matching' : ''}, largest awarded
           value first. A <StatusChip tone="accent">Corner</StatusChip> tag means it is also one of our candidate
           corners; open it for the dossier.
         </p>
@@ -415,6 +572,10 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           these are the makers themselves bidding direct, which is marked, and the rest are dealers competing for
           the same items.
         </p>
+        <SearchBox id="cmp-rivals" label="Find a rival" placeholder="Search company name or CAGE"
+          query={rivalsSearch.query} setQuery={rivalsSearch.setQuery} />
+        <MatchLine matched={rivalsSearch.matched.length} total={pull.rivals.length}
+          noun="rivals" searching={rivalsSearch.searching} />
         <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
@@ -427,7 +588,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
               </tr>
             </thead>
             <tbody>
-              {pull.rivals.slice(0, RIVALS_SHOWN).map((r) => (
+              {rivalsSearch.matched.slice(0, RIVALS_SHOWN).map((r) => (
                 <tr key={r.cage}>
                   <td data-label={RIVAL_COLS.company}>
                     <span className={styles.makerName}>{r.company ?? 'company name absent'}</span>
@@ -451,7 +612,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           </table>
         </Scrollable>
         <p className={styles.tableFoot}>
-          Showing {count(Math.min(RIVALS_SHOWN, pull.rivals.length))} of {count(pull.rivals.length)}, largest
+          Showing {count(Math.min(RIVALS_SHOWN, rivalsSearch.matched.length))} of {count(rivalsSearch.matched.length)}{rivalsSearch.searching ? ' matching' : ''}, largest
           awarded value first.
         </p>
       </section>
@@ -472,6 +633,10 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           <Metric n={count(pull.spotMarket.unitsListed)} label="units listed" hint={`${count(pull.spotMarket.zeroQuantityRows)} listings carry a quantity of zero, which is a published zero`} />
           <Metric n={count(pull.spotMarket.firmsAlsoApprovedSource)} label="also an approved source" hint="everyone else here is holding material, not making it" />
         </div>
+        <SearchBox id="cmp-holders" label="Find a firm" placeholder="Search firm name or CAGE"
+          query={holdersSearch.query} setQuery={holdersSearch.setQuery} />
+        <MatchLine matched={holdersSearch.matched.length} total={pull.spotMarket.holders.length}
+          noun="firms" searching={holdersSearch.searching} />
         <Scrollable className={`${styles.tableWrap} ${rt.cards}`}>
           <table className={styles.table}>
             <thead>
@@ -484,7 +649,7 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
               </tr>
             </thead>
             <tbody>
-              {pull.spotMarket.holders.slice(0, HOLDERS_SHOWN).map((h) => (
+              {holdersSearch.matched.slice(0, HOLDERS_SHOWN).map((h) => (
                 <tr key={h.cage}>
                   <td data-label={STOCK_COLS.firm}>
                     <span className={styles.makerName}>{h.company ?? 'company name absent'}</span>
@@ -516,8 +681,8 @@ export function DedicatedPullView({ pull, cornerDigits }: { pull: DedicatedPull;
           </table>
         </Scrollable>
         <p className={styles.tableFoot}>
-          Showing {count(Math.min(HOLDERS_SHOWN, pull.spotMarket.holders.length))} of{' '}
-          {count(pull.spotMarket.holders.length)}, most stock numbers listed first.
+          Showing {count(Math.min(HOLDERS_SHOWN, holdersSearch.matched.length))} of{' '}
+          {count(holdersSearch.matched.length)}{holdersSearch.searching ? ' matching' : ''}, most stock numbers listed first.
         </p>
       </section>
 

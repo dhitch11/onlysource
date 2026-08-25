@@ -27,7 +27,11 @@ import { describe, expect, it } from 'vitest'
  * it does not need - it just has to be named below, with the reason.
  */
 const NO_SEARCH_NEEDED: Record<string, string> = {
-  // (empty today: all four DataGrid callers are long lists and all four carry a box)
+  // (all four DataGrid callers are long lists and all four carry a box)
+  'app/(app)/competitor/page.tsx':
+    'its two tables are the sole-reference and the contested list, MEASURED at 4 rows and 2 rows ' +
+    'on the live page 2026-08-24. The long tables on that route are DedicatedPullView\'s and they ' +
+    'carry four boxes. This is a ruling on the merits, not a page nobody has looked at.',
 }
 
 /**
@@ -79,10 +83,6 @@ export function hasSearchAffordance(src: string): boolean {
  * this list rather than sitting here forever saying something untrue.
  */
 const KNOWN_UNSEARCHABLE: Record<string, string> = {
-  'app/(app)/competitor/page.tsx':
-    '151 rows across 7 tables with DedicatedPullView, measured 2026-08-24. Needs a box. Reported, not yet assigned.',
-  'app/(app)/competitor/DedicatedPullView.tsx':
-    'the per-competitor pull tables inside /competitor, same 151 rows. Reported, not yet assigned.',
   'app/(app)/hubzone/page.tsx': '23 rows, measured 2026-08-24. Short, but unreviewed rather than ruled short enough.',
   'app/(app)/intelligence/page.tsx': '10 rows, measured 2026-08-24. Short, but unreviewed rather than ruled short enough.',
   'app/(app)/corner/[nsn]/page.tsx':
@@ -138,9 +138,20 @@ describe('every DataGrid an operator has to find a row in is searchable', () => 
   })
 
   it('lists nothing that has since been deleted or already fixed', () => {
+    /*
+     * ★ THE UNION, NOT JUST THE GRID CALLERS. This check was written when the only thing this
+     * gate knew about was callers of the shared grid, so an opt-out naming a HAND-ROLLED table
+     * read as stale the moment it was added: the file was real, the reason was measured, and the
+     * check rejected it for not being a grid. Caught by the gate itself on 2026-08-24 while
+     * ruling /competitor's two short tables exempt.
+     *
+     * A check that rejects a TRUE statement pushes the next person toward writing a false one
+     * somewhere it will be accepted, which is the opposite of what this file is for.
+     */
+    const gated = new Set([...callers, ...tableFiles])
     const stale = Object.keys(NO_SEARCH_NEEDED).filter((f) => {
-      if (!callers.includes(f)) return true
-      return /\bsearch=\{\{/.test(readFileSync(f, 'utf8'))
+      if (!gated.has(f)) return true
+      return hasSearchAffordance(readFileSync(f, 'utf8'))
     })
     expect(stale, 'a stale opt-out hides the fact that this grid changed').toEqual([])
   })

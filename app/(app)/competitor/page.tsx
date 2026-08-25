@@ -153,7 +153,7 @@ export default async function CompetitorPage({
       </header>
 
       {pull ? (
-        <DedicatedPullView pull={pull} cornerDigits={cornerDigits} />
+        <DedicatedPullView pull={pull} cornerDigits={[...cornerDigits]} />
       ) : (
         <ShallowNotice
           company={co.company ?? `CAGE ${co.cage}`}
