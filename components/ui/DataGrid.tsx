@@ -809,9 +809,33 @@ export function DataGrid<T>({
         The rows are ordered strongest-basis-first, so the FIRST N are the ones to keep — the
         opposite of the corner award history, which is oldest-first and keeps its tail.
 
-        Hidden in CSS, so every row stays in the DOM, stays findable by the browser's own find,
-        and returns in full on a wider screen with no second request. And the count is stated,
-        because a cap the reader has to notice is the silent version of a cap.
+        ★ THIS PARAGRAPH USED TO READ "Hidden in CSS, so every row stays in the DOM, stays
+        findable by the browser's own find, and returns in full on a wider screen with no second
+        request." IT WAS FALSE IN BOTH HALVES, MEASURED ON /pricing (331 rows) 2026-08-25.
+
+        AT THIS WIDTH the rows DO stay in the DOM, and find still cannot reach them. Measured:
+        331 rows present, 316 of them `display: none` by the rule below. A hidden row's stock
+        number is in `document.body.textContent` and ABSENT from `document.body.innerText`, which
+        is layout-aware and is the rendered text layer find-in-page reads. A positive control on a
+        VISIBLE row's stock number found it in that same string, so the instrument was known to be
+        reading something before either result was believed. (It took three attempts:
+        `textContent` concatenates adjacent cells where `innerText` inserts a separator, so a
+        whole-cell string never appears verbatim and the control failed twice. An atomic token,
+        the bare stock number, is what finally worked.)
+
+        ABOVE 700px AND OVER THE VIRTUALISATION THRESHOLD the first half is false too: the rows do
+        NOT stay in the DOM. Same page, same corpus, measured at 1440: `aria-rowcount` 331 against
+        22 rows present. 309 nodes do not exist, so no claim about rendering is needed to know
+        find cannot reach them.
+
+        ★ AND THAT IS EXACTLY WHY PRINT NEEDED A `beforeprint` HANDLER AND NOT A CSS RULE. A
+        style query cannot re-insert rows React never rendered. The handler turns virtualisation
+        off and flushes synchronously, measured on /pricing at 23 rows in the DOM -> 331 on
+        `beforeprint` -> 23 on `afterprint`.
+
+        What IS true, and is the point of the cap: the rows return in full on a wider screen with
+        no second request, and the count is stated, because a cap the reader has to notice is the
+        silent version of a cap.
       */}
       {visibleRows.length > NARROW_ROW_CAP ? (
         <p className={styles.narrowCapNote}>
