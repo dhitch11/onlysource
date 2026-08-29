@@ -40,6 +40,7 @@
  * allowed set nor strips it from the memo.
  */
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 
 import { groundBrief } from '@/lib/ai/grounding'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -185,7 +186,7 @@ const EVERY_COMBINATION = (() => {
   return out
 })()
 
-describe('every warning this lane writes survives the guard in BOTH spellings of the code', () => {
+describe.skipIf(!hasCorpus)('every warning this lane writes survives the guard in BOTH spellings of the code' + CORPUS_NOTE, () => {
   it('★ THE CONTROL: across every code in both tables, no safety marker is lost to a prose rewrite', () => {
     const lost: string[] = []
     for (const { what, v } of EVERY_COMBINATION) {
@@ -276,7 +277,7 @@ describe('every warning this lane writes survives the guard in BOTH spellings of
   }, 600_000)
 })
 
-describe('the residual is named, and it is an identification rather than a warning', () => {
+describe.skipIf(!hasCorpus)('the residual is named, and it is an identification rather than a warning' + CORPUS_NOTE, () => {
   it('what a prose rewrite can still cost is the sentence that names the code, and nothing else', () => {
     /*
      * The honest statement of what is NOT closed here. A sentence naming `AMC 3` still carries a

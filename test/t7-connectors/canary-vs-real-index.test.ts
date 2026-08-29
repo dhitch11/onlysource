@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DIBBS_INDEX_SHAPE } from '@/lib/connectors/dibbs/classify'
@@ -20,7 +21,7 @@ import { archivePath } from '@/lib/data-root'
 const INDEX = archivePath('dibbs-rfq-daily', '2026-08-11', '20260812T225616Z', 'in260811.txt')
 const BANNER = join(process.cwd(), 'test/fixtures/dibbs/consent-banner-in.html')
 
-describe('the canary, measured against the real archived feed day', () => {
+describe.skipIf(!hasCorpus)('the canary, measured against the real archived feed day' + CORPUS_NOTE, () => {
   it('the archive is present, or this instrument cannot report anything', () => {
     expect(existsSync(INDEX), `real index missing at ${INDEX}`).toBe(true)
   })

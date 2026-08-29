@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDibbsIndex } from '@/lib/ingest/parse/dibbs'
@@ -49,7 +50,7 @@ function failing(assertions: Array<{ id: string; passed?: boolean }>): string[] 
   return assertions.filter((a) => a.passed === false).map((a) => a.id)
 }
 
-describe('cold-start truncation: the gap, and the three cases that already hold', () => {
+describe.skipIf(!hasCorpus)('cold-start truncation: the gap, and the three cases that already hold' + CORPUS_NOTE, () => {
   it('POSITIVE CONTROL: the real 3,095-row day parses clean', () => {
     const r = parseDibbsIndex(readFileSync(REAL_INDEX, 'latin1'), coldStart() as never)
     expect(r.rows.length).toBe(3095)

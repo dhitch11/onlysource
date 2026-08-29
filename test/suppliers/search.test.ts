@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { haystackOf, matchesTerms, termsOf } from '@/components/ui/row-search'
 import { SEARCH_FIELDS } from '@/app/(app)/suppliers/SuppliersGrid'
 import type { LeanSupplier } from '@/app/(app)/suppliers/wire-lean'
@@ -37,6 +38,10 @@ const row = (over: Partial<LeanSupplier>): LeanSupplier =>
     ...over,
   }) as LeanSupplier
 
+/*
+ * PURE: every row here is a hand-built fixture, so this runs on a fresh checkout with no corpus.
+ * These are the tests that catch a matcher regression, so CI must keep them.
+ */
 describe('what an operator can search the supplier book by', () => {
   it('finds a company by part of its name, case-insensitively', () => {
     expect(matches(row({}), termsOf('smyth'))).toBe(true)
@@ -107,7 +112,7 @@ describe('what an operator can search the supplier book by', () => {
  * So the literals are asserted against the COMPUTED counts. This does not stop the prose being
  * edited; it stops it drifting from the data silently.
  */
-describe('Thomas states the same supplier counts the page computes', () => {
+describe.skipIf(!hasCorpus)('Thomas states the same supplier counts the page computes' + CORPUS_NOTE, () => {
   it('carries no stale count in its knowledge base', async () => {
     const { buildDistressedSuppliers } = await import('@/lib/intelligence/suppliers/distressed')
     const { PLATFORM_KNOWLEDGE } = await import('@/lib/thomas/knowledge')

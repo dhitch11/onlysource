@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { sentences } from '@/components/ui/Note'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 
@@ -17,7 +18,12 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
  * ★ THE FAILURE MODE IS DELIBERATE. If the split finds no boundary, the whole string becomes the
  * lead and no disclosure renders: the old behaviour. It can under-split, never lose text.
  */
-describe('splitting a composed provenance statement', () => {
+/*
+ * Split in two on purpose. Only the first assertion needs the 1.4GB corpus; the rest are pure and
+ * MUST still run on a fresh CI checkout, because they are the ones that catch a splitter that
+ * starts cutting inside a hash or a decimal.
+ */
+describe.skipIf(!hasCorpus)('splitting the REAL provenance statement' + CORPUS_NOTE, () => {
   it('splits the real coverage statement into readable sentences', () => {
     const { cornerMap } = buildAllDatasets()
     const statement = cornerMap.coverage.statement
@@ -35,6 +41,9 @@ describe('splitting a composed provenance statement', () => {
     expect(parts[0]!.length).toBeLessThan(220)
   })
 
+})
+
+describe('splitting, on strings that need no corpus', () => {
   it('does not split inside a decimal, a hash or a version', () => {
     /*
      * These are the shapes that actually occur in this product's provenance prose: a window mean

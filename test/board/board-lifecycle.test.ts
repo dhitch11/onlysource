@@ -18,6 +18,7 @@
  *   judgement is not being made, and every other assertion here would pass anyway.
  */
 import { describe, it, expect } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { buildBoard } from '@/lib/board/build'
 import { fixedClock } from '@/lib/time/clock'
 
@@ -30,7 +31,7 @@ const built = (iso: string) => {
   return b
 }
 
-describe('buildBoard — retirement is judged against the clock', () => {
+describe.skipIf(!hasCorpus)('buildBoard — retirement is judged against the clock' + CORPUS_NOTE, () => {
   it('serves a board at all (guards every assertion below from passing on an empty page)', () => {
     const b = built('2026-08-18')
     expect(b.rows.length).toBeGreaterThan(0)

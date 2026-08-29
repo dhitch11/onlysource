@@ -15,6 +15,7 @@
  * fixtures, because the fixture is written by the same head as the code and agrees with it.
  */
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 
 import {
   buildFscRollup,
@@ -117,7 +118,7 @@ function pick(rollupGroups: FscGroupRow[], fsc: string): FscGroupRow {
  * A fixture that did not actually produce the three states would let every assertion below
  * pass vacuously, so it is checked before it is used. */
 
-describe('the fixture really does produce all three evidence states', () => {
+describe.skipIf(!hasCorpus)('the fixture really does produce all three evidence states' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
   it('grades one class each way', () => {
     expect(pick(rollup.groups, '6505').evidence).toBe('significant')
@@ -129,7 +130,7 @@ describe('the fixture really does produce all three evidence states', () => {
 
 /* ----------------------------------------------------------------------------- the numbers */
 
-describe('formatting never depends on a locale', () => {
+describe.skipIf(!hasCorpus)('formatting never depends on a locale' + CORPUS_NOTE, () => {
   it('groups thousands by hand', () => {
     expect(count(0)).toBe('0')
     expect(count(186)).toBe('186')
@@ -160,7 +161,7 @@ describe('formatting never depends on a locale', () => {
 
 /* -------------------------------------------------------------------------- the rate cell */
 
-describe('the rate cell says only what the evidence allows', () => {
+describe.skipIf(!hasCorpus)('the rate cell says only what the evidence allows' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
 
   it('presents a significant class as a finding, with its lift', () => {
@@ -202,7 +203,7 @@ describe('the rate cell says only what the evidence allows', () => {
 
 /* ------------------------------------------------------------------------------ the chips */
 
-describe('the evidence chip', () => {
+describe.skipIf(!hasCorpus)('the evidence chip' + CORPUS_NOTE, () => {
   it('uses olive, steel and the quietest tone, and never the clock or the accent', () => {
     expect(evidenceChip('significant').tone).toBe('verified')
     expect(evidenceChip('indicative').tone).toBe('active')
@@ -226,7 +227,7 @@ describe('the evidence chip', () => {
 
 /* -------------------------------------------------------------------------- stated absences */
 
-describe('a missing title is stated, never papered over', () => {
+describe.skipIf(!hasCorpus)('a missing title is stated, never papered over' + CORPUS_NOTE, () => {
   const noTitles = buildFscRollup(classOf('9999', 3, 1), { ok: false, reason: 'the tables are not in this data directory' })
 
   it('renders the absence of a class title instead of the bare code', () => {
@@ -258,7 +259,7 @@ describe('a missing title is stated, never papered over', () => {
 
 /* ------------------------------------------------------------------------- the scope prose */
 
-describe('the government scope prose', () => {
+describe.skipIf(!hasCorpus)('the government scope prose' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
 
   it('is carried word for word', () => {
@@ -279,7 +280,7 @@ describe('the government scope prose', () => {
 
 /* ----------------------------------------------------------------------------- the verdict */
 
-describe('the verdict is an answer in every branch', () => {
+describe.skipIf(!hasCorpus)('the verdict is an answer in every branch' + CORPUS_NOTE, () => {
   it('reads as a real finding of nothing when no class clears the correction', () => {
     // Two testable classes, neither enriched: the significant set is empty by arithmetic,
     // not by an empty array or a failed load.
@@ -313,7 +314,7 @@ describe('the verdict is an answer in every branch', () => {
 
 /* -------------------------------------------------------------------- the commercial read */
 
-describe('the commercial read', () => {
+describe.skipIf(!hasCorpus)('the commercial read' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
 
   it('names its subject and refuses to oversell the sample', () => {
@@ -340,7 +341,7 @@ describe('the commercial read', () => {
 
 /* ------------------------------------------------------------------------ the test sentence */
 
-describe('the test sentence carries the evidence, computed', () => {
+describe.skipIf(!hasCorpus)('the test sentence carries the evidence, computed' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
 
   it('gives a tested class its p value and the corrected bar', () => {
@@ -360,7 +361,7 @@ describe('the test sentence carries the evidence, computed', () => {
 
 /* --------------------------------------------------------------------------- the view model */
 
-describe('the row views handed to the board', () => {
+describe.skipIf(!hasCorpus)('the row views handed to the board' + CORPUS_NOTE, () => {
   const rollup = mixedRollup()
   const views = rowViews(rollup)
 
@@ -390,7 +391,7 @@ describe('the row views handed to the board', () => {
   })
 })
 
-describe('the supply group filter options', () => {
+describe.skipIf(!hasCorpus)('the supply group filter options' + CORPUS_NOTE, () => {
   it('counts what the filter would actually leave on screen', () => {
     const rollup = mixedRollup()
     const options = groupOptions(rollup.groups)
@@ -414,31 +415,45 @@ describe('the supply group filter options', () => {
  * The fixtures above were written by the same head as the code. This block is the one that
  * runs against the feed the product actually serves. */
 
-describe('the served feed day, through the real rollup', () => {
-  const rollup = buildFscRollup(buildAllDatasets().cornerMap.rows)
-  const views = rowViews(rollup)
+describe.skipIf(!hasCorpus)('the served feed day, through the real rollup' + CORPUS_NOTE, () => {
+  /*
+   * LAZY, because `describe.skipIf` still RUNS this callback to collect the tests inside it. An
+   * eager `buildAllDatasets()` here therefore reads the corpus even when the suite is skipped,
+   * and on a CI runner with no data/ that is an ENOENT at collection — which fails the whole file
+   * before a single skip can apply. Deferring it into the tests is what makes the skip real.
+   */
+  /*
+   * LAZY BUT MEMOISED. Lazy because `describe.skipIf` still runs this body to collect, so an
+   * eager build is an ENOENT on a runner with no corpus. Memoised because the first version
+   * rebuilt the entire dataset on every call and the first test hit the 30s timeout: a fix for
+   * one environment is not allowed to break the other.
+   */
+  let _rollup: ReturnType<typeof buildFscRollup> | null = null
+  const rollupOf = () => (_rollup ??= buildFscRollup(buildAllDatasets().cornerMap.rows))
+  let _views: ReturnType<typeof rowViews> | null = null
+  const views = () => (_views ??= rowViews(rollupOf()))
 
   it('renders no percentage on any class under the row floor', () => {
-    const under = views.filter((v) => v.rate.kind === 'untested')
+    const under = views().filter((v) => v.rate.kind === 'untested')
     expect(under.length).toBeGreaterThan(0)
     for (const v of under) expect(JSON.stringify(v.rate)).not.toContain('%')
   })
 
   it('renders no lift on any class that did not clear the correction', () => {
-    for (const v of views.filter((v) => v.rate.kind === 'measured')) {
+    for (const v of views().filter((v) => v.rate.kind === 'measured')) {
       expect(JSON.stringify(v.rate)).not.toContain('×')
     }
   })
 
   it('produces one view per class, in the rollup order', () => {
-    expect(views).toHaveLength(rollup.totals.classes)
-    expect(views.map((v) => v.fsc)).toEqual(rollup.groups.map((g) => g.fsc))
+    expect(views()).toHaveLength(rollupOf().totals.classes)
+    expect(views().map((v) => v.fsc)).toEqual(rollupOf().groups.map((g) => g.fsc))
   })
 
   it('gives the verdict block something true to say whatever the arithmetic returns', () => {
-    const v = verdict(rollup)
+    const v = verdict(rollupOf())
     expect(v.headline.length).toBeGreaterThan(0)
-    expect(v.body).toContain(pct(rollup.baseline))
-    expect(v.significant).toBe(rollup.groups.filter((g) => g.evidence === 'significant').length)
+    expect(v.body).toContain(pct(rollupOf().baseline))
+    expect(v.significant).toBe(rollupOf().groups.filter((g) => g.evidence === 'significant').length)
   })
 })

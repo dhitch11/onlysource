@@ -1,11 +1,12 @@
 import { describe, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
 import { evaluateScorecard, SCORECARD_V0 } from '@/lib/engine/scorecard'
 
-describe('PROBE: two scorers over the same real rows', () => {
+describe.skipIf(!hasCorpus)('PROBE: two scorers over the same real rows' + CORPUS_NOTE, () => {
   it('measures', () => {
     const { cornerMap } = buildAllDatasets()
     const awardIx = buildNsnAwardIndex()

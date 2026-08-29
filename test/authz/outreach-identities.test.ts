@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { buildOutreachDossier } from '@/lib/intelligence/suppliers/outreach-dossier'
 import { buildDistressedSuppliers } from '@/lib/intelligence/suppliers/distressed'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
@@ -42,7 +43,7 @@ function nsnWithAReachableHolder(): string | null {
   return null
 }
 
-describe('the outreach dossier withholds identities from a caller without the permission', () => {
+describe.skipIf(!hasCorpus)('the outreach dossier withholds identities from a caller without the permission' + CORPUS_NOTE, () => {
   const nsn = nsnWithAReachableHolder()
 
   it('found a stock number with a real contactable holder, so these tests are not vacuous', () => {

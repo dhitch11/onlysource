@@ -32,6 +32,7 @@
  * was donating numbers, which is how the leak got reported closed.
  */
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 
 import { allowedNumberSet, groundBrief, valueTokensIn } from '@/lib/ai/grounding'
 import { resolveDataRoot } from '@/lib/data-root'
@@ -162,7 +163,7 @@ CASES.push({ what: 'a NIIN that is all zeros but one', stockNumber: '000000002',
 CASES.push({ what: 'not in the catalogue', stockNumber: '999999999', niin: '001760600', amc: '3', amsc: 'C', pica: 'GX' })
 CASES.push({ what: 'a non-publishing activity', stockNumber: '001760600', niin: '001760600', amc: '', amsc: '', pica: 'ZW' })
 
-describe('A. the eligibility block donates exactly the numbers on a named allowlist', () => {
+describe.skipIf(!hasCorpus)('A. the eligibility block donates exactly the numbers on a named allowlist' + CORPUS_NOTE, () => {
   it('★ THE CLASS CONTROL: with the block minus without the block, on every shape the feed produces', () => {
     /*
      * MEASURED BEFORE THIS FIX, through `assemblePursuitPackage` on the live corner map: on NSN
@@ -215,7 +216,7 @@ describe('A. the eligibility block donates exactly the numbers on a named allowl
   })
 })
 
-describe('B. no identifier anywhere on the package becomes a number the memo can spend', () => {
+describe.skipIf(!hasCorpus)('B. no identifier anywhere on the package becomes a number the memo can spend' + CORPUS_NOTE, () => {
   /*
    * THE SIGNATURE, STATED EXACTLY. An identifier is written with leading zeros and `Number()` drops
    * them, so the value that enters the allowed set is SHORTER than the run it came from. The brief
@@ -275,7 +276,7 @@ describe('B. no identifier anywhere on the package becomes a number the memo can
   })
 })
 
-describe('C. every path that carries a long digit run is named, and says what kind of thing it is', () => {
+describe.skipIf(!hasCorpus)('C. every path that carries a long digit run is named, and says what kind of thing it is' + CORPUS_NOTE, () => {
   /*
    * THE DELIBERATE ALLOWLIST. A digit run of four or more characters is either a measured figure
    * this product computed, or an identifier that only reaches the model because the harvest side
@@ -415,7 +416,7 @@ describe('C. every path that carries a long digit run is named, and says what ki
   }, 600_000)
 })
 
-describe('D. the reviewer’s live failing input, re-run as an assertion', () => {
+describe.skipIf(!hasCorpus)('D. the reviewer’s live failing input, re-run as an assertion' + CORPUS_NOTE, () => {
   it('★ the two fabricated modeled-buy-value sentences are stripped on the real corner map', () => {
     const root = resolveDataRoot()
     if (!root.present) {

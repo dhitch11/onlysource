@@ -21,9 +21,10 @@
  * flipping the state to the archive's turns the first three red.
  */
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { GET } from '@/app/api/data-health/route'
 
-describe('data-health with no ingest database, which is production', () => {
+describe.skipIf(!hasCorpus)('data-health with no ingest database, which is production' + CORPUS_NOTE, () => {
   it('still refuses the question it was asked, and says so', async () => {
     const res = await GET()
     expect(res.status).toBe(503)

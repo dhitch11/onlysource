@@ -13,6 +13,7 @@
  *   A filing test that only ever sees good input is a test that a bad file will pass.
  */
 import { describe, it, expect } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { quoteSourceRows, quoteRowsForSolicitation } from '@/lib/filing/source'
 import {
   applyVendorQuote,
@@ -26,7 +27,7 @@ import {
 
 const source = quoteSourceRows()
 
-describe('quoteSourceRows — the archived quote file becomes filing-ready rows', () => {
+describe.skipIf(!hasCorpus)('quoteSourceRows — the archived quote file becomes filing-ready rows' + CORPUS_NOTE, () => {
   it('★ CONTROL: the archive is readable and produced rows (guards every assertion below)', () => {
     if (!source.ok) throw new Error(`no archive in this environment: ${source.reason}`)
     expect(source.rows.length).toBeGreaterThan(0)
@@ -77,7 +78,7 @@ describe('quoteSourceRows — the archived quote file becomes filing-ready rows'
   })
 })
 
-describe('the round trip: a real archived row survives the writer and becomes a file', () => {
+describe.skipIf(!hasCorpus)('the round trip: a real archived row survives the writer and becomes a file' + CORPUS_NOTE, () => {
   it('applies a vendor quote to a real government row and produces a valid batch', () => {
     if (!source.ok) return
     const row = source.rows[0]

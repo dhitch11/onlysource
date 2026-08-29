@@ -28,6 +28,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { hasCorpus, CORPUS_NOTE } from '../support/corpus'
 import { buildNoQuoteGoldmine } from '@/lib/intelligence/datasets'
 import { resolveDataRoot } from '@/lib/data-root'
 import {
@@ -44,10 +45,12 @@ const SHOWN = 60
  * a verdict for it would be the defect this whole lane is about. The suite says which case it
  * is in rather than passing quietly either way.
  */
-const dataPresent = resolveDataRoot().present
+const dataPresent = resolveDataRoot().present && hasCorpus
 
 describe.skipIf(!dataPresent)('the no-quote file, as the goldmine actually reads it', () => {
-  const nq = buildNoQuoteGoldmine()
+  /* LAZY: `describe.skipIf` still runs this body to collect, so an eager read here is an ENOENT
+     at collection on a runner with no corpus — the skip never gets a chance. */
+  const nq = dataPresent ? buildNoQuoteGoldmine() : { rows: [] as ReturnType<typeof buildNoQuoteGoldmine>['rows'] }
   const rows = nq.rows.map((r) => ({
     nsn: r.nsn,
     quantity: r.quantity,
@@ -105,6 +108,9 @@ describe.skipIf(!dataPresent)('the no-quote file, as the goldmine actually reads
   })
 })
 
+/* The inverse suite. It exists to assert the honest empty state, so it must run PRECISELY when
+   the corpus is absent — including on CI. `hasCorpus` must not gate it: my sweep briefly did,
+   which would have skipped the one test that covers the CI condition itself. */
 describe.skipIf(dataPresent)('no data directory in this environment', () => {
   it('says so rather than reporting a measurement it could not take', () => {
     expect(resolveDataRoot().present).toBe(false)

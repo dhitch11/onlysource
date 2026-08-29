@@ -56,6 +56,44 @@ export default function setup(): void {
 
   if (root.present) return
 
+  /*
+   * ==========================================================================================
+   * ★ CI IS THE ONE PLACE WHERE AN ABSENT CORPUS IS NORMAL, AND REFUSING THERE COST A WEEK.
+   * ==========================================================================================
+   * This guard is right on a developer machine: absent data/ means a broken working copy, and
+   * failing once beats six lying assertions. It was WRONG on GitHub Actions, where data/ is
+   * gitignored, 1.4GB, and legitimately never present.
+   *
+   * The result: the `gate` workflow threw here before collecting a single test, on EVERY push to
+   * every branch, for about a week. Hundreds of "All jobs have failed" emails to the owner, none
+   * of which described a real defect. The failure took 34 seconds and looked like a broken build;
+   * it was a runner correctly not having a 1.4GB directory.
+   *
+   * ★★ AND THE IRONY IS THE LESSON. This file's own header calls an absence presenting as a wrong
+   * answer "this estate's dominant defect class, pointed at itself". It then did exactly that one
+   * level up: the ABSENCE of a corpus presented as a FAILING BUILD. A guard against
+   * misread-absence has to say which absence it is looking at.
+   *
+   * So on CI it states the fact and continues. The corpus-dependent suites skip themselves via
+   * `test/support/corpus.ts` and are REPORTED as skipped with a count, never as passes, and
+   * everything that does not need the feed — types, lints, the engines, the pure logic, roughly
+   * 2,500 tests — still runs and can still fail the build honestly.
+   */
+  if (process.env.CI) {
+    console.warn(
+      [
+        '',
+        '[data root] ABSENT, and this is CI, so the run continues.',
+        `  looked for: ${root.root}`,
+        '  data/ is gitignored and 1.4GB; a runner is not expected to have it.',
+        '  Corpus-dependent suites SKIP and are reported as skipped. Everything else runs.',
+        '  The corpus is verified on the deploy box instead, by `npm run gate:data:require`.',
+        '',
+      ].join('\n'),
+    )
+    return
+  }
+
   const how =
     root.basis === 'ONLYSOURCE_DATA_DIR'
       ? 'ONLYSOURCE_DATA_DIR is set and points there'
