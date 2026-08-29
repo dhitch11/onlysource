@@ -309,14 +309,39 @@ export function scoreCorner(
   {
     const ltc = award?.ltcExpirationIso ?? null;
     if (ltc) {
-      const asOf = sources.asOfIso ?? new Date().toISOString().slice(0, 10);
-      const lapsed = ltc < asOf;
+      /*
+       * ★ "HAS LAPSED" IS A CLAIM ABOUT TODAY, SO IT NEEDS AN AS-OF DATE THAT WAS PASSED IN.
+       *
+       * This read `sources.asOfIso ?? new Date()...`. The injection point existed and NOTHING
+       * EVER PASSED IT — no caller in lib/, app/ or test/ supplied `asOfIso` — so the fallback
+       * was the only path that ever ran, and the lapse verdict was decided by whatever clock
+       * happened to be running. Across the server/client boundary those are two different
+       * clocks, and one midnight apart they disagree: the server renders "has lapsed" and the
+       * client hydrates "expires", which is a React #418 that only production shows. R0.3 exists
+       * because this repo has been burned by that three times.
+       *
+       * So the undated branch no longer guesses. It states the date the government recorded and
+       * declines the lapse verdict, in the same shape as every other fork in this file: withhold,
+       * and say why. Both branches still score ZERO — the LTC backtest did not clear its ship bar
+       * (n=82 against a bar of 200), so nothing here moves a score either way, and this changes
+       * only which sentence an operator reads.
+       */
+      const asOf = sources.asOfIso ?? null;
+      if (asOf === null) {
+        dataGaps.push(
+          "no as-of date was supplied to the scorer, so a long-term contract's expiry is reported as the recorded date without a lapsed/current verdict",
+        );
+      }
+      const lapsed = asOf === null ? null : ltc < asOf;
       reasons.push({
         leg: "path",
         facet: "ltc expiry",
-        plain: lapsed
-          ? `long-term contract expired ${ltc}; the vehicle has lapsed (recorded, not scored: the backtest did not clear its ship bar, n=82 against a bar of 200)`
-          : `long-term contract expires ${ltc} (recorded, not scored)`,
+        plain:
+          lapsed === null
+            ? `long-term contract expiry on file is ${ltc}; whether it has lapsed is not stated because no as-of date was supplied (recorded, not scored)`
+            : lapsed
+              ? `long-term contract expired ${ltc}; the vehicle has lapsed (recorded, not scored: the backtest did not clear its ship bar, n=82 against a bar of 200)`
+              : `long-term contract expires ${ltc} (recorded, not scored)`,
         points: 0,
         calibration: "measured",
       });
