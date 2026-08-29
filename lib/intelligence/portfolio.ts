@@ -220,7 +220,30 @@ export function buildPortfolio(): Portfolio {
     .sort((a, b) => (b.escalationPct ?? 0) - (a.escalationPct ?? 0))
     .slice(0, 8)
 
-  const topCorners = [...candidates].sort((a, b) => b.rankKey - a.rankKey).slice(0, 10)
+  /*
+   * ★ A CLOSED DOOR MUST NEVER BE CALLED A TOP PLAY. Filter added 2026-08-29.
+   *
+   * This was the ONE consumer of a scored row with no SKIP filter, while every other one has had
+   * it all along: wire-bound.ts:108, MonopolyGrid.tsx:688, app/(app)/page.tsx:145. `candidates`
+   * above is sole-source-and-silent, and an AMC 4/5 lockup enters that set freely, so a locked row
+   * takes a top-10 seat the moment fewer than ten candidates are open.
+   *
+   * It is currently unreachable — the live archive returns zero candidates, so this list is empty —
+   * and that is exactly why it is worth fixing now rather than when it starts producing rows. The
+   * consequence is not cosmetic: `topCorners` feeds the rendered top-plays table
+   * (app/(app)/intelligence/page.tsx:200, which prints score and signals but NOT lockup),
+   * `buildPortfolioDossier` below, `lib/thomas/tools.ts` and the perfect-storm notifier. A locked
+   * row handed to an LLM under the label "topPlays" gets written up as an opportunity in prose,
+   * which is the most expensive way this product can be wrong: it is not a bad ranking, it is a
+   * confident recommendation to bid on a contract that is proprietary to somebody else.
+   *
+   * The rank key already sinks these by LOCK_PENALTY. This makes the exclusion structural rather
+   * than relying on a sort staying crowded enough to bury them.
+   */
+  const topCorners = [...candidates]
+    .filter((c) => c.disposition !== 'SKIP')
+    .sort((a, b) => b.rankKey - a.rankKey)
+    .slice(0, 10)
 
   const portfolio: Portfolio = {
     ok: candidates.length > 0,
@@ -265,7 +288,17 @@ export function buildPortfolioDossier(pf: Portfolio) {
     supplyChainMix: pf.bySupplyChain.slice(0, 8),
     dispositionMix: pf.byDisposition,
     awardPathMix: pf.byAwardPath,
-    topPlays: pf.topCorners.map((c) => ({
+    /*
+     * DEFENCE IN DEPTH, AND IT IS CHEAP. `topCorners` is already SKIP-filtered at its source, so
+     * this should never remove anything. It is here because THIS is the boundary where the list
+     * stops being a table and becomes an LLM prompt labelled "topPlays": if a future caller builds
+     * the dossier from some other list, the model must still never be handed a closed door to
+     * write up as an opportunity. A redundant filter one line from the prompt is worth more than
+     * the correctness argument that makes it redundant.
+     */
+    topPlays: pf.topCorners
+      .filter((c) => c.disposition !== 'SKIP')
+      .map((c) => ({
       nsn: c.nsn,
       item: c.item,
       cage: c.cage,
@@ -278,7 +311,7 @@ export function buildPortfolioDossier(pf: Portfolio) {
       lastPrice: c.lastPrice,
       escalationPct: c.escalationPct,
       endItems: c.endItems.slice(0, 4),
-    })),
+      })),
     escalationLeaders: pf.escalationLeaders.map((c) => ({
       nsn: c.nsn,
       item: c.item,

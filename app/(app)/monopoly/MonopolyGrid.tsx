@@ -11,6 +11,7 @@ import { normalizeDealRef } from "@/lib/sales/pipeline";
 import type { EnrichedCornerRow } from "@/lib/intelligence/monopoly-view";
 import type { EligibilityState } from "@/lib/intelligence/eligibility/bid-eligibility";
 import { dispositionLabel } from "@/lib/intelligence/scoring/evidence-state";
+import { fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
 import { isRisingPrice } from "@/lib/intelligence/rising-price";
 import { rowProvenanceEntries } from "./row-provenance";
 import styles from "./monopoly.module.css";
@@ -662,7 +663,7 @@ export function MonopolyGrid({
   const [chain, setChain] = useState<string>("all");
   // Locked closed doors (AMC 4/5, confirmed OEM/licence locks) are out of sight by default — they
   // "mean nothing to us". They are never dropped from the data: this reveals them, appended at the
-  // bottom by rankKey (the −40 penalty keeps them below everything shown), each stamped with why.
+  // bottom by rankKey (the full LOCK_PENALTY keeps them below everything shown), each stamped with why.
   const [showLocked, setShowLocked] = useState(false);
 
   // The full column set: the measured columns plus the pursuit wire. Rebuilt only when the
@@ -910,7 +911,7 @@ export function MonopolyGrid({
            */
           ...r.score.reasons.map((rc, i) => ({
             field: i === 0 ? "Why this score" : "",
-            value: `${rc.points ? `${rc.points > 0 ? "+" : ""}${rc.points} ` : ""}[${rc.calibration}] ${rc.plain}`,
+            value: `${rc.points ? `${rc.points > 0 ? "+" : ""}${fmtPoints(rc.points)} ` : ""}[${rc.calibration}] ${rc.plain}`,
           })),
           { field: "Stock number", value: r.nsn },
           { field: "NIIN", value: r.niin },

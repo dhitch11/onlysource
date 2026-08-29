@@ -14,7 +14,7 @@
  * which floated OEM/licensee-locked rows to a 100%-locked top-20 while the biggest live deals sank.
  * The rank is now three parts on one line, each explainable in a sentence:
  *   rankKey = 10 (demand floor) + valuePoints(v) + waynePoints(holders,q) + min(30, cornerBucket)
- *             − (locked ? 40 : 0)
+ *             − (locked ? LOCK_PENALTY : 0)
  * Value is the largest single positive term (a log ramp calibrated to the measured award-value
  * distribution, uncapped with a gentle tail so a $1M deal still beats a $250K one). Sole-source
  * stops paying anything; a deterministic lockup classifier sinks-and-hides the two true closed
@@ -228,6 +228,23 @@ export function valueTierOf(usd: number | null): ValueTier {
  * decomposition that does not add up breaks it. One constant, referenced everywhere, is the fix.
  * ========================================================================================== */
 export const LOCK_PENALTY = 1000;
+
+/**
+ * A reason code's points, formatted for a human.
+ *
+ * ★ POINTS ARE STORED EXACT AND FORMATTED HERE, NEVER THE OTHER WAY AROUND. Rounding a leg at the
+ * point it is pushed put the decomposition out of step with the rank key, and the reconciliation
+ * leg then reported the difference as withheld points under a sentence that was false for the row.
+ * So the model keeps full precision and the screen gets one decimal, which is the resolution an
+ * operator can actually act on. Trailing ".0" is dropped so the common whole-number case reads as
+ * "+10" and not "+10.0". ONE function, used by every surface, so the leg card and the explainer
+ * can never disagree about the same number.
+ */
+export function fmtPoints(points: number): string {
+  if (!Number.isFinite(points)) return "—";
+  const r = Math.round(points * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
 
 /* ==========================================================================================
  * THE WAYNE-HOLDS-THIS BOOST. Fires when Wayne's CAGE appears among the NSN's listed holders.
@@ -749,7 +766,11 @@ export function scoreCorner(
     reasons.push({
       leg: "value",
       plain: `expected buy value ≈ ${fmt(v)} (modeled: last award unit price × requested quantity; a documented opportunity estimate, not a guaranteed figure)`,
-      points: Math.round(vPoints),
+      // ★ EXACT, NOT ROUNDED. `Math.round` here put the leg 0.5 out of step with the key, which the
+      // reconciliation below then reported as withheld points under a sentence about capping that
+      // was false for the row. Points are STORED exact so the column sums; they are FORMATTED at
+      // the render sites. Rounding for readability is a display concern and belongs at the display.
+      points: vPoints,
       calibration: "measured",
     });
   }
@@ -845,7 +866,8 @@ export function scoreCorner(
     reasons.push({
       leg: "wayne",
       plain: `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed)`,
-      points: Math.round(wayne.points),
+      points: wayne.points, // exact, for the same reason as the value leg above
+
       calibration: "measured",
     });
   }
@@ -955,11 +977,16 @@ export function scoreCorner(
   if (Math.abs(withheld) >= 0.005) {
     reasons.push({
       leg: "notSpent",
+      // ★ THE SENTENCE MUST BE TRUE EVERY TIME IT APPEARS, so it names the reason that actually
+      // applied rather than one plausible reason for both. It first fired on a plain open row with
+      // no corner signal at all, announcing a cap that had not happened — the whole −0.35 was
+      // rounding residue, now removed at the source above. A leg that explains itself wrongly is
+      // worse than no leg: it teaches the operator to discount the column.
       plain: isLocked
         ? "the positive signals above are shown as context and were NOT spent on this row: the door is " +
           "closed, and a closed door is not opened by a good price trend or an automated award path"
-        : "the soft corner signals above are capped in total, so no stack of them can outrank a real buy; " +
-          "the points beyond the cap are shown for reading and were not spent",
+        : "the soft corner signals above reached their combined cap, so the points past it are shown " +
+          "for reading and were not spent; no stack of soft signals can outrank a real buy",
       points: withheld,
       calibration: "measured",
     });

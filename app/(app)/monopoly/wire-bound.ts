@@ -117,7 +117,7 @@ export function boundRowsForWire<T extends BoundableRow>(rows: T[], budget: numb
   ].sort((a, b) => b.score.rankKey - a.score.rankKey)
 
   // A bounded allotment of the locked rows travels TOO, appended at the bottom, so the grid's
-  // "show locked" toggle reveals real rows rather than an empty promise. They carry a −40 penalty,
+  // "show locked" toggle reveals real rows rather than an empty promise. They carry the full LOCK_PENALTY,
   // so even when revealed they sort last; they never displace a visible row from the budget above.
   const locked = [...rows.filter((r) => r.score.disposition === 'SKIP')]
     .sort((a, b) => b.score.rankKey - a.score.rankKey)

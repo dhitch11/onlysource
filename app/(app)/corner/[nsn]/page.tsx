@@ -8,7 +8,7 @@ import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
 import { awardHistoryState, buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
-import { scoreCorner } from '@/lib/intelligence/scoring/cornerscore'
+import { scoreCorner, fmtPoints } from '@/lib/intelligence/scoring/cornerscore'
 import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import { buildCornerDossier, priceSeries } from '@/lib/intelligence/brief/dossier'
 import { dispositionLabel } from '@/lib/intelligence/scoring/evidence-state'
@@ -734,7 +734,7 @@ export default async function CornerPage({
                   {helpId ? <ExplainButton helpId={helpId} size="sm" /> : null}
                   <StatusChip tone={r.calibration === 'measured' ? 'verified' : 'idle'}>
                     {r.calibration}
-                    {r.points ? ` · ${r.points > 0 ? '+' : ''}${r.points}` : ''}
+                    {r.points ? ` · ${r.points > 0 ? '+' : ''}${fmtPoints(r.points)}` : ''}
                   </StatusChip>
                 </div>
                 <p className={styles.legPlain}>{r.plain}</p>

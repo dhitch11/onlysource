@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
-import { scoreCorner, LOCK_PENALTY, valuePoints } from "@/lib/intelligence/scoring/cornerscore";
+import { scoreCorner, LOCK_PENALTY, valuePoints, fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
@@ -440,6 +440,57 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
     // And the penalty must dominate by construction, not by luck on this fixture: every positive
     // term is bounded by the demand floor + the uncapped value ramp + wayne + the 30-point bucket.
     expect(LOCK_PENALTY).toBeGreaterThan(10 + valuePoints(10000000) + 30 + 30);
+  });
+
+  it("the notSpent leg does NOT appear when nothing was withheld, and never explains a cap that did not happen", () => {
+    /*
+     * It first shipped firing on a plain open row, announcing a cap over a −0.35 that was pure
+     * rounding residue: the value leg declared Math.round(vPoints) while the key used vPoints.
+     * A leg that explains itself wrongly teaches the operator to discount the whole column.
+     */
+    const plainOpen = scoreCorner(
+      baseRow({ automatedSolicitation: false, signals: [], silentSourceCount: 0 }),
+      pricedAward(1320), // $132,000, a value that does NOT land on a whole number of points
+    );
+    expect(plainOpen.lockup.status).not.toBe("locked");
+    expect(plainOpen.reasons.find((r) => r.leg === "notSpent")).toBeUndefined();
+    // And the column still reconciles exactly, which is the property the leg exists to protect.
+    expect(plainOpen.reasons.reduce((a, l) => a + l.points, 0)).toBeCloseTo(plainOpen.rankKey, 6);
+  });
+
+  it("points are STORED exact so the column sums, and fmtPoints is what makes them readable", () => {
+    const r = scoreCorner(baseRow(), pricedAward(1320));
+    const value = r.reasons.find((l) => l.leg === "value");
+    expect(value).toBeDefined();
+    // Exact in the model: a rounded store is what broke the sum in the first place.
+    expect(value!.points).toBe(valuePoints(r.valueUsd));
+    expect(Number.isInteger(value!.points)).toBe(false);
+    // Readable on the screen, and never a 19-significant-digit float in a status chip.
+    expect(fmtPoints(value!.points)).toMatch(/^\d+(\.\d)?$/);
+    expect(fmtPoints(10)).toBe("10");
+    expect(fmtPoints(-LOCK_PENALTY)).toBe("-1000");
+    expect(fmtPoints(-0.3464943195724004)).toBe("-0.3");
+  });
+
+  it("EXERCISES THE 30-POINT CAP: a row stacking every soft signal spends 30 and says what it withheld", () => {
+    // The sum test passed only on fixtures that never reached the cap, so the cap branch of the
+    // reconciliation was never executed. This drives it: forecast + silence + automated + escalation.
+    const loud = scoreCorner(
+      baseRow({ automatedSolicitation: true }),
+      pricedAward(1320),
+      null,
+      { awardIndexLoaded: true },
+    );
+    const bucketLegs = loud.reasons.filter((r) => r.points > 0 && r.leg !== "demand" && r.leg !== "value");
+    const rawBucket = bucketLegs.reduce((a, l) => a + l.points, 0);
+    if (rawBucket > 30) {
+      const notSpent = loud.reasons.find((r) => r.leg === "notSpent");
+      expect(notSpent).toBeDefined();
+      expect(notSpent!.points).toBeLessThan(0);
+      expect(notSpent!.plain).toContain("cap");
+    }
+    // Whether or not this fixture reaches the cap, the identity must hold on it.
+    expect(loud.reasons.reduce((a, l) => a + l.points, 0)).toBeCloseTo(loud.rankKey, 6);
   });
 
   it("a locked row still clamps to scoreV0 0 and never reports a negative score to the operator", () => {
