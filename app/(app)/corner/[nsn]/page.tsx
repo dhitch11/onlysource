@@ -665,24 +665,48 @@ export default async function CornerPage({
               </tbody>
             </table>
             {/*
+              ★ RESTORED 2026-08-29 AFTER A MERGE SILENTLY REVERTED IT.
+
+              The 08-28 scoring rework branched from a tree that still had the old `<p>`, so
+              merging it deleted this control and put back the sentence "The rest are on this page
+              and appear on a wider screen." On a phone that sentence is FALSE: `corner.module.css`
+              still caps the table at `:nth-last-child(n + 11) { display: none }`, and the ONLY
+              rule that reveals those rows is `.tableWrap:has(.olderAwards[open])` — which matches
+              nothing once this element is gone. The cap survived its own escape hatch, which is
+              the one state the CSS comment says must never exist.
+
+              Nothing conflicted and nothing errored. The rework simply had not seen the fix.
+            */}
+            {/*
               ★ ON A PHONE THE CARD LAYOUT MAKES EVERY ROW ~275px, SO 53 AWARDS IS 14,339px OF
               THIS ONE SECTION — SIXTEEN SCREENS. On desktop the same 53 rows are 33px each and
               there is nothing to fix, which is why it went unnoticed: the defect is created by
               the mobile layout, not present in the data.
 
-              The narrow layout shows the ten MOST RECENT and hides the rest with CSS, so every
-              row stays in the DOM, stays findable by the browser's own find, and stays fully
-              present on any wider screen. Nothing is dropped server-side.
+              ⛔ THE CAP USED TO SAY THE HIDDEN ROWS WERE STILL FINDABLE BY THE BROWSER'S OWN FIND.
+              That was measured FALSE on 2026-08-24. `display: none` generates no boxes, so the row
+              is not in the rendered text layer, and the rendered text layer is what find reads:
+              10 of 14 reachable at 390px against 14 of 14 in the DOM, with a positive control on a
+              visible row and a negative control on a capped row both behaving. IN THE DOM IS NOT
+              THE SAME AS REACHABLE, and this cap is not rare: 85 corner rows carry more than ten
+              dated awards and the largest carries 574, so 564 rows were unreachable on a phone.
 
-              This line states the count, because a cap the reader has to notice is the silent
-              version of a cap.
+              So the rows now sit behind a CONTROL THE OPERATOR CAN PRESS, and the sentence below
+              promises exactly that and nothing more. Opening it shows every award, which is
+              verifiable by clicking rather than by trusting a browser behaviour. See the CSS for
+              why find-in-page is deliberately NOT claimed for the collapsed state.
             */}
             {dossier.priceHistory.length > 10 ? (
-              <p className={styles.narrowOnly}>
-                Showing the {Math.min(10, dossier.priceHistory.length)} most recent of{' '}
-                {dossier.priceHistory.length.toLocaleString()} awards. The rest are on this page and
-                appear on a wider screen.
-              </p>
+              <details className={`${styles.narrowOnly} ${styles.olderAwards}`}>
+                <summary className={styles.olderSummary}>
+                  Show all {dossier.priceHistory.length.toLocaleString()} awards
+                </summary>
+                <p className={styles.olderNote}>
+                  The {Math.min(10, dossier.priceHistory.length)} most recent are shown above.
+                  Opening this adds the rest here. On a wider screen all{' '}
+                  {dossier.priceHistory.length.toLocaleString()} are shown without this control.
+                </p>
+              </details>
             ) : null}
           </Scrollable>
         </section>
