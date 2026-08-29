@@ -22,6 +22,7 @@
     "ingest:capture": "npx tsx scripts/ingest/capture-day.mts",
     "ingest:backfill": "npx tsx scripts/ingest/backfill.mts",
     "ingest:series": "npx tsx scripts/ingest/capture-series.mts",
+    "gate:corner-reachability": "node scripts/verify-corner-reachability.mjs",
     "gate:reachability:selftest": "node scripts/reachability-census.mjs --selftest",
     "gate:reachability": "node scripts/reachability-census.mjs",
     "gate:reachability:list": "node scripts/reachability-census.mjs --list",
