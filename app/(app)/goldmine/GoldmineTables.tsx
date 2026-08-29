@@ -310,7 +310,14 @@ function OpportunityTable({
                   <span className={styles.nsnPlain}>{r.nsn}</span>
                 )}
               </td>
-              <td className={styles.partCell} title={r.description} data-label="Part">
+              {/* No `title=`. The cell already renders the description, and a tooltip is not
+                  reachable on a touch device or by keyboard, so anything living only there is
+                  lost to most operators (R0.1). Measured on the newest captured feed day
+                  (in260814.txt, 331 rows): nomenclature runs a median of 24 characters, p90 27,
+                  max 28 — not one row exceeds the 30ch column, so the tooltip was duplicating
+                  text already on screen. The cell now wraps instead of clipping, so the longer
+                  description that has not arrived yet is read rather than silently cut. */}
+              <td className={styles.partCell} data-label="Part">
                 {r.description}
               </td>
               <td className={`mono ${styles.numCol}`} data-label="Qty">{r.quantity?.toLocaleString() ?? '—'}</td>
