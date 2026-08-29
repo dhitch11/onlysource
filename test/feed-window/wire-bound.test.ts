@@ -26,6 +26,9 @@ type Row = BoundableRow & { id: string }
 
 const row = (id: string, scoreV0: number, soleSource: boolean, silentSourceCount: number): Row => ({
   id,
+  // The tiebreak key. Derived from the id so every fixture row has a distinct, stable one and the
+  // ordering assertions below stay about the thing they are testing.
+  nsn: `5325${id.padStart(9, '0')}`,
   soleSource,
   silentSourceCount,
   score: { scoreV0, rankKey: scoreV0, hidden: false, disposition: "WATCHLIST" },
@@ -117,5 +120,38 @@ describe('the wire bound', () => {
     // the caller's ordering. A bound that depended on input order would ship a different page
     // whenever an upstream sort changed, with nothing on screen saying so.
     expect(a).toEqual(b)
+  })
+
+  /* ====================================================================================
+   * THE FLAT VALUE BAND MADE EXACT TIES ROUTINE, SO THE ORDER NEEDS A REAL SECOND KEY.
+   *
+   * Every board sort was `b.score.rankKey - a.score.rankKey` and nothing else, and this file's
+   * own docstring used to justify that by `Array.prototype.sort` being stable. Stability keeps
+   * TIED rows in INPUT order - which makes the board a function of file-parse order rather than
+   * of the data. Fine while the value term was a continuous ramp and ties were near-impossible;
+   * not fine now that 246 of 771 priceable rows on the real seed corpus score exactly VALUE_MAX
+   * by design, so that inside the operator's sweet spot the corner signals decide, not raw size.
+   * ==================================================================================== */
+  it('orders TIED rows by stock number, not by the order they happened to be parsed in', () => {
+    const tied = (id: string) => ({ ...row(id, 45, true, 1) })
+    const a = tied('111')
+    const b = tied('222')
+    const c = tied('333')
+    // Same rank key on every row: only the tiebreak can decide, and it must decide the SAME way
+    // whatever order they arrive in. Shuffled inputs, identical output.
+    const one = boundRowsForWire([a, b, c], 10).shipped.map((r) => r.nsn)
+    const two = boundRowsForWire([c, a, b], 10).shipped.map((r) => r.nsn)
+    const three = boundRowsForWire([b, c, a], 10).shipped.map((r) => r.nsn)
+    expect(one).toEqual(two)
+    expect(two).toEqual(three)
+    expect(one).toEqual([...one].sort())
+  })
+
+  it('the tiebreak NEVER outranks a real difference in rank key', () => {
+    // A worse row must not climb just because its stock number sorts earlier.
+    const low = { ...row('111', 10, true, 1) }
+    const high = { ...row('999', 90, true, 1) }
+    const shipped = boundRowsForWire([low, high], 10).shipped.map((r) => r.score.rankKey)
+    expect(shipped).toEqual([90, 10])
   })
 })

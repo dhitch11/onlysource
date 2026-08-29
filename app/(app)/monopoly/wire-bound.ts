@@ -34,6 +34,8 @@
  * module exists to avoid reintroducing one level down.
  */
 
+import { rankCompare } from '@/lib/intelligence/scoring/cornerscore'
+
 /**
  * HOW MANY ROWS MAY CROSS THE WIRE.
  *
@@ -66,6 +68,12 @@ export const GRID_ROW_BUDGET = 500
 
 /** The only properties the bound reads. Structural, so the page's enriched row type fits. */
 export type BoundableRow = {
+  /**
+   * The tiebreak key. The board's sort was rankKey alone, which was survivable only while the
+   * value term was a continuous ramp and two rows almost never shared a float. The $50K-$250K band
+   * is FLAT by design, so exact ties are now routine and the order needs a second, stable key.
+   */
+  nsn: string
   soleSource: boolean
   silentSourceCount: number
   /**
@@ -97,9 +105,15 @@ export function isCandidateCorner(row: BoundableRow): boolean {
 /**
  * Bound the board for the wire.
  *
- * Deterministic: a stable sort key (CornerScore descending, then the input order preserved by
- * `Array.prototype.sort` being stable in every runtime this ships on) so two builds of the same
- * archive ship the same rows. No clock, no randomness, no scoring done here.
+ * Deterministic: a TOTAL order (rankKey descending, then stock number ascending) so two builds of
+ * the same archive ship the same rows in the same order. No clock, no randomness, no scoring here.
+ *
+ * ★ THIS USED TO LEAN ON SORT STABILITY, AND THAT STOPPED BEING ENOUGH. The old comment read
+ * "then the input order preserved by `Array.prototype.sort` being stable". True of the sort, but it
+ * makes the board's order a function of FILE-PARSE ORDER rather than of the data - reproducible
+ * only while nothing upstream reorders, and silent when it breaks. The flat value band made exact
+ * ties routine (246 of 771 priceable rows on the real seed corpus), so the latent ambiguity became
+ * a live one and is now closed with a real second key.
  */
 export function boundRowsForWire<T extends BoundableRow>(rows: T[], budget: number): WireBound<T> {
   // Locked closed doors (disposition SKIP) are never dropped from the dataset, but they must not
@@ -107,20 +121,20 @@ export function boundRowsForWire<T extends BoundableRow>(rows: T[], budget: numb
   // only behind its explicit "show locked" toggle. Order is by the unclamped rankKey, not the
   // clamped badge, so two whales both showing 100 still order by their real value underneath.
   const visible = rows.filter((r) => r.score.disposition !== 'SKIP')
-  const ranked = [...visible].sort((a, b) => b.score.rankKey - a.score.rankKey)
+  const ranked = [...visible].sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn))
   const candidates = ranked.filter(isCandidateCorner)
   const others = ranked.filter((r) => !isCandidateCorner(r))
 
   const visibleShipped = [
     ...candidates.slice(0, budget),
     ...others.slice(0, Math.max(0, budget - candidates.length)),
-  ].sort((a, b) => b.score.rankKey - a.score.rankKey)
+  ].sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn))
 
   // A bounded allotment of the locked rows travels TOO, appended at the bottom, so the grid's
   // "show locked" toggle reveals real rows rather than an empty promise. They carry the full LOCK_PENALTY,
   // so even when revealed they sort last; they never displace a visible row from the budget above.
   const locked = [...rows.filter((r) => r.score.disposition === 'SKIP')]
-    .sort((a, b) => b.score.rankKey - a.score.rankKey)
+    .sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn))
     .slice(0, budget)
 
   const shipped = [...visibleShipped, ...locked]

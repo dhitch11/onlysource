@@ -11,7 +11,7 @@ import { normalizeDealRef } from "@/lib/sales/pipeline";
 import type { EnrichedCornerRow } from "@/lib/intelligence/monopoly-view";
 import type { EligibilityState } from "@/lib/intelligence/eligibility/bid-eligibility";
 import { dispositionLabel } from "@/lib/intelligence/scoring/evidence-state";
-import { fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
+import { fmtPoints, rankCompare } from "@/lib/intelligence/scoring/cornerscore";
 import { isRisingPrice } from "@/lib/intelligence/rising-price";
 import { rowProvenanceEntries } from "./row-provenance";
 import styles from "./monopoly.module.css";
@@ -705,7 +705,7 @@ export function MonopolyGrid({
     // Rank by the UNCLAMPED rankKey, the methodology's spine, so saturated-at-100 whales still
     // order correctly and locked rows (−40) sink to the bottom when revealed. The grid header can
     // re-sort any column; this is the default the operator sees first.
-    return rows.filter(matches).sort((a, b) => b.score.rankKey - a.score.rankKey);
+    return rows.filter(matches).sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn));
     // matches closes over filter/toggles/chain/showLocked, all in the dep list below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, filter, toggles, chain, showLocked]);

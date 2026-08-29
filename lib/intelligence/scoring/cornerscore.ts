@@ -71,7 +71,19 @@ export type ReasonCode = {
 };
 
 /** The value tier a deal falls in, from the measured award-value distribution. Never a markup. */
-export type ValueTier = "noise" | "small" | "meaningful" | "strong" | "whale" | "insufficient";
+/**
+ * The value tier a deal falls in. `sweet_spot` is the operator's stated band ($50K-$250K) and is
+ * the one the scorer elevates; `large` and `oversize` are above it and deliberately rank BELOW it
+ * without ever being excluded. See the value spine below for why the shape is a band and not a ramp.
+ */
+export type ValueTier =
+  | "noise"
+  | "small"
+  | "meaningful"
+  | "sweet_spot"
+  | "large"
+  | "oversize"
+  | "insufficient";
 
 /**
  * The lockup verdict — the inversion of the old +25 sole-source reward.
@@ -163,56 +175,107 @@ export type ScoreSourceState = {
 };
 
 /* ==========================================================================================
- * THE VALUE SPINE. A base-10 log ramp grounded in the MEASURED award-value distribution
- * (42,698 dedup rows: p50 $541, p75 $3,695, p90 $20,701, p95 $52,777; 87.6% under $15K,
- * 91.2% under $25K, 8.8% ≥ $25K holding 82.3% of all dollars).
+ * THE VALUE SPINE. A BAND, NOT A RAMP. Reshaped 2026-08-29 on David's standing priority #1.
+ *
+ * ★ WHAT CHANGED AND WHY. This was a base-10 log ramp that climbed forever: $50K→26.5, $250K→45,
+ * $1M→48, $10M→53, and still rising at $1B. Measured over 1e3..1e9 in 0.01-decade steps it had
+ * ZERO decreases. So the highest-scoring row was always the biggest row, and the operator's stated
+ * sweet spot was never favoured at all — only the SLOPE tapered above $250K, never the score.
+ *
+ * David's instruction, given three times and unchanged each time: "total opportunity / PO value
+ * lives in $10-15K to $1M+. THE SWEET SPOT IS $50K-$250K most of the time. NO REAL CEILING - do
+ * not cap the top. Score the sweet spot highest, taper outside it, and never hard-exclude a large
+ * one." A monotonic ramp satisfies exactly one of those four clauses.
+ *
+ * MATERIALITY, measured on data/seed/NO QUOTES.xlsx (771 priceable rows of 839, quantity x last
+ * sold price - the same product the scorer computes): p50 $40,200 · p75 $92,452 · p90 $253,494 ·
+ * p95 $391,145 · p99 $887,195 · max $1,586,667. 246 rows (31.9%) fall inside $50K-$250K and 80
+ * rows (10.4%) sit above $250K, and under the old ramp ALL 80 out-scored the largest in-band row.
+ * This is not a rare tail being tidied up; it is one row in ten changing rank.
+ *
+ * ⛔ THE BAND IS AN OPERATOR JUDGEMENT, NOT A MEASUREMENT, AND MUST NEVER BE PRESENTED AS ONE.
+ * $50K-$250K is where Wayne says his group wins work. There is no win/loss corpus on this box to
+ * fit it against - no file records a solicitation he bid and lost - so this curve is a PRIOR, like
+ * every other weight here. The measured distribution above tells us the band is where the mass is
+ * (31.9% of priceable rows); it does NOT tell us those are the ones he wins. When a real corpus of
+ * his own bids exists, this shape is the first thing that should be re-fitted against it.
+ *
+ * THE SHAPE, and the reasoning for each piece:
+ *   below $5K      0        the noise floor, unchanged (≈73rd percentile of the award corpus)
+ *   $5K → $50K     rise     one decade, 0 → VALUE_MAX. A $15K deal is real but it is not the work.
+ *   $50K → $250K   VALUE_MAX  THE BAND. Flat, so nothing inside it outranks anything else inside
+ *                             it on size alone - within the band the corner signals decide, which
+ *                             is exactly what they are for.
+ *   above $250K    taper    VALUE_TAPER_PER_DECADE down, FLOORED at VALUE_FAR_FLOOR.
+ *
+ * ★ THE FLOOR IS THE "NEVER HARD-EXCLUDE" CLAUSE, IN ARITHMETIC. The taper must never reach zero
+ * or a $50M buy would score like an empty row and vanish. Floored at VALUE_FAR_FLOOR, an
+ * arbitrarily large deal still outranks a $15K one, still shows on the board, and is simply not
+ * elevated above the band. A big contract that is not his kind of work is a distraction, not a
+ * prize - but it is never deleted, because "no real ceiling" is also an instruction.
  * ========================================================================================== */
 /** Noise floor: below this, a deal earns no value credit (≈73rd percentile of the corpus). */
 const VALUE_V0 = 5000;
-/** The reference top of the ramp: $250K → VALUE_MAX points. */
-const VALUE_VREF = 250000;
-/** Points at $250K. Value is the largest single positive term. */
+/** Bottom of the operator's sweet spot. The rise reaches full points here. */
+const VALUE_BAND_LO = 50000;
+/** Top of the operator's sweet spot. The taper starts here. */
+const VALUE_BAND_HI = 250000;
+/** Points anywhere inside the band. Value is still the largest single positive term. */
 const VALUE_MAX = 45;
-/** Above $250K the ramp keeps climbing at this rate per decade — unbounded, but diminishing. */
-const VALUE_OVERAGE_PER_DECADE = 5;
+/** Above the band, points fall at this rate per decade. A gentle taper, never a cliff. */
+const VALUE_TAPER_PER_DECADE = 6;
+/**
+ * The taper never goes below this, so no deal is ever hard-excluded by being large. Set at half
+ * VALUE_MAX, which keeps an arbitrarily large buy above a $15K one (≈21.5) - outranked by the band
+ * and by nothing else.
+ */
+const VALUE_FAR_FLOOR = 22.5;
 
 /**
- * Value points for a modeled buy size. Uncapped, monotonic, NO ceiling.
- *   $5K → 0, $15K → ~12.6, $25K → ~18.5, $250K → 45, then +5/decade ($1M → ~48, $10M → ~53).
- * Smooth and continuous, so $14,000 lands within one point of $15,001 — no cliff, because the
- * measured distribution has no cliff there. null or ≤ noise floor → 0 (INSUFFICIENT, never faked).
+ * Value points for a modeled buy size. PEAKS INSIDE $50K-$250K, tapers both ways, NO hard exclusion.
+ *   $5K → 0 · $10K → 13.5 · $15K → ~21.5 · $25K → ~31.5 · $50K → 45 · $150K → 45 · $250K → 45
+ *   $400K → ~43.8 · $1M → ~41.4 · $10M → ~35.4 · $1B → ~23.4 · beyond → 22.5 floor
+ * Continuous everywhere, including at both band edges, so no row jumps rank on a rounding of its
+ * modeled size. null or ≤ the noise floor → 0 (INSUFFICIENT, never faked into a number).
  */
 export function valuePoints(usd: number | null): number {
   // Defence in depth: sizeOfBuy already reduces v to finite-non-negative-or-null before this, but a
   // NaN/Infinity must never propagate into rankKey (NaN poisons every comparison in the sort).
   if (usd == null || !Number.isFinite(usd) || usd <= VALUE_V0) return 0;
-  const lo = Math.log10(VALUE_V0);
-  const hi = Math.log10(VALUE_VREF);
   const l = Math.log10(usd);
-  const frac = (l - lo) / (hi - lo);
-  return frac <= 1 ? VALUE_MAX * frac : VALUE_MAX + VALUE_OVERAGE_PER_DECADE * (l - hi);
+  const lo = Math.log10(VALUE_V0);
+  const bandLo = Math.log10(VALUE_BAND_LO);
+  const bandHi = Math.log10(VALUE_BAND_HI);
+  if (l < bandLo) return VALUE_MAX * ((l - lo) / (bandLo - lo)); // the rise
+  if (l <= bandHi) return VALUE_MAX; // THE BAND
+  return Math.max(VALUE_FAR_FLOOR, VALUE_MAX - VALUE_TAPER_PER_DECADE * (l - bandHi)); // the taper
 }
 
 /**
- * The tier label for a modeled buy size. Cut points are a product choice over the measured
- * distribution (not a claimed measurement): $15K is the "meaningful" knee, $25K is "strong" (the
- * top ~8.8% of deals by count, holding ~82% of the dollars), and $100K+ is "whale". Unpriceable
- * rows are `insufficient` (abstain), never 0-and-buried.
+ * The tier label for a modeled buy size.
+ *
+ * ★ THE VOCABULARY NOW HAS A WORD FOR THE BAND, WHICH IS THE WHOLE POINT OF HAVING ONE. It used to
+ * call everything ≥ $100K a "whale", so $100K, $250K, $1M and $10M carried one label and the band
+ * could not be named on any surface even in principle. Cut points are a PRODUCT CHOICE over the
+ * measured distribution, not a claimed measurement, and `sweet_spot` is David's operator judgement
+ * about the work his group wins - it is not fitted to any outcome data, because none exists here.
+ * Unpriceable rows are `insufficient` (abstain), never 0-and-buried.
  */
 export function valueTierOf(usd: number | null): ValueTier {
   if (usd == null || !Number.isFinite(usd)) return "insufficient";
   if (usd <= VALUE_V0) return "noise";
   if (usd < 15000) return "small";
-  if (usd < 25000) return "meaningful";
-  if (usd < 100000) return "strong";
-  return "whale";
+  if (usd < VALUE_BAND_LO) return "meaningful";
+  if (usd <= VALUE_BAND_HI) return "sweet_spot";
+  if (usd <= 1000000) return "large";
+  return "oversize";
 }
 
 /* ==========================================================================================
  * THE LOCKUP PENALTY. ONE constant, because it is read in three places and they disagreed.
  *
  * The penalty MUST dominate the maximum reachable positive score, not merely offset it. Value is
- * uncapped, so the old fixed -40 let a high-value locked row (a $10M part earns ~53 value points)
+ * uncapped, so the old fixed -40 let a high-value locked row (a $10M part earns ~35 value points)
  * still land at a positive rankKey and outrank open rows. Every non-locked row is >= 10 (the demand
  * floor), so a penalty larger than any reachable score is what actually guarantees a locked row can
  * never outrank an open one: the "not even in sight" requirement enforced by the SCORE, not by the
@@ -228,6 +291,29 @@ export function valueTierOf(usd: number | null): ValueTier {
  * decomposition that does not add up breaks it. One constant, referenced everywhere, is the fix.
  * ========================================================================================== */
 export const LOCK_PENALTY = 1000;
+
+/**
+ * THE BOARD'S TOTAL ORDER: rank key descending, then stock number ascending.
+ *
+ * ★ WHY A TIEBREAK BECAME NECESSARY THE DAY THE BAND SHIPPED. Every board sort was
+ * `b.score.rankKey - a.score.rankKey` with nothing after it. That was survivable while the value
+ * term was a continuous ramp, because two rows almost never landed on the same float. The band is
+ * FLAT: on the real seed corpus 246 of 771 priceable rows now score exactly VALUE_MAX, by design,
+ * so that inside the operator's sweet spot the corner signals decide instead of raw size. Ties went
+ * from rare to routine in one commit.
+ *
+ * `Array.prototype.sort` is stable, so ties keep their INPUT order — which makes the board's order
+ * a function of file-parse order rather than of the data. That is reproducible only for as long as
+ * nothing upstream reorders, and it is invisible when it breaks: no error, no failing assertion,
+ * just an operator who sees a different board for the same feed day and stops trusting the ranking.
+ *
+ * Stock number is the right second key because it is stable, present on every row, and carries no
+ * judgement — it breaks the tie without pretending to rank anything.
+ */
+export function rankCompare(aKey: number, aNsn: string, bKey: number, bNsn: string): number {
+  if (bKey !== aKey) return bKey - aKey;
+  return aNsn < bNsn ? -1 : aNsn > bNsn ? 1 : 0;
+}
 
 /**
  * A reason code's points, formatted for a human.

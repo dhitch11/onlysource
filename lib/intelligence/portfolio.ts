@@ -2,6 +2,7 @@ import { buildAllDatasets, cachePerIdentityDay } from '@/lib/intelligence/datase
 import { buildNsnAwardIndex } from '@/lib/intelligence/awards/nsn-now'
 import { buildForecastIndex } from '@/lib/intelligence/forecast/dla-forecast'
 import { isRisingPrice } from '@/lib/intelligence/rising-price'
+import { rankCompare } from '@/lib/intelligence/scoring/cornerscore'
 import { scoreCorner, type CornerScoreResult } from '@/lib/intelligence/scoring/cornerscore'
 import { loadCageFamilyIndex } from '@/lib/intelligence/scoring/cage-family-load'
 import type { CornerFunnel, CornerMap, CornerRow } from '@/lib/intelligence/corner'
@@ -242,7 +243,7 @@ export function buildPortfolio(): Portfolio {
    */
   const topCorners = [...candidates]
     .filter((c) => c.disposition !== 'SKIP')
-    .sort((a, b) => b.rankKey - a.rankKey)
+    .sort((a, b) => rankCompare(a.rankKey, a.nsn, b.rankKey, b.nsn))
     .slice(0, 10)
 
   const portfolio: Portfolio = {

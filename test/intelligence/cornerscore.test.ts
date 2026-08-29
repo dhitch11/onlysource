@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
-import { scoreCorner, LOCK_PENALTY, valuePoints, fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
+import { scoreCorner, LOCK_PENALTY, valuePoints, valueTierOf, fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
@@ -281,7 +281,7 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
     expect(competitive.rankKey).toBeGreaterThan(sole.rankKey);
     // The sub-$5K sole row earns ZERO value points; it cannot ride sole-source to the top.
     expect(sole.valueTier).toBe("noise");
-    expect(competitive.valueTier).toBe("whale");
+    expect(competitive.valueTier).toBe("sweet_spot"); // $132K is inside the operator's band
   });
 
   it("an AMC-5 row is LOCKED: disposition SKIP and lockup.hidden", () => {
@@ -358,21 +358,97 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
     expect(held.wayneHolds.plain).not.toContain("$");
   });
 
-  it("value is smooth at the $15K knee: $14,000 scores within one rankKey point of $15,001", () => {
-    const at14 = scoreCorner(baseRow(), pricedAward(140)); // $14,000
-    const at15 = scoreCorner(baseRow(), pricedAward(150.01)); // $15,001
-    expect(at14.valueUsd).toBe(14000);
-    expect(at15.valueUsd).toBeCloseTo(15001, 2);
-    expect(Math.abs(at15.rankKey - at14.rankKey)).toBeLessThan(1);
+  it("the value curve is CONTINUOUS everywhere, so no row jumps rank on a rounding of its size", () => {
+    /*
+     * This used to assert "$14,000 lands within one rankKey point of $15,001", a tolerance rather
+     * than a property. The band reshape makes the rise steeper (one decade instead of 1.7), so that
+     * arbitrary tolerance broke while the property it stood for - no cliff - held perfectly. The
+     * property is what matters: a hair's-width change in modeled size must never move a row's rank
+     * materially, or an operator watching a price tick sees the board reshuffle for no reason.
+     * The two band EDGES are the new places a cliff could hide, so they are tested by name.
+     */
+    for (const v of [6000, 14000, 15001, 49999, 50000, 150000, 249999, 250001, 1e6, 1e7, 1e9]) {
+      const step = Math.abs(valuePoints(v * 1.0001) - valuePoints(v));
+      expect(step, `discontinuity at ${v}`).toBeLessThan(0.01);
+    }
+    // And explicitly across both edges of the band, from either side.
+    expect(Math.abs(valuePoints(49999.9) - valuePoints(50000.1))).toBeLessThan(0.01);
+    expect(Math.abs(valuePoints(249999.9) - valuePoints(250000.1))).toBeLessThan(0.01);
   });
 
-  it("value is monotonic with NO ceiling, and diminishing (a $1M row beats $250K by < 4 pts)", () => {
-    const at250k = scoreCorner(baseRow(), pricedAward(2500)); // $250,000
-    const at1m = scoreCorner(baseRow(), pricedAward(10000)); // $1,000,000
-    const at130k = scoreCorner(baseRow(), pricedAward(1300)); // $130,000
-    expect(at1m.rankKey).toBeGreaterThan(at250k.rankKey);
-    expect(at250k.rankKey).toBeGreaterThan(at130k.rankKey);
-    expect(at1m.rankKey - at250k.rankKey).toBeLessThan(4);
+  /* ======================================================================================
+   * DAVID'S PRIORITY #1, ASSERTED. "THE SWEET SPOT IS $50K-$250K... Score the sweet spot
+   * highest, taper outside it, and never hard-exclude a large one."
+   *
+   * The old curve was a monotonic ramp: $250K→45, $1M→48, $10M→53, still climbing at $1B. It
+   * satisfied "no ceiling" and none of the rest. These four pin all four clauses, so the shape
+   * cannot drift back to a ramp without a test naming the clause it broke.
+   * ====================================================================================== */
+
+  it("PRIORITY #1a: the sweet spot is scored HIGHEST - the curve's maximum is inside the band", () => {
+    let best = -1;
+    let bestAt = 0;
+    for (let e = 3; e <= 12; e += 0.005) {
+      const usd = 10 ** e;
+      const p = valuePoints(usd);
+      if (p > best) {
+        best = p;
+        bestAt = usd;
+      }
+    }
+    expect(best).toBeCloseTo(valuePoints(150000), 6);
+    expect(bestAt).toBeGreaterThanOrEqual(50000);
+    expect(bestAt).toBeLessThanOrEqual(250000);
+    // Flat across the band, so inside it the corner signals decide and not raw size.
+    for (const v of [50000, 75000, 100000, 150000, 200000, 250000]) {
+      expect(valuePoints(v)).toBeCloseTo(valuePoints(150000), 6);
+    }
+  });
+
+  it("PRIORITY #1b: it TAPERS on BOTH sides of the band, which a monotonic ramp never did", () => {
+    const band = valuePoints(150000);
+    for (const below of [10000, 15000, 25000, 49000]) expect(valuePoints(below)).toBeLessThan(band);
+    for (const above of [400000, 1e6, 1e7, 1e9]) expect(valuePoints(above)).toBeLessThan(band);
+    // The specific inversion the old ramp got wrong, on a value one real seed row in ten exceeds.
+    expect(valuePoints(1e7)).toBeLessThan(valuePoints(250000));
+    const at250k = scoreCorner(baseRow(), pricedAward(2500));
+    const at1m = scoreCorner(baseRow(), pricedAward(10000));
+    expect(at1m.rankKey).toBeLessThan(at250k.rankKey);
+  });
+
+  it("PRIORITY #1c: NO hard exclusion - an arbitrarily large deal still outranks a small one", () => {
+    // "NO REAL CEILING - do not cap the top." The taper is floored so a huge buy is never deleted
+    // from the board, only declined the elevation the band gets.
+    for (const huge of [1e7, 1e9, 1e12, 1e15]) {
+      expect(valuePoints(huge)).toBeGreaterThan(valuePoints(15000));
+      expect(valuePoints(huge)).toBeGreaterThan(0);
+    }
+    // And a huge row is still a real, sortable row, not an abstention.
+    const huge = scoreCorner(baseRow(), pricedAward(100000)); // $10,000,000
+    expect(huge.disposition).not.toBe("INSUFFICIENT_DATA");
+    expect(huge.valueTier).toBe("oversize");
+  });
+
+  it("PRIORITY #1d: the band is NAMEABLE, so a surface can say in-band rather than implying it", () => {
+    expect(valueTierOf(4000)).toBe("noise");
+    expect(valueTierOf(12000)).toBe("small");
+    expect(valueTierOf(30000)).toBe("meaningful");
+    expect(valueTierOf(50000)).toBe("sweet_spot");
+    expect(valueTierOf(150000)).toBe("sweet_spot");
+    expect(valueTierOf(250000)).toBe("sweet_spot");
+    expect(valueTierOf(600000)).toBe("large");
+    expect(valueTierOf(5000000)).toBe("oversize");
+    expect(valueTierOf(null)).toBe("insufficient");
+  });
+
+  it("a bigger deal still beats a smaller one WHENEVER BOTH SIT ON THE SAME SIDE of the band", () => {
+    // The reshape inverts size only ACROSS the band. Within the rise, and within the taper, bigger
+    // is still better - so the curve never punishes size as such, it prefers the operator's band.
+    expect(valuePoints(25000)).toBeGreaterThan(valuePoints(10000)); // both below
+    expect(valuePoints(1e6)).toBeGreaterThan(valuePoints(1e9)); // both above: nearer the band wins
+    const at130k = scoreCorner(baseRow(), pricedAward(1300)); // $130,000, in band
+    const at46 = scoreCorner(baseRow(), pricedAward(46.86)); // $4,686, under the noise floor
+    expect(at130k.rankKey).toBeGreaterThan(at46.rankKey);
   });
 
   it("FAIL-CLOSED: with no cage-family index, a would-be OEM lock is NOT declared locked", () => {
@@ -459,7 +535,9 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
   });
 
   it("points are STORED exact so the column sums, and fmtPoints is what makes them readable", () => {
-    const r = scoreCorner(baseRow(), pricedAward(1320));
+    // Deliberately on the RISE, not the flat band: inside the band every row scores exactly
+    // VALUE_MAX, which is a whole number and would not exercise the precision this test is about.
+    const r = scoreCorner(baseRow(), pricedAward(250));
     const value = r.reasons.find((l) => l.leg === "value");
     expect(value).toBeDefined();
     // Exact in the model: a rounded store is what broke the sum in the first place.
