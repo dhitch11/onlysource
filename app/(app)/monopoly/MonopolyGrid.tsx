@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
+import { normalizeNsn } from "@/lib/intelligence/nsn-key";
 import { AiLoader } from "@/components/ui/AiLoader";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { PriceSparkline } from "@/components/ui/PriceSparkline";
@@ -195,8 +196,27 @@ const usd = (n: number): string =>
  * unknown by design: it is the unread third leg, and showing it as a stated gap on every row
  * is the honest shape of the product until the locator feed is connected.
  */
-const columns: GridColumn<CornerRowWithAward>[] = [
-  {
+/**
+ * THE STOCK NUMBER COLUMN, built per render because it has to know what has already been opened.
+ *
+ * David, 2026-08-29: "click an opportunity and view it, and its stock number turns a glowing red
+ * from then on ... so we know we have already looked at it". On a board of thousands of corners
+ * the costly mistake is not reading a row, it is REREADING one, so the mark is carried by the one
+ * cell the operator scans down.
+ *
+ * ★ THE MARK IS RENDERED FROM A NORMALIZED KEY, never from the displayed string. The row carries
+ * `5340-01-608-5969` and the store keys on `5340016085969`; comparing the two raw would simply
+ * never match and would never throw. `normalizeNsn` is the single shared definition.
+ *
+ * ⛔ `seenKnown === false` MEANS UNKNOWN, NOT UNSEEN. When the store could not be read, NO row is
+ * marked and the filter is withdrawn, rather than painting a worked board as untouched.
+ */
+function nsnColumn(
+  seen: ReadonlySet<string>,
+  seenKnown: boolean,
+  onOpen: (nsn: string) => void,
+): GridColumn<CornerRowWithAward> {
+  return {
     id: "nsn",
     header: "Stock number",
     mono: true,
@@ -205,16 +225,31 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     sortValue: (r) => r.nsn,
     // The stock number is the way in. Every corner opens its full dossier: the price trajectory,
     // the whole award history, the score legs, and the AI brief — all from the same measured data.
-    cell: (r): Cell => ({
-      state: "known",
-      provenance: "measured",
-      value: (
-        <Link href={`/corner/${r.nsn.replace(/[^0-9]/g, "")}` as never} className={styles.nsnLink}>
-          {r.nsn}
-        </Link>
-      ),
-    }),
-  },
+    cell: (r): Cell => {
+      const isSeen = seenKnown && seen.has(normalizeNsn(r.nsn));
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <Link
+            href={`/corner/${normalizeNsn(r.nsn)}` as never}
+            className={`${styles.nsnLink} ${isSeen ? styles.nsnSeen : ""}`}
+            // Marked on the way OUT, so the row is already red when the back button returns the
+            // operator to the board. The dossier page marks it again on open, which is what makes
+            // a bookmark or a pasted URL count as seen; both writes are idempotent.
+            onClick={() => onOpen(r.nsn)}
+            title={isSeen ? "You have already opened this corner" : undefined}
+          >
+            {r.nsn}
+            {isSeen ? <span className="vh"> (already opened)</span> : null}
+          </Link>
+        ),
+      };
+    },
+  };
+}
+
+const columns: GridColumn<CornerRowWithAward>[] = [
   {
     id: "score",
     header: "CornerScore",
@@ -647,6 +682,8 @@ function pursueColumn(pursued: Set<string>): GridColumn<CornerRowWithAward> {
 export function MonopolyGrid({
   rows,
   pursuedRefs,
+  seenNsns,
+  seenAvailable,
   totals,
   basis,
 }: {
@@ -662,6 +699,17 @@ export function MonopolyGrid({
   rows: CornerRowWithAward[];
   /** Normalized refs already in the deal store, read server-side. */
   pursuedRefs: string[];
+  /**
+   * Stock numbers this operator has already opened, read server-side so the mark is right on the
+   * FIRST paint. Fetching after mount would flash a fully-unseen board and then repaint it.
+   */
+  seenNsns: string[];
+  /**
+   * Whether the seen store could be READ. False is the unknown state, and it is threaded through
+   * rather than collapsed into an empty array precisely so the UI can refuse to claim a worked
+   * board is untouched. An unreadable store withdraws the filter; it never fakes a clean one.
+   */
+  seenAvailable: boolean;
   /** The TRUE size of each tab, counted server-side over every served row. */
   totals: { candidate: number; sole: number; all: number };
   /**
@@ -695,12 +743,76 @@ export function MonopolyGrid({
   // bottom by rankKey (the full LOCK_PENALTY keeps them below everything shown), each stamped with why.
   const [showLocked, setShowLocked] = useState(false);
 
+  /* ------------------------------------------------------------------------------------
+   * SEEN-STATE. The server set is the truth; `justOpened` is the optimistic overlay.
+   *
+   * The mark has to appear on the CLICK, not after a round trip, because the operator is already
+   * navigating away — waiting for the POST would paint the mark onto a page he has left. So the
+   * click adds to a local set and fires the write; the next server render folds it into `seenNsns`
+   * and the overlay becomes redundant rather than contradictory.
+   *
+   * ⛔ THE OPTIMISTIC MARK IS ROLLED BACK IF THE WRITE FAILS. A cheerful red number over a store
+   * that refused the write is a lie the operator would act on — he would skip that row forever
+   * believing he had read it. On failure the mark is removed and `writeFailed` states it plainly.
+   * ------------------------------------------------------------------------------------ */
+  const [justOpened, setJustOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const [writeFailed, setWriteFailed] = useState(false);
+
+  const seenSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const n of seenNsns) s.add(normalizeNsn(n));
+    for (const n of justOpened) s.add(n);
+    return s;
+  }, [seenNsns, justOpened]);
+
+  const markOpen = useCallback((rawNsn: string) => {
+    const key = normalizeNsn(rawNsn);
+    if (!key) return;
+    setJustOpened((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+    void fetch("/api/seen", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ nsn: key }),
+    })
+      .then((res) => {
+        if (res.ok) return;
+        // A non-2xx is a REFUSED write, not a slow one. Undo the mark and say so.
+        setWriteFailed(true);
+        setJustOpened((prev) => {
+          if (!prev.has(key)) return prev;
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      })
+      .catch(() => {
+        setWriteFailed(true);
+        setJustOpened((prev) => {
+          if (!prev.has(key)) return prev;
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      });
+  }, []);
+
+  /**
+   * "Unseen only" — the whole point of the mark, per the operator: it is how he sorts what he has
+   * not looked into yet away from what he has. It is a filter over a MEASURED per-row property, so
+   * the result stays an honest subset and nothing is re-scored.
+   *
+   * It is unavailable (and forced off below) when the store could not be read, because filtering
+   * on an unknown is how a board silently hides rows the operator has never seen.
+   */
+  const [unseenOnly, setUnseenOnly] = useState(false);
+  const unseenFilterActive = unseenOnly && seenAvailable;
+
   // The full column set: the measured columns plus the pursuit wire. Rebuilt only when the
   // pursued set changes (a set identity, not a per-render array), so the grid's column
   // identity stays stable across filtering.
   const allColumns = useMemo(
-    () => [...columns, pursueColumn(new Set(pursuedRefs))],
-    [pursuedRefs],
+    () => [nsnColumn(seenSet, seenAvailable, markOpen), ...columns, pursueColumn(new Set(pursuedRefs))],
+    [pursuedRefs, seenSet, seenAvailable, markOpen],
   );
 
   const isCandidate = (r: CornerRowWithAward) => r.soleSource && r.silentSourceCount > 0;
@@ -725,6 +837,9 @@ export function MonopolyGrid({
     if (toggles.machine && r.automatedSolicitation !== true) return false;
     if (toggles.rising && !isRising(r)) return false;
     if (toggles.priced && r.award?.latestPrice == null) return false;
+    // Unseen-only. Guarded by `seenAvailable` inside `unseenFilterActive`, so an unreadable store
+    // can never silently empty the board.
+    if (unseenFilterActive && seenSet.has(normalizeNsn(r.nsn))) return false;
     if (chain !== "all" && !(r.forecast?.supplyChains ?? []).map((c) => c.trim()).includes(chain))
       return false;
     return true;
@@ -737,10 +852,11 @@ export function MonopolyGrid({
     return rows.filter(matches).sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn));
     // matches closes over filter/toggles/chain/showLocked, all in the dep list below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filter, toggles, chain, showLocked]);
+  }, [rows, filter, toggles, chain, showLocked, unseenFilterActive, seenSet]);
 
   const clearAll = () => {
     setFilter("all");
+    setUnseenOnly(false);
     setToggles({ onForecast: false, machine: false, rising: false, priced: false });
     setChain("all");
   };
@@ -781,9 +897,24 @@ export function MonopolyGrid({
     { id: "rising", label: "Rising price" },
     { id: "priced", label: "Has award price" },
   ];
-  const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all";
+  const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all" || unseenOnly;
   // Locked closed doors loaded on this page, for the reveal control's count.
   const lockedCount = useMemo(() => rows.filter((r) => r.score.disposition === "SKIP").length, [rows]);
+  /**
+   * How many rows the operator has NOT opened, counted over the rows this board is serving.
+   *
+   * Counted with the unseen filter itself switched OFF, so the number on the button does not
+   * collapse to the number of rows already showing the moment the filter is on. A count that
+   * changes because you looked at it is not a count.
+   */
+  const unseenCount = useMemo(
+    () =>
+      seenAvailable
+        ? rows.filter((r) => !seenSet.has(normalizeNsn(r.nsn)) && (showLocked || r.score.disposition !== "SKIP"))
+            .length
+        : 0,
+    [rows, seenSet, seenAvailable, showLocked],
+  );
 
   return (
     <>
@@ -836,6 +967,31 @@ export function MonopolyGrid({
           ) : null}
         </div>
         <div className={styles.toolbarRight}>
+          {/* SEEN-STATE CONTROL. Rendered in three honest states and never in a fourth:
+              · store readable      -> the toggle, with the live unseen count
+              · store unreadable    -> a stated condition, NO toggle (filtering on an unknown
+                                       would hide rows the operator has never opened)
+              · a write was refused -> the mark is rolled back and the failure is named */}
+          {seenAvailable ? (
+            <button
+              type="button"
+              aria-pressed={unseenOnly}
+              className={`${styles.chip} ${unseenOnly ? styles.chipOn : ""}`}
+              onClick={() => setUnseenOnly((v) => !v)}
+              title="Hide corners you have already opened. Opened rows keep their red stock number either way."
+            >
+              Unseen only ({unseenCount.toLocaleString()})
+            </button>
+          ) : (
+            <span className={styles.seenNote}>
+              Seen-state unavailable, so no row is marked as opened. This is unknown, not empty.
+            </span>
+          )}
+          {writeFailed ? (
+            <span className={styles.seenNote} role="status">
+              A seen mark could not be saved, so it was undone rather than shown as saved.
+            </span>
+          ) : null}
           {lockedCount > 0 ? (
             <button
               type="button"

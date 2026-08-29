@@ -524,3 +524,54 @@
   color: var(--dim);
   white-space: normal;
 }
+
+/* ---------- SEEN-STATE: the already-opened mark ----------
+ *
+ * David, 2026-08-29: the stock number of a corner he has opened "turns a glowing red from then
+ * on, so we know we have already looked at it".
+ *
+ * ⛔ THE GLOW IS STATIC, AND THAT IS A DELIBERATE CALL. A pulsing mark on a grid that can show
+ * hundreds of rows at once is an animation cost paid on every frame and a distraction paid by the
+ * operator forever. This console optimises for comprehension and speed, so the mark is a colour
+ * and a still halo: instantly readable when scanning a column of monospace digits, and free.
+ *
+ * ⛔ THE COLOUR IS A TOKEN PER THEME BECAUSE ONE RED CANNOT PASS ON BOTH GROUNDS. A red that
+ * reads on #101410 is washed out on #ffffff and vice versa, so each theme gets its own value and
+ * BOTH are measured against the real painted cell background, not eyeballed. The three selectors
+ * below mirror `styles/tokens.css` exactly (explicit choice wins in both directions; system
+ * preference decides only when no choice was made) so the mark can never be left on the wrong
+ * ground by a theme switch.
+ *
+ * The halo is `text-shadow`, which paints and does not move, so it is not motion and is unaffected
+ * by reduced-motion. Colour alone never carries the meaning: the mark also has an
+ * `aria`-visible "(already opened)" string and a title, so it survives a colour-blind reader.
+ */
+:global(:root) {
+  --seen-mark: #ff8a80;
+  --seen-halo: rgba(255, 138, 128, 0.42);
+}
+:global(:root[data-theme="light"]) {
+  --seen-mark: #b3261e;
+  --seen-halo: rgba(179, 38, 30, 0.3);
+}
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme="dark"]):not([data-theme="light"])) {
+    --seen-mark: #b3261e;
+    --seen-halo: rgba(179, 38, 30, 0.3);
+  }
+}
+
+.nsnSeen,
+.nsnSeen:hover {
+  color: var(--seen-mark);
+  border-bottom-color: color-mix(in srgb, var(--seen-mark) 55%, transparent);
+  text-shadow: 0 0 6px var(--seen-halo);
+}
+
+/* The stated condition when seen-state cannot be read, and the rolled-back-write notice. */
+.seenNote {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--dim);
+  max-width: 34ch;
+}

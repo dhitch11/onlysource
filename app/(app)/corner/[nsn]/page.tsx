@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { requireGateSession } from '@/lib/session/require-gate'
-import { callerCan, readCaller } from '@/lib/session/authz'
+import { callerAccountId, callerCan, readCaller } from '@/lib/session/authz'
 import { resolveDataRoot } from '@/lib/data-root'
 import { buildAllDatasets } from '@/lib/intelligence/datasets'
 import { parseNsn, formatNsn } from '@/lib/intelligence/niin'
@@ -18,6 +18,8 @@ import { ExplainButton } from '@/components/ui/ExplainButton'
 import { PursueButton } from '@/components/sales/PursueButton'
 import { PursuitPackagePanel } from '@/components/sales/PursuitPackagePanel'
 import { findDealByRef } from '@/lib/sales/deals-store'
+import { markSeen } from '@/lib/intelligence/seen-store'
+import { systemClock } from '@/lib/time/clock'
 import { aiConfigured } from '@/lib/ai/anthropic'
 import { sendPreflight } from '@/lib/notify/email'
 import { readSettings } from '@/lib/notify/settings'
@@ -133,6 +135,21 @@ export default async function CornerPage({
       </main>
     )
   }
+
+  /**
+   * THE ROW OPENED, SO IT IS SEEN. Recorded HERE and not only on the grid's click, because this is
+   * the point at which "he looked at it" is actually TRUE: a bookmark, a pasted URL, a link from
+   * the brief email and a back-then-forward all arrive here without ever touching the grid.
+   *
+   * ★ IT IS DELIBERATELY BELOW THE TWO REFUSALS ABOVE. A missing data directory and an unknown
+   * stock number both return before this line, so a row that could not be shown is never recorded
+   * as read. Marking those would be the exact failure the feature exists to prevent: the operator
+   * filtering away a corner he was never actually able to look at.
+   *
+   * Idempotent with the grid's optimistic write (first instant wins), and a failure is swallowed
+   * on purpose: an unwritable preference store must not take down a dossier the operator asked for.
+   */
+  markSeen(callerAccountId(await readCaller()), key, new Date(systemClock.now()).toISOString())
 
   const awardIx = buildNsnAwardIndex()
   const fcIx = buildForecastIndex()

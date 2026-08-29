@@ -6,6 +6,8 @@ import { loadAmscIndex, resolveBidEligibility } from "@/lib/intelligence/eligibi
 import { groupByOperator, loadCageIndex } from "@/lib/intelligence/manufacturers/cage";
 import { resolveDataRoot } from "@/lib/data-root";
 import { readDeals } from "@/lib/sales/deals-store";
+import { readSeen } from "@/lib/intelligence/seen-store";
+import { readCaller, callerAccountId } from "@/lib/session/authz";
 import { normalizeDealRef } from "@/lib/sales/pipeline";
 import { ExplainButton } from "@/components/ui/ExplainButton";
 import { MonopolyGrid } from "./MonopolyGrid";
@@ -156,6 +158,16 @@ export default async function MonopolyPage() {
   const pursuedRefs = readDeals()
     .map((d) => normalizeDealRef(d.ref))
     .filter((r) => r.length > 0);
+
+  /**
+   * SEEN-STATE, read SERVER-SIDE so the glow is correct on the very first paint.
+   *
+   * Fetching this from the client after mount would paint every row as unseen for one frame and
+   * then repaint the worked ones red, which on a board this size is a visible flash that says the
+   * opposite of the truth. It is also why `available` is threaded through rather than collapsed to
+   * an empty array: an unreadable store must render as UNKNOWN, never as a clean board.
+   */
+  const seen = readSeen(callerAccountId(await readCaller()));
 
   /**
    * THE SPAN AND THE INSTANT, both printed rather than implied.
@@ -367,6 +379,8 @@ export default async function MonopolyPage() {
       <MonopolyGrid
         rows={enriched}
         pursuedRefs={pursuedRefs}
+        seenNsns={seen.nsns}
+        seenAvailable={seen.available}
         totals={gridTotals}
         basis={coverage.basis}
       />
