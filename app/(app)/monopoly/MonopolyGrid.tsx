@@ -300,6 +300,11 @@ const columns: GridColumn<CornerRowWithAward>[] = [
      * WAYNE HOLDS THIS. His CAGE (3BQS1/6KB87) among the NSN's listed holders, with the units he
      * lists and whether they can fill the buy. UNITS ONLY — the availability feed carries no price,
      * so none is invented. Absence is UNKNOWN (his shelf is not loaded), never "Wayne lacks it".
+     *
+     * ⛔ THE SOURCE IS A PROXY AND THE BADGE SAYS SO. His CAGE appears on 15 rows of the loaded
+     * availability data — an incidental sample, not an export of his shelf. On the newest archived
+     * feed day the boost can fire on ZERO of 275 rows. So this column is `prior`, not `measured`,
+     * and its explainer names the coverage rather than leaving the operator to assume a full read.
      */
     id: "wayne",
     header: "Wayne holds",
@@ -314,12 +319,36 @@ const columns: GridColumn<CornerRowWithAward>[] = [
           reason: "no Wayne holding is loaded for this part (his shelf is not loaded; absence is unknown, not a shortage)",
         };
       }
+      /*
+       * ★ THE BADGE SAYS WHAT KIND OF MATCH IT IS, AND WHETHER IT COUNTED. David 2026-08-29:
+       * "badge the FACT, and only when the match is real; a partial match says so or says
+       * nothing" and "if the inventory source is a PROXY rather than a real export, the badge
+       * must say which - a badge that overstates certainty is worse than no badge."
+       *
+       * It used to render a bare unit count with "· fills buy" appended only at full coverage, so
+       * a 3%-of-buy holding and a complete one were the same chip to anyone not doing arithmetic
+       * against the quantity column. And a row under the $15,000 qualifying floor showed the same
+       * confident accent chip while its boost was gated to nothing, which reads as a scoring bug.
+       *
+       * `provenance` is now "prior", not "measured". The holding itself is a real read, but the
+       * SHELF is an incidental availability sample covering a small fraction of stock numbers -
+       * calling that "measured" claims a coverage the source does not have.
+       */
+      const partial = w.fill < 1;
+      const gated = w.qualification <= 0;
+      // `measured` is right for a PRESENCE: we really did read that he lists these units for this
+      // part. The proxy caveat is about ABSENCE - the shelf sample is thin, so a row with no
+      // holding is `unknown` above and never "he lacks it". The coverage sentence and the gating
+      // both travel in `wayneHolds.plain`, rendered in the row expansion below, because a `known`
+      // cell carries no reason field and a chip is the wrong place for three clauses.
       return {
         state: "known",
         provenance: "measured",
         value: (
-          <StatusChip tone="accent">
-            {w.units.toLocaleString()} units{w.fill >= 1 ? " · fills buy" : ""}
+          <StatusChip tone={gated ? "idle" : "accent"}>
+            {w.units.toLocaleString()} units
+            {partial ? ` · ${Math.round(w.fill * 100)}% of buy` : " · fills buy"}
+            {gated ? " · under floor" : ""}
           </StatusChip>
         ),
       };
@@ -913,6 +942,15 @@ export function MonopolyGrid({
             field: i === 0 ? "Why this score" : "",
             value: `${rc.points ? `${rc.points > 0 ? "+" : ""}${fmtPoints(rc.points)} ` : ""}[${rc.calibration}] ${rc.plain}`,
           })),
+          /*
+           * ★ `wayneHolds.plain` WAS COMPUTED ON EVERY ROW AND RENDERED NOWHERE. It is the only
+           * place the inventory signal explains itself: whether the match is partial, whether the
+           * value gate zeroed its boost, and that the shelf data is an incidental sample rather
+           * than an export. The chip can carry three words; this can carry the caveat.
+           */
+          ...(r.score.wayneHolds.held
+            ? [{ field: "Inventory we hold", value: r.score.wayneHolds.plain }]
+            : []),
           { field: "Stock number", value: r.nsn },
           { field: "NIIN", value: r.niin },
           { field: "Item", value: r.nomenclature.trim() || "(not published)" },

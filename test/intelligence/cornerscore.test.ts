@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
-import { scoreCorner, LOCK_PENALTY, valuePoints, valueTierOf, fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
+import { scoreCorner, LOCK_PENALTY, valuePoints, valueTierOf, valueQualification, fmtPoints } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
@@ -346,8 +346,18 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
   });
 
   it("a Wayne-CAGE holder (3BQS1) outranks its identical non-holder twin, by the boost alone", () => {
-    const held = scoreCorner(baseRow(), awardWith({ holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 50 }] }));
-    const twin = scoreCorner(baseRow(), awardWith({ holders: [{ nsn: "5325015619853", company: "SOMEONE ELSE", cage: "0AMA0", quantity: 50 }] }));
+    /*
+     * ★ THE FIXTURE NOW CARRIES A QUALIFYING PRICE, AND THAT IS THE POINT, NOT A REPAIR.
+     * It used to use the bare `awardWith()` whose modeled buy sits under the $15,000 qualifying
+     * floor, so after David's 2026-08-29 inventory rule the boost correctly gates to ZERO and this
+     * assertion read "expected 21 to be greater than 21". The property here - inventory is a real
+     * positive signal, absence applies no penalty - is unchanged and still worth pinning; it simply
+     * only applies to a deal that qualifies. The sub-floor case is now its own test above.
+     */
+    const wayneHolder = { nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 50 };
+    const other = { nsn: "5325015619853", company: "SOMEONE ELSE", cage: "0AMA0", quantity: 50 };
+    const held = scoreCorner(baseRow(), pricedAward(1800, { holders: [wayneHolder] })); // $180,000
+    const twin = scoreCorner(baseRow(), pricedAward(1800, { holders: [other] }));
     expect(held.wayneHolds.held).toBe(true);
     expect(held.wayneHolds.units).toBe(50);
     expect(twin.wayneHolds.held).toBe(false);
@@ -569,6 +579,175 @@ describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
     }
     // Whether or not this fixture reaches the cap, the identity must hold on it.
     expect(loud.reasons.reduce((a, l) => a + l.points, 0)).toBeCloseTo(loud.rankKey, 6);
+  });
+
+  /* ======================================================================================
+   * DAVID'S INVENTORY RULE, 2026-08-29, AND THE HALF HE SAID WOULD GET BUILT WRONG.
+   *
+   * "it should flag or badge opportunities that we have inventory for - it helps with
+   * ranking/scoring score, but if it does not meet other standards like PO/opportunity value in
+   * the 15k+ range then it is not as important at all... A FLAT ADDITIVE BONUS IS THE WRONG SHAPE
+   * because it lets a $4K inventory-matched row outrank a $180K sweet-spot row."
+   *
+   * That was literally true of the shipped code. The boost was +10..+28 straight into rankKey:
+   *   $4K   WITH inventory + full corner bucket   10 +  0 + 28 + 30 = 68
+   *   $180K WITHOUT inventory, no soft signals    10 + 45 +  0 +  0 = 55
+   * The row worth 2% of the other one won by 13 points. These pin the fix.
+   * ====================================================================================== */
+
+  it("★ THE DISCRIMINATING TEST: a sub-floor row WITH inventory ranks BELOW a sweet-spot row WITHOUT it", () => {
+    /*
+     * ★ THIS TEST IS BUILT TO FAIL WHEN THE GUARD IS REMOVED, AND THAT WAS NOT FREE.
+     * A first version compared a bare $4K row to a $180K one and passed EVEN WITH the multiplier
+     * deleted - the small row's corner bucket was only +5, so the flat +28 never closed a 40-point
+     * gap and the test proved nothing. A test that cannot fail is not a guard. So the small row
+     * here is stacked with EVERY advantage the scorer can give a row: full inventory fill, on the
+     * DLA forecast, a repeat solicitation history, established source silence, price escalation
+     * and a machine award path. That is the strongest sub-floor row the data model permits, and it
+     * must still lose to a plain sweet-spot row carrying nothing but its size.
+     */
+    const wayneHeld = [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }];
+    const loudForecast = {
+      nsn: "5325015619853",
+      onForecast: true,
+      forecast: [],
+      totalForecastQty: 5000,
+      supplyChains: [],
+      solicitationCount: 9,
+      lastSolicitation: null,
+      specCount: 0,
+      endItems: [],
+    };
+    const smallWithStock = scoreCorner(
+      baseRow({ automatedSolicitation: true }),
+      // $4,000, under the $15,000 qualifying floor, with a steep price climb behind it.
+      pricedAward(40, { holders: wayneHeld, firstUnitPrice: 4, lastUnitPrice: 40 }),
+      loudForecast,
+      { awardIndexLoaded: true, forecastIndexLoaded: true },
+    );
+    const sweetNoStock = scoreCorner(
+      baseRow({ automatedSolicitation: false, signals: [], silentSourceCount: 0 }),
+      pricedAward(1800), // $180,000, inside the sweet spot, no inventory, no soft signals
+    );
+    expect(smallWithStock.valueUsd).toBe(4000);
+    expect(sweetNoStock.valueUsd).toBe(180000);
+    expect(smallWithStock.wayneHolds.held).toBe(true);
+    expect(smallWithStock.wayneHolds.fill).toBe(1); // the boost is at its maximum before gating
+
+    // THE ASSERTION. Deleting the multiplier in waynePoints makes this fail.
+    expect(smallWithStock.rankKey).toBeLessThan(sweetNoStock.rankKey);
+
+    /*
+     * ★ AND THIS LINE PROVES THE TEST CAN ACTUALLY FAIL, which is the property my first version
+     * silently lacked. The margin must be SMALLER than the boost the ungated shape would add
+     * (10 + 18·fill = 28 at fill 1), because that is exactly what makes deleting the multiplier
+     * flip the comparison above. If a future change widens this gap past 28, the assertion above
+     * stops discriminating and this line fails first and says why.
+     */
+    const margin = sweetNoStock.rankKey - smallWithStock.rankKey;
+    expect(margin).toBeGreaterThan(0);
+    expect(margin, "the guard would no longer be load-bearing at this margin").toBeLessThan(
+      10 + 18 * smallWithStock.wayneHolds.fill,
+    );
+  });
+
+  it("the value gate zeroes the BOOST but never the FACT: a sub-floor row still says we hold it", () => {
+    const r = scoreCorner(
+      baseRow(),
+      pricedAward(40, { holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }] }), // $4,000
+    );
+    expect(r.wayneHolds.held).toBe(true); // the badge fires - holding stock is a FACT
+    expect(r.wayneHolds.units).toBe(100000);
+    const leg = r.reasons.find((l) => l.leg === "wayne");
+    expect(leg).toBeDefined();
+    expect(leg!.points).toBe(0); // ...and it is worth nothing to the rank
+    // The prose must SAY it was gated. A leg reporting 0 with no reason reads as a bug.
+    expect(leg!.plain).toContain("floor");
+    expect(leg!.plain).toContain("easier to win, not worth winning");
+  });
+
+  it("inside the qualified set the boost is REAL: a held sweet-spot row beats its identical twin", () => {
+    // Clause 2 of the rule: it must still boost among opportunities that already qualify.
+    const held = scoreCorner(baseRow(), pricedAward(1800, { holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }] }));
+    const notHeld = scoreCorner(baseRow(), pricedAward(1800));
+    expect(held.valueUsd).toBe(180000);
+    expect(held.rankKey).toBeGreaterThan(notHeld.rankKey);
+    expect(held.rankKey - notHeld.rankKey).toBeCloseTo(28, 6); // full weight inside the band
+  });
+
+  it("the gate RAMPS rather than steps, so $14,999 and $15,001 do not differ by the whole boost", () => {
+    expect(valueQualification(14999)).toBe(0);
+    expect(valueQualification(15001)).toBeLessThan(0.001); // continuous across the floor
+    expect(valueQualification(25000)).toBeGreaterThan(0.3);
+    expect(valueQualification(25000)).toBeLessThan(0.6);
+    expect(valueQualification(50000)).toBe(1); // full weight at the band floor
+    expect(valueQualification(1000000)).toBe(1); // and it does not double-taper a large deal
+    expect(valueQualification(null)).toBe(0); // unpriceable earns nothing, never a fabricated 1
+  });
+
+  it("⛔ A LOCKED ROW IS NEVER RESCUED BY INVENTORY, whatever the value or the fill", () => {
+    // Clause 4: sole-source/proprietary is never ranked high REGARDLESS of inventory or value.
+    const family = buildCageFamilyIndex({ companies: [{ cage: "58794", company: "ACME" }], associations: [] });
+    const lockedButHeld = scoreCorner(
+      baseRow(),
+      pricedAward(1800, { holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }] }),
+      null,
+      { cageFamily: family },
+    );
+    const plainOpen = scoreCorner(baseRow({ soleSource: false, approvedSourceCount: 4 }), null, null, {
+      awardIndexLoaded: true,
+    });
+    expect(lockedButHeld.lockup.status).toBe("locked");
+    expect(lockedButHeld.wayneHolds.held).toBe(true);
+    expect(lockedButHeld.rankKey).toBeLessThan(plainOpen.rankKey);
+  });
+
+  it("BADGE HONESTY: a PARTIAL match says it is partial, and never reads like full coverage", () => {
+    // David: "a partial match says so or says nothing." A bare unit count next to a quantity the
+    // operator has to divide in their head is the version that says nothing.
+    const partial = scoreCorner(
+      baseRow(), // quantity 100
+      pricedAward(1800, {
+        holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 3 }],
+      }),
+    );
+    expect(partial.wayneHolds.held).toBe(true);
+    expect(partial.wayneHolds.fill).toBeCloseTo(0.03, 6);
+    expect(partial.wayneHolds.plain).toContain("PARTIAL");
+    expect(partial.wayneHolds.plain).toContain("3%");
+    expect(partial.wayneHolds.plain).not.toContain("enough to fill this buy");
+  });
+
+  it("BADGE HONESTY: the shelf is disclosed as a SAMPLE, so an absence elsewhere is not a shortage", () => {
+    // David: "if the inventory source is a PROXY rather than a real export, the badge must say
+    // which - a badge that overstates certainty is worse than no badge."
+    const held = scoreCorner(
+      baseRow(),
+      pricedAward(1800, {
+        holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }],
+      }),
+    );
+    expect(held.wayneHolds.plain).toContain("incidental availability sample");
+    expect(held.wayneHolds.plain).toContain("not a full export");
+    // And absence stays UNKNOWN, never "he does not have it".
+    const absent = scoreCorner(baseRow(), pricedAward(1800));
+    expect(absent.wayneHolds.held).toBe(false);
+    expect(absent.wayneHolds.plain).toContain("absence is unknown");
+    // No price is ever invented: the availability sheet carries none.
+    expect(held.wayneHolds.plain).not.toContain("$1");
+  });
+
+  it("BADGE HONESTY: a gated row reports the boost it actually received, which is zero", () => {
+    const gated = scoreCorner(
+      baseRow(),
+      pricedAward(40, {
+        holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 100000 }],
+      }),
+    );
+    expect(gated.wayneHolds.held).toBe(true); // the FACT survives the gate
+    expect(gated.wayneHolds.boostApplied).toBe(0); // the SCORE does not
+    expect(gated.wayneHolds.qualification).toBe(0);
+    expect(gated.wayneHolds.plain).toContain("did NOT lift the rank");
   });
 
   it("a locked row still clamps to scoreV0 0 and never reports a negative score to the operator", () => {

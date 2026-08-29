@@ -13,7 +13,7 @@
  * the exact monopoly it should hide: sole-source paid +25 (up to +50 with concentration+silence),
  * which floated OEM/licensee-locked rows to a 100%-locked top-20 while the biggest live deals sank.
  * The rank is now three parts on one line, each explainable in a sentence:
- *   rankKey = 10 (demand floor) + valuePoints(v) + waynePoints(holders,q) + min(30, cornerBucket)
+ *   rankKey = 10 (demand floor) + valuePoints(v) + waynePoints(holders,q,v) + min(30, cornerBucket)
  *             − (locked ? LOCK_PENALTY : 0)
  * Value is the largest single positive term (a log ramp calibrated to the measured award-value
  * distribution, uncapped with a gentle tail so a $1M deal still beats a $250K one). Sole-source
@@ -120,7 +120,23 @@ export type CornerScoreResult = {
    * on-hand quantity could fill. `held:false` is UNKNOWN (his shelf is not loaded), never a
    * shortage. Units only — the availability feed carries no price, so no unit price is invented.
    */
-  wayneHolds: { held: boolean; units: number; fill: number; plain: string };
+  /**
+   * INVENTORY WE HOLD FOR THIS PART. `held` is the FACT and is independent of the deal's size, so a
+   * surface can badge it even where `boostApplied` is 0. `fill` < 1 is a PARTIAL match and must be
+   * shown as partial, never as a bare unit count that reads like full coverage. `boostApplied` is
+   * what the rank actually received after the value gate, so a surface can say "we hold this, and
+   * it did not lift the row" instead of leaving the operator to wonder why a badged row sits low.
+   */
+  wayneHolds: {
+    held: boolean;
+    units: number;
+    fill: number;
+    /** Points the rank actually received: the raw boost multiplied by the value qualification. */
+    boostApplied: number;
+    /** 0..1. Below the $15K qualifying floor this is 0 and the boost is worth nothing. */
+    qualification: number;
+    plain: string;
+  };
   /** The five legs, each carrying its own evidence state. */
   legs: {
     demand: Leg<number>;
@@ -216,6 +232,12 @@ export type ScoreSourceState = {
  * ========================================================================================== */
 /** Noise floor: below this, a deal earns no value credit (≈73rd percentile of the corpus). */
 const VALUE_V0 = 5000;
+/**
+ * David's stated qualifying floor: "PO/opportunity value in the 15k+ range". Below this a deal does
+ * not meet the standard, so signals that merely make it EASIER to win - inventory on the shelf -
+ * must not lift it. It gates `valueQualification` below; it never removes the row from the board.
+ */
+const VALUE_QUALIFY_FLOOR = 15000;
 /** Bottom of the operator's sweet spot. The rise reaches full points here. */
 const VALUE_BAND_LO = 50000;
 /** Top of the operator's sweet spot. The taper starts here. */
@@ -342,22 +364,63 @@ export function fmtPoints(points: number): string {
 export const WAYNE_CAGES = new Set(["3BQS1", "6KB87"]);
 
 /**
+ * THE VALUE QUALIFICATION FACTOR. 0 at or below the qualifying floor, 1 from the band floor up.
+ *
+ * ★ THIS EXISTS BECAUSE AN INVENTORY MATCH MUST NOT RESCUE A DEAL THAT IS TOO SMALL TO WANT.
+ * David, 2026-08-29: "it should flag or badge opportunities that we have inventory for - it helps
+ * with ranking/scoring score, but if it does not meet other standards like PO/opportunity value in
+ * the 15k+ range then it is not as important at all."
+ *
+ * The boost used to be a FLAT ADDITIVE +10..+28 straight into rankKey, and that shape is wrong in a
+ * way arithmetic makes obvious. A $4,000 row Wayne happens to stock, carrying a full corner bucket,
+ * scored 10 + 0 + 28 + 30 = 68, while a $180,000 sweet-spot row with no inventory and no soft
+ * signals scored 10 + 45 + 0 + 0 = 55. The small row won by 13 points on the strength of stock we
+ * hold for a buy that is not worth bidding. An additive bonus cannot be gated by value, because it
+ * does not know the value; only a multiplier can.
+ *
+ * So the boost is now MULTIPLIED by this factor, which is near-zero exactly where David said it
+ * must be. It ramps rather than steps, because a step at $15K would mean $14,999 and $15,001 differ
+ * by the full boost, and the same no-cliff doctrine that shapes the value spine applies here.
+ *
+ * The ramp runs from the qualifying floor to the BAND floor, so an inventory match reaches full
+ * weight precisely when the deal reaches the work Wayne actually wants. Above the band it stays at
+ * full weight: a $1M buy we can fill from stock is still a real advantage, and the value spine has
+ * already tapered that row for being oversized. Value gates the boost; it does not double-taper it.
+ */
+export function valueQualification(usd: number | null): number {
+  if (usd == null || !Number.isFinite(usd) || usd <= VALUE_QUALIFY_FLOOR) return 0;
+  const l = Math.log10(usd);
+  const lo = Math.log10(VALUE_QUALIFY_FLOOR);
+  const hi = Math.log10(VALUE_BAND_LO);
+  return Math.min(1, (l - lo) / (hi - lo));
+}
+
+/**
  * +10 for a listed presence, rising to +28 when his on-hand quantity can fill the whole buy from
- * stock. Uncapped and first-class (outside the corner-signal bucket). Renders units and fill only,
- * NEVER a fabricated unit price or margin — the availability sheet carries no price or condition.
+ * stock — then MULTIPLIED by `valueQualification(v)`, so it is worth nothing on a sub-floor row.
+ * Renders units and fill only, NEVER a fabricated unit price or margin — the availability sheet
+ * carries no price or condition.
+ *
+ * `raw` is kept alongside `points` so a surface can badge the FACT that we hold the part even on a
+ * row where the boost was gated to nothing. Holding stock is true regardless of the deal's size;
+ * what value gates is whether it should move the rank.
  */
 export function waynePoints(
   holders: readonly Pick<AvailabilityRecord, "cage" | "quantity">[] | null | undefined,
   q: number | null,
-): { points: number; held: boolean; units: number; fill: number } {
+  valueUsd: number | null = null,
+): { points: number; raw: number; qualification: number; held: boolean; units: number; fill: number } {
   const held = (holders ?? []).filter((h) => WAYNE_CAGES.has((h.cage ?? "").trim().toUpperCase()));
-  if (held.length === 0) return { points: 0, held: false, units: 0, fill: 0 };
+  if (held.length === 0)
+    return { points: 0, raw: 0, qualification: 0, held: false, units: 0, fill: 0 };
   // Defence in depth against a non-finite quantity poisoning rankKey with NaN (the parser guards
   // these today, but a NaN here would silently drop the whole row out of every sort).
   const units = held.reduce((s, h) => s + (Number.isFinite(h.quantity) ? (h.quantity as number) : 0), 0);
   const denom = Number.isFinite(q) && (q as number) > 0 ? (q as number) : 1;
   const fill = Math.min(1, units / denom);
-  return { points: 10 + 18 * fill, held: true, units, fill };
+  const raw = 10 + 18 * fill;
+  const qualification = valueQualification(valueUsd);
+  return { points: raw * qualification, raw, qualification, held: true, units, fill };
 }
 
 /* ==========================================================================================
@@ -946,12 +1009,29 @@ export function scoreCorner(
   }
 
   // ---- THE WAYNE BOOST: his CAGE among the NSN's listed holders, scaled by whether his on-hand
-  // quantity can fill the buy. Uncapped, first-class, added OUTSIDE the corner bucket. Never priced.
-  const wayne = waynePoints(award?.holders, row.quantity);
+  // quantity can fill the buy, THEN GATED BY DEAL VALUE. First-class, added OUTSIDE the corner
+  // bucket. Never priced.
+  //
+  // ⛔ THE GATE IS THE POINT, NOT A REFINEMENT. Inventory makes a deal EASIER TO WIN; it does not
+  // make a small deal WORTH WINNING. Multiplied by valueQualification so a sub-$15K row gets
+  // nothing from stock we happen to hold, while the row still shows and still says we hold it.
+  const wayne = waynePoints(award?.holders, row.quantity, v);
   if (wayne.held) {
     reasons.push({
       leg: "wayne",
-      plain: `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed)`,
+      // The prose says what was GATED, not just what was earned. A leg reporting ~0 points with no
+      // explanation reads as a bug; a leg that says the stock is real but the deal is too small to
+      // reward it is the actual finding, and it is the one an operator can act on.
+      plain:
+        wayne.qualification <= 0
+          ? `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed), ` +
+            `but the modeled buy is under the $${VALUE_QUALIFY_FLOOR.toLocaleString()} floor, so holding stock ` +
+            "does not lift this row: inventory makes a deal easier to win, not worth winning"
+          : wayne.qualification < 1
+            ? `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed); ` +
+              `the boost is scaled to ${Math.round(wayne.qualification * 100)}% because the modeled buy sits ` +
+              "between the qualifying floor and the sweet spot"
+            : `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed)`,
       points: wayne.points, // exact, for the same reason as the value leg above
 
       calibration: "measured",
@@ -1101,9 +1181,20 @@ export function scoreCorner(
       held: wayne.held,
       units: wayne.units,
       fill: wayne.fill,
-      plain: wayne.held
-        ? `Wayne lists ${wayne.units.toLocaleString()} units for this part (listed, not price-confirmed).`
-        : "No Wayne holding is loaded for this part; absence is unknown, not a shortage (his shelf is not loaded).",
+      boostApplied: wayne.points,
+      qualification: wayne.qualification,
+      plain: !wayne.held
+        ? "No Wayne holding is loaded for this part; absence is unknown, not a shortage (his shelf is not loaded)."
+        : `Wayne lists ${wayne.units.toLocaleString()} units for this part` +
+          (wayne.fill >= 1
+            ? ", enough to fill this buy from stock"
+            : ` — about ${Math.round(wayne.fill * 100)}% of this buy, so it is a PARTIAL match`) +
+          " (listed, not price-confirmed: the availability sheet carries no price and no condition)." +
+          (wayne.qualification <= 0
+            ? ` The modeled buy is under the $${VALUE_QUALIFY_FLOOR.toLocaleString()} floor, so this holding is shown as a fact and did NOT lift the rank.`
+            : "") +
+          " Source is an incidental availability sample, not a full export of his shelf: it covers a" +
+          " small fraction of stock numbers, so an absence elsewhere is unknown rather than empty.",
     },
     legs: { demand, competition, priceAnchor, forwardDemand, feasibility, surplusLineage },
     reasons,
