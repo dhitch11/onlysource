@@ -210,7 +210,7 @@ export function buildBoard(clock: Clock = systemClock): BoardData | BoardUnavail
   const index = served.index;
   const sources = served.approved;
 
-  const rows: BoardRow[] = index.rows.map((r) => {
+  let rows: BoardRow[] = index.rows.map((r) => {
     const form = parseSolicitation(r.solicitation);
     let standing: SourceStanding;
 
@@ -257,12 +257,37 @@ export function buildBoard(clock: Clock = systemClock): BoardData | BoardUnavail
     };
   });
 
-  // Interest ordering, from measured signal only. A corner is sole-sourced AND machine-awarded.
-  const rank = (row: BoardRow): number => {
-    const sole = row.standing.kind === "sole" ? 2 : 0;
-    const auto = row.automated === true ? 1 : 0;
-    return sole + auto;
-  };
+  /*
+   * ONE BOARD ROW PER STOCK NUMBER. DLA bundles many solicitations/CLINs under one NSN, and a
+   * value-blind board let one part fill the top. The corner is a property of the stock number, so
+   * duplicates collapse to a single row keeping the largest published quantity (ties keep the
+   * first, so two builds of one day dedupe identically). Rows with no parseable NSN keep their own
+   * solicitation as the key, so nothing merges by accident.
+   */
+  {
+    const best = new Map<string, BoardRow>();
+    const order: string[] = [];
+    for (const row of rows) {
+      const key = (row.nsn ?? "").replace(/[^0-9]/g, "") || row.solicitation;
+      const prev = best.get(key);
+      if (!prev) {
+        best.set(key, row);
+        order.push(key);
+      } else if ((row.quantity ?? -1) > (prev.quantity ?? -1)) {
+        best.set(key, row);
+      }
+    }
+    rows = order.map((k) => best.get(k)!);
+  }
+
+  /*
+   * INTEREST ORDERING — INVERTED for the 08-28 doctrine. A lone approved source published today is
+   * a WATCHLIST candidate, not a top rank, so bare sole-source no longer floats to the top here
+   * (the old `sole ? 2` is gone). Machine-award stays a minor tiebreak. These two government files
+   * carry NO price, so this board cannot value-weight; the value-weighted rank (the spine of the
+   * new CornerScore) lives on the enriched monopoly surface, which joins award prices.
+   */
+  const rank = (row: BoardRow): number => (row.automated === true ? 1 : 0);
   rows.sort((a, b) => rank(b) - rank(a) || a.solicitation.localeCompare(b.solicitation));
 
   const counts = {

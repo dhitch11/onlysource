@@ -68,11 +68,20 @@ export const GRID_ROW_BUDGET = 500
 export type BoundableRow = {
   soleSource: boolean
   silentSourceCount: number
-  score: { scoreV0: number }
+  /**
+   * rankKey drives the order (unclamped, so saturated-at-100 whales still order correctly);
+   * disposition 'SKIP' marks a locked closed door that must not consume the wire budget; hidden
+   * mirrors lockup.hidden for the grid.
+   */
+  score: { scoreV0: number; rankKey: number; hidden: boolean; disposition: string }
 }
 
 export type WireBound<T> = {
-  /** The rows that travel, highest CornerScore first. Never longer than `budget`. */
+  /**
+   * The rows that travel: up to `budget` VISIBLE rows highest-rankKey first, then a bounded
+   * allotment of locked closed doors appended at the bottom for the grid's "show locked" toggle.
+   * The visible slice is never longer than `budget`; the locked tail is separately bounded.
+   */
   shipped: T[]
   /** Counted over EVERY row handed in, never over `shipped`. These are the map's counts. */
   totals: { candidate: number; sole: number; all: number }
@@ -93,21 +102,37 @@ export function isCandidateCorner(row: BoundableRow): boolean {
  * archive ship the same rows. No clock, no randomness, no scoring done here.
  */
 export function boundRowsForWire<T extends BoundableRow>(rows: T[], budget: number): WireBound<T> {
-  const ranked = [...rows].sort((a, b) => b.score.scoreV0 - a.score.scoreV0)
+  // Locked closed doors (disposition SKIP) are never dropped from the dataset, but they must not
+  // eat the VISIBLE wire budget: they are filtered out here, before the cut, and reach the grid
+  // only behind its explicit "show locked" toggle. Order is by the unclamped rankKey, not the
+  // clamped badge, so two whales both showing 100 still order by their real value underneath.
+  const visible = rows.filter((r) => r.score.disposition !== 'SKIP')
+  const ranked = [...visible].sort((a, b) => b.score.rankKey - a.score.rankKey)
   const candidates = ranked.filter(isCandidateCorner)
   const others = ranked.filter((r) => !isCandidateCorner(r))
 
-  const shipped = [
+  const visibleShipped = [
     ...candidates.slice(0, budget),
     ...others.slice(0, Math.max(0, budget - candidates.length)),
-  ].sort((a, b) => b.score.scoreV0 - a.score.scoreV0)
+  ].sort((a, b) => b.score.rankKey - a.score.rankKey)
+
+  // A bounded allotment of the locked rows travels TOO, appended at the bottom, so the grid's
+  // "show locked" toggle reveals real rows rather than an empty promise. They carry a −40 penalty,
+  // so even when revealed they sort last; they never displace a visible row from the budget above.
+  const locked = [...rows.filter((r) => r.score.disposition === 'SKIP')]
+    .sort((a, b) => b.score.rankKey - a.score.rankKey)
+    .slice(0, budget)
+
+  const shipped = [...visibleShipped, ...locked]
 
   return {
     shipped,
+    // Totals count the WHOLE input (locked rows included): they are the map's funnel counts, and a
+    // closed door is still a position that exists. Only the budget above excludes the locked rows.
     totals: {
-      candidate: candidates.length,
-      sole: ranked.filter((r) => r.soleSource).length,
-      all: ranked.length,
+      candidate: rows.filter(isCandidateCorner).length,
+      sole: rows.filter((r) => r.soleSource).length,
+      all: rows.length,
     },
     budget,
   }

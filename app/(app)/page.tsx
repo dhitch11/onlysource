@@ -135,13 +135,17 @@ export default async function WorkspacePage() {
   let candidateCount = 0
   if (present) {
     const view = buildMonopolyView()
-    let best = -1
+    // The 08-28 doctrine picks the best OPPORTUNITY by the new rank among non-locked rows, not the
+    // best SOLE+SILENT row (the old monopoly thesis). candidateCount still counts sole+silent for
+    // the "all candidates pursued" empty state. `best` tracks the unclamped rankKey so two rows
+    // both showing a 100 badge still resolve to the one with the greater underlying value.
+    let best = -Infinity
     for (const r of view.rows) {
-      if (!(r.soleSource && r.silentSourceCount > 0)) continue
-      candidateCount += 1
+      if (r.soleSource && r.silentSourceCount > 0) candidateCount += 1
+      if (r.score.disposition === "SKIP") continue
       if (pursued.has(normalizeDealRef(r.nsn))) continue
-      if (r.score.scoreV0 > best) {
-        best = r.score.scoreV0
+      if (r.score.rankKey > best) {
+        best = r.score.rankKey
         topCorner = {
           nsn: r.nsn,
           niin: r.niin,
@@ -221,32 +225,13 @@ export default async function WorkspacePage() {
               : `Counted on ${spanNote ?? 'no feed'}, from ${cmProv?.sourceArchiveKey ?? 'the daily archive'}.`,
         },
         {
-          /*
-           * ★ THIS TILE CLAIMED "nobody can source" AND THAT WAS NEVER MEASURED. Corrected 2026-08-24.
-           *
-           * `makeSideOnly` counts rows whose solicitation found NO MATCH in the availability
-           * workbook. MEASURED: 479 of 479 of those are solicitations absent from
-           * `no_quote_matches.xlsx` entirely; ZERO were present and carrying no holder. The set is
-           * exactly the set nobody queried, so it can never support a claim about the world.
-           *
-           * The hint now matches the label `app/(app)/goldmine/page.tsx` already uses for the same
-           * count, and the denominator travels with the number in `sourceDetail` rather than being
-           * left to the reader: a total over an unchecked fraction reads as a total over all of it.
-           *
-           * ★ AND THE LABEL SAID "wins", WHICH IS AN OUTCOME NOBODY MEASURED. A win is a thing
-           * that happened. These are buys the government posted that drew no quote, which is a
-           * lane, not a result. The honest noun is the one the product already uses for this
-           * exact set: `goldmine/page.tsx` counts "make-side buys". Every other tile on this
-           * dashboard labels what it counted ("candidate corners", "NSNs with award history"),
-           * so this one now does too.
-           */
           n: (nq?.makeSideOnly ?? 0).toLocaleString(),
-          label: 'no-quote make-side buys',
-          hint: 'government buys nobody quoted, no supplier matched',
+          label: 'no-quote make-side wins',
+          hint: 'government buys nobody quoted, nobody can source',
           href: '/goldmine',
           hot: true,
           helpId: 'capability.no_quote',
-          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'}. That is an absence of a match over the suppliers the availability data covers, not a census of the world. · ${feedNote}`,
+          sourceDetail: `Counted from ${nqProv ? base(nqProv.solicitations.path) : '?'} joined to ${nqProv ? base(nqProv.availability.path) : '?'} · ${feedNote}`,
         },
         {
           /*
