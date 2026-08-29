@@ -135,13 +135,17 @@ export default async function WorkspacePage() {
   let candidateCount = 0
   if (present) {
     const view = buildMonopolyView()
-    let best = -1
+    // The 08-28 doctrine picks the best OPPORTUNITY by the new rank among non-locked rows, not the
+    // best SOLE+SILENT row (the old monopoly thesis). candidateCount still counts sole+silent for
+    // the "all candidates pursued" empty state. `best` tracks the unclamped rankKey so two rows
+    // both showing a 100 badge still resolve to the one with the greater underlying value.
+    let best = -Infinity
     for (const r of view.rows) {
-      if (!(r.soleSource && r.silentSourceCount > 0)) continue
-      candidateCount += 1
+      if (r.soleSource && r.silentSourceCount > 0) candidateCount += 1
+      if (r.score.disposition === "SKIP") continue
       if (pursued.has(normalizeDealRef(r.nsn))) continue
-      if (r.score.scoreV0 > best) {
-        best = r.score.scoreV0
+      if (r.score.rankKey > best) {
+        best = r.score.rankKey
         topCorner = {
           nsn: r.nsn,
           niin: r.niin,

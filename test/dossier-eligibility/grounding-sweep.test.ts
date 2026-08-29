@@ -320,6 +320,23 @@ describe.skipIf(!hasCorpus)('C. every path that carries a long digit run is name
     '$.dossier.pricing.priceScaleNote',
     '$.dossier.score.legs[].value',
     '$.dossier.score.reasons[].plain',
+    /*
+     * A SCORE TERM THAT IS FOUR DIGITS LONG, AND WHY THAT IS NOT AN IDENTIFIER. Added 2026-08-29.
+     *
+     * Every other reason code contributes single or double digits, so `points` never carried a long
+     * digit run until the lockup penalty was corrected to report the magnitude the sort actually
+     * subtracts (`LOCK_PENALTY`, 1000 — see `lib/intelligence/scoring/cornerscore.ts`). It had been
+     * rendering −40 while the rank key removed 1000, which left the operator a decomposition that
+     * could not be added up to the score beside it.
+     *
+     * This is a MEASURED value in the strict sense this list means: a term the scorer computed and
+     * spent, reproducible from the same inputs, and carrying no identity of a part, a company or a
+     * contract. It is admitted here rather than shortened at the source, because a penalty printed
+     * smaller than the one that was applied is the exact defect this entry exists to record the fix
+     * for. If a future term needs four digits to be honest, it belongs here too — and if one needs
+     * four digits to look impressive, it does not.
+     */
+    '$.dossier.score.reasons[].points',
     '$.economics.basis',
     '$.economics.lastAwardUnitPriceUsd',
     '$.economics.modeledBuyValueUsd',

@@ -160,6 +160,28 @@ const DISPOSITION_TONE: Record<string, "verified" | "active" | "idle"> = {
   SKIP: "idle",
 };
 
+// The lockup verdict, the sole-source inversion. Surplus opportunity is the money signal (the
+// dead-OEM open door) and wears the brass accent; locked is a closed door and reads quiet.
+const LOCKUP_LABEL: Record<string, string> = {
+  surplus_opportunity: "Surplus opportunity",
+  competitive: "Competitive",
+  watchlist: "Watchlist",
+  locked: "Locked",
+};
+const LOCKUP_TONE: Record<string, "verified" | "active" | "idle" | "accent"> = {
+  surplus_opportunity: "accent",
+  competitive: "verified",
+  watchlist: "active",
+  locked: "idle",
+};
+// Best-first when sorting the lockup column.
+const LOCKUP_SORT: Record<string, number> = {
+  surplus_opportunity: 0,
+  competitive: 1,
+  watchlist: 2,
+  locked: 3,
+};
+
 type Filter = "candidate" | "sole" | "all";
 type ToggleKey = "onForecast" | "machine" | "rising" | "priced";
 
@@ -199,8 +221,10 @@ const columns: GridColumn<CornerRowWithAward>[] = [
     align: "end",
     // The flagship 0-100 rank finally explains itself where it is ranked by (census
     // 2026-08-17: the one major column with no eye was the one operators sort money by).
+    // Sorted by the UNCLAMPED rankKey so two rows both showing a 100 badge still order by the
+    // real value underneath; the badge shown is the clamped scoreV0.
     helpId: "score.corner_v0",
-    sortValue: (r) => r.score.scoreV0,
+    sortValue: (r) => r.score.rankKey,
     cell: (r): Cell => ({
       state: "known",
       provenance: "measured",
@@ -213,6 +237,92 @@ const columns: GridColumn<CornerRowWithAward>[] = [
         </span>
       ),
     }),
+  },
+  {
+    /**
+     * THE DEAL VALUE, THE SPINE OF THE NEW RANK. Modeled: last award unit price × requested
+     * quantity — a documented opportunity estimate, NOT a guaranteed figure, so it carries a
+     * "modeled" glyph and never claims measured provenance. Unpriceable rows (≈89% of a live
+     * board) render an honest INSUFFICIENT, never a zero.
+     */
+    id: "value",
+    header: "Deal value",
+    align: "end",
+    mono: true,
+    width: "18ch",
+    helpId: "score.corner_v0",
+    sortValue: (r) => r.score.valueUsd ?? -1,
+    cell: (r): Cell => {
+      const v = r.score.valueUsd;
+      if (v == null) {
+        return {
+          state: "unknown",
+          reason: "size cannot be computed: no usable award price on record for this stock number (INSUFFICIENT, not zero)",
+        };
+      }
+      return {
+        state: "known",
+        value: (
+          <span className={styles.itemCell}>
+            <span className="mono">{usd(v)}</span>
+            <StatusChip tone="idle">modeled</StatusChip>
+          </span>
+        ),
+      };
+    },
+  },
+  {
+    /**
+     * THE LOCKUP VERDICT, the inversion of the old +25 sole-source reward. Surplus opportunity is
+     * the dead-OEM open door Wayne fishes in; locked is a confirmed closed door (AMC 4/5 or an
+     * OEM/licence lock) and is hidden by default behind the toggle below.
+     */
+    id: "lockup",
+    header: "Lockup",
+    width: "20ch",
+    sortValue: (r) => LOCKUP_SORT[r.score.lockup.status] ?? 9,
+    cell: (r): Cell => {
+      const l = r.score.lockup;
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <StatusChip tone={LOCKUP_TONE[l.status] ?? "idle"}>
+            {LOCKUP_LABEL[l.status] ?? l.status}
+          </StatusChip>
+        ),
+      };
+    },
+  },
+  {
+    /**
+     * WAYNE HOLDS THIS. His CAGE (3BQS1/6KB87) among the NSN's listed holders, with the units he
+     * lists and whether they can fill the buy. UNITS ONLY — the availability feed carries no price,
+     * so none is invented. Absence is UNKNOWN (his shelf is not loaded), never "Wayne lacks it".
+     */
+    id: "wayne",
+    header: "Wayne holds",
+    width: "16ch",
+    align: "end",
+    sortValue: (r) => (r.score.wayneHolds.held ? r.score.wayneHolds.units : -1),
+    cell: (r): Cell => {
+      const w = r.score.wayneHolds;
+      if (!w.held) {
+        return {
+          state: "unknown",
+          reason: "no Wayne holding is loaded for this part (his shelf is not loaded; absence is unknown, not a shortage)",
+        };
+      }
+      return {
+        state: "known",
+        provenance: "measured",
+        value: (
+          <StatusChip tone="accent">
+            {w.units.toLocaleString()} units{w.fill >= 1 ? " · fills buy" : ""}
+          </StatusChip>
+        ),
+      };
+    },
   },
   {
     id: "nomenclature",
@@ -550,6 +660,10 @@ export function MonopolyGrid({
     priced: false,
   });
   const [chain, setChain] = useState<string>("all");
+  // Locked closed doors (AMC 4/5, confirmed OEM/licence locks) are out of sight by default — they
+  // "mean nothing to us". They are never dropped from the data: this reveals them, appended at the
+  // bottom by rankKey (the −40 penalty keeps them below everything shown), each stamped with why.
+  const [showLocked, setShowLocked] = useState(false);
 
   // The full column set: the measured columns plus the pursuit wire. Rebuilt only when the
   // pursued set changes (a set identity, not a per-render array), so the grid's column
@@ -573,6 +687,8 @@ export function MonopolyGrid({
   }, [rows]);
 
   const matches = (r: CornerRowWithAward): boolean => {
+    // Locked closed doors are out of sight unless the operator explicitly asks for them.
+    if (!showLocked && r.score.disposition === "SKIP") return false;
     if (filter === "candidate" && !isCandidate(r)) return false;
     if (filter === "sole" && !r.soleSource) return false;
     if (toggles.onForecast && !r.forecast?.onForecast) return false;
@@ -585,12 +701,13 @@ export function MonopolyGrid({
   };
 
   const shown = useMemo(() => {
-    // Rank by the CornerScore, the methodology's spine. The grid header can re-sort any column;
-    // this is the default the operator sees first.
-    return rows.filter(matches).sort((a, b) => b.score.scoreV0 - a.score.scoreV0);
-    // matches closes over filter/toggles/chain, all in the dep list below.
+    // Rank by the UNCLAMPED rankKey, the methodology's spine, so saturated-at-100 whales still
+    // order correctly and locked rows (−40) sink to the bottom when revealed. The grid header can
+    // re-sort any column; this is the default the operator sees first.
+    return rows.filter(matches).sort((a, b) => b.score.rankKey - a.score.rankKey);
+    // matches closes over filter/toggles/chain/showLocked, all in the dep list below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filter, toggles, chain]);
+  }, [rows, filter, toggles, chain, showLocked]);
 
   const clearAll = () => {
     setFilter("all");
@@ -635,6 +752,8 @@ export function MonopolyGrid({
     { id: "priced", label: "Has award price" },
   ];
   const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all";
+  // Locked closed doors loaded on this page, for the reveal control's count.
+  const lockedCount = useMemo(() => rows.filter((r) => r.score.disposition === "SKIP").length, [rows]);
 
   return (
     <>
@@ -687,6 +806,17 @@ export function MonopolyGrid({
           ) : null}
         </div>
         <div className={styles.toolbarRight}>
+          {lockedCount > 0 ? (
+            <button
+              type="button"
+              aria-pressed={showLocked}
+              className={`${styles.chip} ${showLocked ? styles.chipOn : ""}`}
+              onClick={() => setShowLocked((v) => !v)}
+              title="AMC 4/5 and confirmed OEM/licence locks — closed doors, appended at the bottom when shown"
+            >
+              {showLocked ? "Hide" : "Show"} locked / sole-provider items ({lockedCount.toLocaleString()})
+            </button>
+          ) : null}
           <span className={styles.resultCount} aria-live="polite">
             {shown.length.toLocaleString()} shown
           </span>
@@ -767,9 +897,20 @@ export function MonopolyGrid({
             field: "CornerScore",
             value: `${r.score.scoreV0}/100 · ${dispositionLabel(r.score.disposition)} · confidence ${r.score.grade} (an ordinal watchlist rank, not a probability)`,
           },
+          /*
+           * ★ THIS PRINTED THE POINTS ONLY WHEN THEY WERE POSITIVE. Fixed 2026-08-29.
+           *
+           * `rc.points > 0` meant every NEGATIVE leg rendered its prose with no number beside it,
+           * so the one leg that can sink a row - the lockup penalty, now -LOCK_PENALTY - was the
+           * single leg whose magnitude the operator could not see. A decomposition that hides its
+           * largest term is worse than one that shows nothing: the visible legs sum to something
+           * positive while the row sits at zero, and the operator reads that as a broken score.
+           * Zero-point legs still print bare, because a leg contributing nothing is context and a
+           * "+0" reads as a measurement that was taken and came back empty.
+           */
           ...r.score.reasons.map((rc, i) => ({
             field: i === 0 ? "Why this score" : "",
-            value: `${rc.points > 0 ? `+${rc.points} ` : ""}[${rc.calibration}] ${rc.plain}`,
+            value: `${rc.points ? `${rc.points > 0 ? "+" : ""}${rc.points} ` : ""}[${rc.calibration}] ${rc.plain}`,
           })),
           { field: "Stock number", value: r.nsn },
           { field: "NIIN", value: r.niin },

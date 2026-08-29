@@ -28,7 +28,7 @@ const row = (id: string, scoreV0: number, soleSource: boolean, silentSourceCount
   id,
   soleSource,
   silentSourceCount,
-  score: { scoreV0 },
+  score: { scoreV0, rankKey: scoreV0, hidden: false, disposition: "WATCHLIST" },
 })
 
 /*

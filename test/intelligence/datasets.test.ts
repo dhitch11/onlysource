@@ -333,7 +333,13 @@ describe('intelligence datasets over the real files', () => {
       expect(view.feedDay).toBe(served)
       expect(view.feed.feedDay).toBe(served)
       expect(view.provenance.feedDay).toBe(served)
-      expect(view.rows).toHaveLength(live.cornerMap.rows.length)
+      // The monopoly view now collapses to ONE row per stock number (collapseByNsn), so its length
+      // is the distinct-NSN count of the corner map, not the raw (per-CLIN) row count.
+      const distinctNsnKeys = new Set(
+        live.cornerMap.rows.map((r) => r.nsn.replace(/[^0-9]/g, "") || r.nsn),
+      ).size
+      expect(view.rows).toHaveLength(distinctNsnKeys)
+      expect(view.rows.length).toBeLessThanOrEqual(live.cornerMap.rows.length)
 
       const board = buildBoard()
       expect(board.ok).toBe(true)

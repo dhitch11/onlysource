@@ -585,9 +585,11 @@ function readNinthCharacter(solicitation: string): boolean | null {
 }
 
 function byCornerStrength(a: CornerRow, b: CornerRow): number {
+  // A PRE-SORT ONLY. The 08-28 doctrine inverts sole-source: a lone approved source is not a top
+  // rank, so the `soleSource ? -1` and the approvedSourceCount-ascending tiebreaks that privileged
+  // monopoly are GONE. This orders by legs established and then by size, and leaves the
+  // authoritative, value-weighted ordering to the downstream rankKey on the enriched surface.
   if (a.legsEstablished !== b.legsEstablished) return b.legsEstablished - a.legsEstablished
-  if (a.soleSource !== b.soleSource) return a.soleSource ? -1 : 1
-  if (a.approvedSourceCount !== b.approvedSourceCount) return a.approvedSourceCount - b.approvedSourceCount
   return (b.quantity ?? 0) - (a.quantity ?? 0)
 }
 

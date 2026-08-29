@@ -22,6 +22,8 @@ export type EnrichedCorner = {
   item: string
   cage: string | null
   score: number
+  /** The UNCLAMPED methodology rank key — the authoritative sort key (score is its 0-100 clamp). */
+  rankKey: number
   grade: string
   disposition: string
   onForecast: boolean
@@ -112,6 +114,7 @@ function enrich(
     item: row.nomenclature.trim() || 'unnamed on this line',
     cage: row.approvedSources[0] ?? null,
     score: score.scoreV0,
+    rankKey: score.rankKey,
     grade: score.grade,
     disposition: score.disposition,
     onForecast: forecast?.onForecast ?? false,
@@ -217,7 +220,7 @@ export function buildPortfolio(): Portfolio {
     .sort((a, b) => (b.escalationPct ?? 0) - (a.escalationPct ?? 0))
     .slice(0, 8)
 
-  const topCorners = [...candidates].sort((a, b) => b.score - a.score).slice(0, 10)
+  const topCorners = [...candidates].sort((a, b) => b.rankKey - a.rankKey).slice(0, 10)
 
   const portfolio: Portfolio = {
     ok: candidates.length > 0,

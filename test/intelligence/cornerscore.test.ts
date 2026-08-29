@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { classifyInstrument, offersDescribeThisAward } from '@/lib/intelligence/awards/parent-child'
-import { scoreCorner } from "@/lib/intelligence/scoring/cornerscore";
+import { scoreCorner, LOCK_PENALTY, valuePoints } from "@/lib/intelligence/scoring/cornerscore";
 import { gradeFrom, measured, prior, unavailable } from "@/lib/intelligence/scoring/evidence-state";
 import type { CornerRow } from "@/lib/intelligence/corner";
 import type { AwardRecord, NsnAwardSummary } from "@/lib/intelligence/awards/nsn-now";
 import { rollUpSurplus } from "@/lib/intelligence/awards/surplus";
+import { buildCageFamilyIndex } from "@/lib/intelligence/scoring/cage-family";
 
 /**
  * These tests exist to lock the ONE property the whole methodology rests on: a missing leg
@@ -153,21 +154,31 @@ describe("scoreCorner abstention discipline", () => {
     expect(r.legs.forwardDemand.state).toBe("PRIOR");
   });
 
-  it("has award history but NO holder → INSUFFICIENT_DATA (cannot confirm the corner is fillable)", () => {
+  it("has award history but NO holder → WATCHLIST (disposition is driven by value now, not feasibility)", () => {
+    // 08-28 doctrine: disposition = locked?SKIP : v==null?INSUFFICIENT : WATCHLIST. This row IS
+    // priceable (v = 2.54 × 100), so it is a WATCHLIST, while the feasibility leg still honestly
+    // abstains — the corner cannot be CONFIRMED fillable, and the leg says so, but that no longer
+    // forces INSUFFICIENT_DATA. Only an unpriceable row abstains at the disposition level.
     const r = scoreCorner(baseRow(), awardWith({ holders: [] }));
     expect(r.legs.priceAnchor.state).toBe("MEASURED");
     expect(r.legs.feasibility.state).toBe("UNAVAILABLE");
-    expect(r.disposition).toBe("INSUFFICIENT_DATA");
+    expect(r.disposition).toBe("WATCHLIST");
+    expect(r.valueUsd).toBe(254);
   });
 
-  it("every reason code is tagged measured or prior; measured reasons trace to a fact", () => {
+  it("every reason code is tagged measured or prior; the lockup verdict is a first-class field", () => {
     const r = scoreCorner(baseRow(), awardWith());
     expect(r.reasons.length).toBeGreaterThan(0);
     for (const rc of r.reasons) {
       expect(["measured", "prior"]).toContain(rc.calibration);
     }
-    // the sole-awardee bonus fired because distinctAwardees === 1
-    expect(r.reasons.some((rc) => /single company/.test(rc.plain))).toBe(true);
+    // The +25 sole-source and +10 "single company" concentration reasons are DELETED. The lockup
+    // classifier replaces them: a sole row whose award history cannot be family-resolved fails
+    // closed to WATCHLIST (never a licence lock we cannot prove), and it is shown, not hidden.
+    expect(r.reasons.some((rc) => /single company/.test(rc.plain))).toBe(false);
+    expect(r.lockup.status).toBe("watchlist");
+    expect(r.lockup.hidden).toBe(false);
+    expect(r.reasons.some((rc) => rc.leg === "lockup")).toBe(true);
   });
 
   it("score is bounded 0..100 and rises with more corroborating signals", () => {
@@ -237,5 +248,204 @@ describe("scoreCorner source-state honesty: checked absence versus unloaded sour
     const gaps = r.dataGaps.join("\n");
     expect(gaps).toContain("ILS availability not connected");
     expect(gaps).toContain("award history not loaded");
+  });
+});
+
+/*
+ * THE 08-28 REDESIGN INVARIANTS. Value is the spine, sole-source is inverted into a lockup GATE,
+ * Wayne-held is a first-class boost, and the calibration must not silently regress. Every anchor
+ * below was known before scoreCorner ran.
+ */
+// An award summary priced at a chosen unit price, with no escalation (first == last) and no
+// surplus, so a case can isolate the value term. v = unitPrice × row.quantity (100 on baseRow).
+const pricedAward = (unit: number, over: Partial<NsnAwardSummary> = {}): NsnAwardSummary =>
+  awardWith({
+    firstUnitPrice: unit,
+    lastUnitPrice: unit,
+    distinctAwardees: 1,
+    awards: [award({ contractNo: "P1", awardDateIso: "2025-01-01", quantity: 100, unitPrice: unit, finalPrice: unit * 100, effectiveUnitPrice: unit })],
+    latest: award({ contractNo: "P1", awardDateIso: "2025-01-01", quantity: 100, unitPrice: unit, finalPrice: unit * 100, effectiveUnitPrice: unit }),
+    ...over,
+  });
+
+describe("08-28 redesign: value spine, lockup gate, Wayne boost", () => {
+  it("a ~$132K competitive row outscores a ~$4,686 sole row (value is the spine, not sole-source)", () => {
+    const competitive = scoreCorner(
+      baseRow({ soleSource: false, approvedSourceCount: 3, silentSourceCount: 0 }),
+      pricedAward(1320), // 1320 × 100 = $132,000
+    );
+    const sole = scoreCorner(baseRow(), pricedAward(46.86)); // 46.86 × 100 = $4,686
+    expect(competitive.valueUsd).toBe(132000);
+    expect(sole.valueUsd).toBeCloseTo(4686, 2);
+    expect(competitive.scoreV0).toBeGreaterThan(sole.scoreV0);
+    expect(competitive.rankKey).toBeGreaterThan(sole.rankKey);
+    // The sub-$5K sole row earns ZERO value points; it cannot ride sole-source to the top.
+    expect(sole.valueTier).toBe("noise");
+    expect(competitive.valueTier).toBe("whale");
+  });
+
+  it("an AMC-5 row is LOCKED: disposition SKIP and lockup.hidden", () => {
+    const r = scoreCorner(baseRow(), awardWith({ amc: "5" }));
+    expect(r.lockup.status).toBe("locked");
+    expect(r.lockup.hidden).toBe(true);
+    expect(r.disposition).toBe("SKIP");
+    // The −40 penalty is real: the same row without the AMC lock scores strictly higher.
+    const unlocked = scoreCorner(baseRow(), awardWith({ amc: null }));
+    expect(unlocked.rankKey).toBeGreaterThan(r.rankKey);
+  });
+
+  it("a surplus award on file OVERRIDES the AMC lock: shown, not hidden", () => {
+    const surplusAward = award({ contractNo: "S1", awardDateIso: "2025-01-01", quantity: 100, finalPrice: 254, effectiveUnitPrice: 2.54, surplus: "Yes" });
+    const r = scoreCorner(baseRow(), awardWith({ amc: "5", awards: [surplusAward], latest: surplusAward }));
+    // Branch (1) fires before branch (2): a completed surplus award proves the door is open.
+    expect(r.lockup.status).toBe("surplus_opportunity");
+    expect(r.lockup.hidden).toBe(false);
+    expect(r.disposition).not.toBe("SKIP");
+  });
+
+  it("a grounded OUTSIDER winning OVERRIDES the AMC lock: a proven-open door is shown, not hidden", () => {
+    // 08-28 audit fix: AMC 4/5 was checked before the outsider-won test, so a non-approved CAGE that
+    // had actually WON (as strong a proof the door is open as a surplus flag) was wrongly hidden.
+    const family = buildCageFamilyIndex({
+      companies: [
+        { cage: "58794", company: "ACME" }, // the approved source on baseRow
+        { cage: "99999", company: "OUTSIDER CORP" }, // a genuinely different corporate family
+      ],
+      associations: [],
+    });
+    const outsiderWin = award({ contractNo: "O1", awardDateIso: "2025-01-01", quantity: 100, finalPrice: 500, effectiveUnitPrice: 5, cage: "99999" });
+    const r = scoreCorner(
+      baseRow(),
+      awardWith({ amc: "5", awards: [outsiderWin], latest: outsiderWin }),
+      null,
+      { awardIndexLoaded: true, cageFamily: family },
+    );
+    expect(r.lockup.status).toBe("surplus_opportunity");
+    expect(r.lockup.hidden).toBe(false);
+    expect(r.disposition).not.toBe("SKIP");
+  });
+
+  it("the lock penalty DOMINATES uncapped value: a $10M LOCKED row can never outrank an open row", () => {
+    // 08-28 audit fix: value is uncapped, so the old fixed −40 let a high-value locked row land at a
+    // positive rankKey and outrank open rows. The penalty now exceeds the max reachable score.
+    const lockedWhale = scoreCorner(
+      baseRow(),
+      awardWith({
+        amc: "5",
+        firstUnitPrice: 100000,
+        lastUnitPrice: 100000,
+        latest: award({ contractNo: "W1", awardDateIso: "2025-01-01", quantity: 100, finalPrice: 10000000, effectiveUnitPrice: 100000 }),
+      }),
+    );
+    const bareOpen = scoreCorner(baseRow({ soleSource: false, approvedSourceCount: 3, silentSourceCount: 0 }), pricedAward(1));
+    expect(lockedWhale.lockup.hidden).toBe(true);
+    expect(lockedWhale.valueUsd).toBe(10000000); // it IS a $10M part…
+    expect(lockedWhale.rankKey).toBeLessThan(10); // …but it sinks below the demand floor, i.e. below EVERY open row
+    expect(lockedWhale.rankKey).toBeLessThan(bareOpen.rankKey);
+    expect(lockedWhale.scoreV0).toBe(0); // the clamp reads 0, never a misleading positive
+  });
+
+  it("a Wayne-CAGE holder (3BQS1) outranks its identical non-holder twin, by the boost alone", () => {
+    const held = scoreCorner(baseRow(), awardWith({ holders: [{ nsn: "5325015619853", company: "WKF (FRIEDMAN) ENTERPRISES, INC.", cage: "3BQS1", quantity: 50 }] }));
+    const twin = scoreCorner(baseRow(), awardWith({ holders: [{ nsn: "5325015619853", company: "SOMEONE ELSE", cage: "0AMA0", quantity: 50 }] }));
+    expect(held.wayneHolds.held).toBe(true);
+    expect(held.wayneHolds.units).toBe(50);
+    expect(twin.wayneHolds.held).toBe(false);
+    expect(held.scoreV0).toBeGreaterThan(twin.scoreV0);
+    // Absence applies ZERO penalty: the two differ ONLY by the positive boost (10 + 18·0.5 = 19).
+    expect(held.rankKey - twin.rankKey).toBeCloseTo(19, 5);
+    // The badge shows units with NO price — the availability feed carries none, so none is invented.
+    expect(held.wayneHolds.plain).not.toContain("$");
+  });
+
+  it("value is smooth at the $15K knee: $14,000 scores within one rankKey point of $15,001", () => {
+    const at14 = scoreCorner(baseRow(), pricedAward(140)); // $14,000
+    const at15 = scoreCorner(baseRow(), pricedAward(150.01)); // $15,001
+    expect(at14.valueUsd).toBe(14000);
+    expect(at15.valueUsd).toBeCloseTo(15001, 2);
+    expect(Math.abs(at15.rankKey - at14.rankKey)).toBeLessThan(1);
+  });
+
+  it("value is monotonic with NO ceiling, and diminishing (a $1M row beats $250K by < 4 pts)", () => {
+    const at250k = scoreCorner(baseRow(), pricedAward(2500)); // $250,000
+    const at1m = scoreCorner(baseRow(), pricedAward(10000)); // $1,000,000
+    const at130k = scoreCorner(baseRow(), pricedAward(1300)); // $130,000
+    expect(at1m.rankKey).toBeGreaterThan(at250k.rankKey);
+    expect(at250k.rankKey).toBeGreaterThan(at130k.rankKey);
+    expect(at1m.rankKey - at250k.rankKey).toBeLessThan(4);
+  });
+
+  it("FAIL-CLOSED: with no cage-family index, a would-be OEM lock is NOT declared locked", () => {
+    // baseRow is sole, and every award went to the approved CAGE 58794 (an OEM-lock shape).
+    const withoutFamily = scoreCorner(baseRow(), awardWith(), null, {});
+    expect(withoutFamily.lockup.status).not.toBe("locked");
+    expect(withoutFamily.disposition).not.toBe("SKIP");
+
+    // WITH a grounded resolver that places every winner in the approved family, it locks.
+    const family = buildCageFamilyIndex({ companies: [{ cage: "58794", company: "ACME" }], associations: [] });
+    const withFamily = scoreCorner(baseRow(), awardWith(), null, { cageFamily: family });
+    expect(withFamily.lockup.status).toBe("locked");
+    expect(withFamily.disposition).toBe("SKIP");
+  });
+
+  it("an unpriceable row abstains at INSUFFICIENT_DATA with valueTier 'insufficient', never 0", () => {
+    const r = scoreCorner(baseRow(), null, null, { awardIndexLoaded: true });
+    expect(r.valueUsd).toBeNull();
+    expect(r.valueTier).toBe("insufficient");
+    expect(r.disposition).toBe("INSUFFICIENT_DATA");
+  });
+
+  /* --------------------------------------------------------------------------------------
+   * THE DECOMPOSITION MUST RECONCILE WITH THE SORT KEY.
+   *
+   * The scorer subtracted 1000 for a lockup, rendered a ReasonCode that said -40, and carried a
+   * prose formula that also said 40. Three numbers for one term. The operator reads the reason
+   * codes to understand the score, so a decomposition that cannot be added back up to the key the
+   * sort used is the product's central claim about itself failing quietly. These pin the identity
+   * rather than the constant, so raising or lowering LOCK_PENALTY stays a one-line change.
+   * -------------------------------------------------------------------------------------- */
+  const lockedFixture = () => {
+    const family = buildCageFamilyIndex({ companies: [{ cage: "58794", company: "ACME" }], associations: [] });
+    return scoreCorner(baseRow(), awardWith(), null, { cageFamily: family });
+  };
+
+  it("the rendered lockup ReasonCode reports the SAME magnitude rankKey subtracts", () => {
+    const locked = lockedFixture();
+    expect(locked.lockup.status).toBe("locked");
+    const leg = locked.reasons.find((r) => r.leg === "lockup");
+    expect(leg).toBeDefined();
+    // Not "is negative" and not "equals -1000": it must equal the term the key actually used.
+    expect(leg!.points).toBe(-LOCK_PENALTY);
+  });
+
+  it("the reason codes SUM to rankKey, so the operator can add the score up by hand", () => {
+    for (const r of [lockedFixture(), scoreCorner(baseRow(), pricedAward(2500))]) {
+      const summed = r.reasons.reduce((acc, leg) => acc + leg.points, 0);
+      // The legs are the whole key. If a term ever moves outside the decomposition, this fails.
+      expect(summed).toBeCloseTo(r.rankKey, 6);
+    }
+  });
+
+  it("NO locked row can outrank ANY open row, whatever it is worth (David: never rank a lockup high)", () => {
+    // The worst open row reachable: unpriceable, no wayne holding, no corner signals.
+    const worstOpen = scoreCorner(baseRow({ soleSource: false, approvedSourceCount: 4 }), null, null, {
+      awardIndexLoaded: true,
+    });
+    // The best locked row reachable: a $10M buy, which earns the most value points the ramp emits.
+    const family = buildCageFamilyIndex({ companies: [{ cage: "58794", company: "ACME" }], associations: [] });
+    const bestLocked = scoreCorner(baseRow(), pricedAward(100000), null, { cageFamily: family });
+    expect(bestLocked.lockup.status).toBe("locked");
+    expect(bestLocked.valueUsd).toBe(10000000);
+    expect(bestLocked.rankKey).toBeLessThan(worstOpen.rankKey);
+    // And the penalty must dominate by construction, not by luck on this fixture: every positive
+    // term is bounded by the demand floor + the uncapped value ramp + wayne + the 30-point bucket.
+    expect(LOCK_PENALTY).toBeGreaterThan(10 + valuePoints(10000000) + 30 + 30);
+  });
+
+  it("a locked row still clamps to scoreV0 0 and never reports a negative score to the operator", () => {
+    const locked = lockedFixture();
+    expect(locked.rankKey).toBeLessThan(0);
+    expect(locked.scoreV0).toBe(0);
+    expect(locked.disposition).toBe("SKIP");
   });
 });

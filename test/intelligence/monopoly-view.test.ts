@@ -73,18 +73,22 @@ describe('the memoized monopoly view over the real files', () => {
     const awardBy = awardIx.ok ? awardIx.byNsn : null
     const fcBy = fcIx.ok ? fcIx.byNsn : null
     /*
-     * THE RECOMPUTE MUST SCORE THROUGH THE VIEW'S OWN INPUTS, NOT A SUBSET OF THEM.
-     *
-     * This assertion exists to catch the view drifting from the builders, so a recompute that
-     * quietly passes a different `sources` object cannot do that job. It previously called
-     * scoreCorner with three arguments while the view passed four plus the awardee verdict, and
-     * the two agreed only because the top-scoring row happened not to exercise the difference.
-     * The moment the corporate-family resolver was wired into the view, the same row scored 94
-     * here and 77 there, and the failure was in this recompute, not in the view.
+     * A TRUE INDEPENDENT RECOMPUTE PASSES THE SAME INPUTS THE VIEW PASSES. Since the 08-28
+     * redesign, scoreCorner depends on the corporate-family resolver (the OEM-lock gate + the
+     * silence leg) and on the last-awardee surplus verdict, both of which the view loads. A
+     * recompute that omits them scores a DIFFERENT configuration, not the memo — which is exactly
+     * why this assertion read 70-vs-55 before: it was comparing full-source scoring to bare
+     * scoring, not catching a memo drift. These builders are memoized, so re-loading them is a map
+     * read, not a re-parse.
      */
     const cageIx = loadCageFamilyIndex()
     const live = buildAwardeeClassifierFromLive()
     const awardee = live.ok ? live.classifier : null
+    const scoreSources = {
+      awardIndexLoaded: awardIx.ok,
+      forecastIndexLoaded: fcIx.ok,
+      cageFamily: cageIx.ok ? cageIx.index : null,
+    }
 
     let priced = 0
     let candidatePriced = 0
@@ -116,18 +120,20 @@ describe('the memoized monopoly view over the real files', () => {
       if (isCandidate && (award?.holders.length ?? 0) > 0) availCount += 1
       if (isCandidate) {
         const lastAwardee = awardee && award?.latest?.cage ? awardee.classify(award.latest.cage) : null
-        const s = scoreCorner(
-          r,
-          award,
-          forecast,
-          { awardIndexLoaded: awardIx.ok, forecastIndexLoaded: fcIx.ok, cageFamily: cageIx.ok ? cageIx.index : null },
-          lastAwardee,
-        )
+        const s = scoreCorner(r, award, forecast, scoreSources, lastAwardee)
         if (s.scoreV0 > topScore) topScore = s.scoreV0
       }
     }
 
-    expect(view.rows).toHaveLength(cornerMap.rows.length)
+    /*
+     * THE VIEW NOW COLLAPSES REPEATED-NSN ROWS TO ONE (the 08-28 dedup that stops one bundled
+     * stock number filling a screen), so view.rows is one row per stock number, not one per CLIN.
+     * The memo-consistency contract holds at that grain: the distinct-NSN count is the independent
+     * recompute of the collapsed length, and it is never larger than the raw row count.
+     */
+    const distinctNsnKeys = new Set(cornerMap.rows.map((r) => r.nsn.replace(/[^0-9]/g, '') || r.nsn)).size
+    expect(view.rows).toHaveLength(distinctNsnKeys)
+    expect(view.rows.length).toBeLessThanOrEqual(cornerMap.rows.length)
     expect(view.summary).toEqual(cornerMap.summary)
     expect(view.feedDay).toBe(cornerMap.provenance.feedDay)
     expect(view.pricedCount).toBe(priced)

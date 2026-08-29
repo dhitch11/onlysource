@@ -76,8 +76,17 @@ export type GridForecast = {
 
 export type GridScore = {
   scoreV0: number
+  /** The unclamped rank key every surface sorts by. */
+  rankKey: number
   disposition: CornerScoreResult['disposition']
   grade: CornerScoreResult['grade']
+  /** Convenience mirror of lockup.hidden, so the wire bound and grid can filter without a nest. */
+  hidden: boolean
+  /** The modeled buy size, or null when unpriceable (INSUFFICIENT, never 0). */
+  valueUsd: CornerScoreResult['valueUsd']
+  valueTier: CornerScoreResult['valueTier']
+  lockup: CornerScoreResult['lockup']
+  wayneHolds: CornerScoreResult['wayneHolds']
   reasons: CornerScoreResult['reasons']
 }
 
@@ -274,12 +283,29 @@ export function buildMonopolyView(): MonopolyView {
       forecast: slimForecast(forecast),
       score: {
         scoreV0: score.scoreV0,
+        rankKey: score.rankKey,
         disposition: score.disposition,
         grade: score.grade,
+        hidden: score.lockup.hidden,
+        valueUsd: score.valueUsd,
+        valueTier: score.valueTier,
+        lockup: score.lockup,
+        wayneHolds: score.wayneHolds,
         reasons: score.reasons,
       },
     }
   })
+
+  /*
+   * COLLAPSE REPEATED-NSN ROWS TO ONE. DLA bundles many solicitations/CLINs under one stock
+   * number (the fuel pump appeared 21× in the 2026-08-14 top-20), which lets one part fill a
+   * screen. The corner is a property of the NSN, not of each CLIN, so a bundle collapses to a
+   * single row: the one with the highest rankKey (its strongest presentation), carrying the
+   * summed solicited quantity so the buy size the operator sees is the whole bundle. Nothing is
+   * dropped from the dataset — this is the VIEW's presentation, and the rows array below is what
+   * the grid renders; the map's own counts (above) are untouched.
+   */
+  const collapsed = collapseByNsn(rows)
 
   const view: MonopolyView = {
     feedDay: cornerMap.provenance.feedDay,
@@ -289,7 +315,7 @@ export function buildMonopolyView(): MonopolyView {
     window,
     newestDayFunnel,
     provenance: cornerMap.provenance,
-    rows,
+    rows: collapsed,
     awardsJoined: awardByNsn != null,
     forecastJoined: forecastByNsn != null,
     pricedCount,
@@ -303,6 +329,33 @@ export function buildMonopolyView(): MonopolyView {
   // One view per archive state, not one per day the process has been up: the key ends in the
   // day demand was judged against, and this drops the previous day's build with it.
   return cachePerIdentityDay(viewCache, key, view)
+}
+
+/**
+ * COLLAPSE REPEATED-NSN ROWS TO ONE, keeping the highest-rankKey representative per stock number.
+ *
+ * DLA bundles many solicitations/CLINs under one NSN, so a value-blind screen let one part (a fuel
+ * pump, 21×) fill a top-20. The corner is a property of the stock number, not of each CLIN, so the
+ * view renders one row per NSN: the one with the strongest presentation (max rankKey). Nothing is
+ * dropped from the DATASET — the map's own counts are computed pre-collapse and untouched; this is
+ * only which rows the grid paints. The representative keeps its own fields and its own score (we do
+ * not rescore or re-sum quantity, so the buy value it shows always matches the CLIN it was scored
+ * on). Deterministic: ties on rankKey keep the earlier row, so two builds collapse identically.
+ */
+export function collapseByNsn(rows: EnrichedCornerRow[]): EnrichedCornerRow[] {
+  const best = new Map<string, EnrichedCornerRow>()
+  const order: string[] = []
+  for (const r of rows) {
+    const key = r.nsn.replace(/[^0-9]/g, '') || r.nsn
+    const prev = best.get(key)
+    if (!prev) {
+      best.set(key, r)
+      order.push(key)
+    } else if (r.score.rankKey > prev.score.rankKey) {
+      best.set(key, r)
+    }
+  }
+  return order.map((k) => best.get(k)!)
 }
 
 /** Tests only: drop the memo so a suite can assert cold and warm agree. */
