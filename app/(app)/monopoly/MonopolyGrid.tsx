@@ -4,6 +4,12 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { DataGrid, type GridColumn, type Cell } from "@/components/ui/DataGrid";
 import { normalizeNsn } from "@/lib/intelligence/nsn-key";
+import {
+  classifyActionability,
+  countActionability,
+  hideDeadByDefault,
+  type Actionability,
+} from "@/lib/intelligence/actionability";
 import { AiLoader } from "@/components/ui/AiLoader";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { PriceSparkline } from "@/components/ui/PriceSparkline";
@@ -684,6 +690,7 @@ export function MonopolyGrid({
   pursuedRefs,
   seenNsns,
   seenAvailable,
+  awardsJoined,
   totals,
   basis,
 }: {
@@ -710,6 +717,14 @@ export function MonopolyGrid({
    * board is untouched. An unreadable store withdraws the filter; it never fakes a clean one.
    */
   seenAvailable: boolean;
+  /**
+   * Whether the NSN award index was loaded for this board.
+   *
+   * ⛔ REQUIRED BY THE ACTIONABILITY CLASSIFIER AND NOT A NICETY. When it is false every row is
+   * `unknown` and nothing is hidden — otherwise a board with no award index would classify every
+   * single row dead and hide the entire product behind a toggle while looking like it worked.
+   */
+  awardsJoined: boolean;
   /** The TRUE size of each tab, counted server-side over every served row. */
   totals: { candidate: number; sole: number; all: number };
   /**
@@ -807,6 +822,70 @@ export function MonopolyGrid({
   const [unseenOnly, setUnseenOnly] = useState(false);
   const unseenFilterActive = unseenOnly && seenAvailable;
 
+  /* ------------------------------------------------------------------------------------
+   * DEAD ROWS. David: "if the opportunity truly is not available to us ... that does not even
+   * need to be in our face in any way ... If the first half of the 10 we click on do not even
+   * open for some sort of error or lack of data, I do not want to see that in my face."
+   *
+   * A CLASSIFICATION, NOT A DELETION. Rows positively established as unworkable leave the DEFAULT
+   * view; they remain one explicit toggle away, and that toggle CARRIES THE COUNT, because a
+   * number is the cheapest honest proof that nothing was thrown away.
+   *
+   * ⛔ `unknown` IS NEVER HIDDEN. Hiding what we could not classify is guessing, and the guess is
+   * expensive in exactly one direction: burying a live opportunity. Only positive evidence hides.
+   * ------------------------------------------------------------------------------------ */
+  const actionability = useMemo(() => {
+    const m = new Map<string, Actionability>();
+    for (const r of rows) {
+      m.set(
+        r.nsn,
+        classifyActionability(
+          {
+            valueUsd: r.score.valueUsd,
+            quantity: r.quantity ?? null,
+            latestPrice: r.award?.latestPrice ?? null,
+          },
+          { awards: awardsJoined },
+        ),
+      );
+    }
+    return m;
+  }, [rows, awardsJoined]);
+
+  /**
+   * THE INTERLOCK. Whether the default view may hide dead rows AT ALL is a function of how many
+   * there are — measured on this board, on every render, never a fixed choice.
+   *
+   * ★ MEASURED 2026-08-29 ON THE REAL SERVED BOARD: 14 of 15 rows are `no_price_anchor`, so the
+   * filter David asked for would have left ONE row visible and reported a 14-day-paused capture as
+   * an empty market. Every test passed and the classifier was right about all 14. Only running it
+   * over the corpus and reading the number caught it.
+   */
+  const deadDefault = useMemo(
+    () => hideDeadByDefault(countActionability([...actionability.values()].map((a) => a.verdict))),
+    [actionability],
+  );
+
+  /**
+   * `null` means "the operator has not touched the control", so the interlocked default governs.
+   * Once he presses it his choice wins, in both directions, for the rest of the session.
+   */
+  const [showUnavailableChoice, setShowUnavailableChoice] = useState<boolean | null>(null);
+  const showUnavailable = showUnavailableChoice ?? !deadDefault.hideByDefault;
+  const setShowUnavailable = (fn: (v: boolean) => boolean) =>
+    setShowUnavailableChoice((prev) => fn(prev ?? !deadDefault.hideByDefault));
+
+  /** How many rows the default view is holding back, and it is rendered on the control itself. */
+  const unavailableCount = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          actionability.get(r.nsn)?.verdict === "unactionable" &&
+          (showLocked || r.score.disposition !== "SKIP"),
+      ).length,
+    [rows, actionability, showLocked],
+  );
+
   // The full column set: the measured columns plus the pursuit wire. Rebuilt only when the
   // pursued set changes (a set identity, not a per-render array), so the grid's column
   // identity stays stable across filtering.
@@ -840,6 +919,8 @@ export function MonopolyGrid({
     // Unseen-only. Guarded by `seenAvailable` inside `unseenFilterActive`, so an unreadable store
     // can never silently empty the board.
     if (unseenFilterActive && seenSet.has(normalizeNsn(r.nsn))) return false;
+    // Positively-dead rows only. `unknown` stays in the default view by design.
+    if (!showUnavailable && actionability.get(r.nsn)?.verdict === "unactionable") return false;
     if (chain !== "all" && !(r.forecast?.supplyChains ?? []).map((c) => c.trim()).includes(chain))
       return false;
     return true;
@@ -852,11 +933,12 @@ export function MonopolyGrid({
     return rows.filter(matches).sort((a, b) => rankCompare(a.score.rankKey, a.nsn, b.score.rankKey, b.nsn));
     // matches closes over filter/toggles/chain/showLocked, all in the dep list below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filter, toggles, chain, showLocked, unseenFilterActive, seenSet]);
+  }, [rows, filter, toggles, chain, showLocked, unseenFilterActive, seenSet, showUnavailable, actionability]);
 
   const clearAll = () => {
     setFilter("all");
     setUnseenOnly(false);
+    setShowUnavailableChoice(null);
     setToggles({ onForecast: false, machine: false, rising: false, priced: false });
     setChain("all");
   };
@@ -897,7 +979,7 @@ export function MonopolyGrid({
     { id: "rising", label: "Rising price" },
     { id: "priced", label: "Has award price" },
   ];
-  const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all" || unseenOnly;
+  const anyToggle = Object.values(toggles).some(Boolean) || chain !== "all" || unseenOnly || showUnavailableChoice !== null;
   // Locked closed doors loaded on this page, for the reveal control's count.
   const lockedCount = useMemo(() => rows.filter((r) => r.score.disposition === "SKIP").length, [rows]);
   /**
@@ -991,6 +1073,25 @@ export function MonopolyGrid({
             <span className={styles.seenNote} role="status">
               A seen mark could not be saved, so it was undone rather than shown as saved.
             </span>
+          ) : null}
+          {/* THE INTERLOCK, SAID OUT LOUD. Without this sentence the operator sees a board full of
+              rows he cannot quote and concludes the product is wrong, rather than that the capture
+              is stale. Silence here would be the dishonest half of an honest decision. */}
+          {deadDefault.plain ? (
+            <span className={styles.seenNote} role="status">
+              {deadDefault.plain}
+            </span>
+          ) : null}
+          {unavailableCount > 0 ? (
+            <button
+              type="button"
+              aria-pressed={showUnavailable}
+              className={`${styles.chip} ${showUnavailable ? styles.chipOn : ""}`}
+              onClick={() => setShowUnavailable((v) => !v)}
+              title="Rows with no award price and/or no solicited quantity on file: nothing to anchor or size a quote against. They are classified, never deleted."
+            >
+              {showUnavailable ? "Hide" : "Show"} unavailable ({unavailableCount.toLocaleString()})
+            </button>
           ) : null}
           {lockedCount > 0 ? (
             <button

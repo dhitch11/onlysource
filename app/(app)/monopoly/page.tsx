@@ -381,6 +381,7 @@ export default async function MonopolyPage() {
         pursuedRefs={pursuedRefs}
         seenNsns={seen.nsns}
         seenAvailable={seen.available}
+        awardsJoined={awardsJoined}
         totals={gridTotals}
         basis={coverage.basis}
       />
