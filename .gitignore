@@ -82,3 +82,4 @@ HANDOFFS/
 
 # Server-side app state (alert settings, etc.) — never in the repo
 .state/
+*openrouter.env
